@@ -1,3 +1,5 @@
+pub mod ingest;
+
 /// Engine orchestrates retrieval, ingestion, and context pack assembly
 pub struct Engine;
 

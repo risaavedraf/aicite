@@ -1,0 +1,23 @@
+This is a sample text document for testing the AI Harness CLI ingest pipeline.
+
+The document contains multiple paragraphs to test chunking behavior.
+Each paragraph has different content to verify text extraction works correctly.
+
+Section 1: Introduction
+The AI Harness CLI is a semantic document engine for AI agents.
+It ingests documents, extracts text, chunks content, and generates embeddings.
+This allows agents to retrieve relevant context from private document collections.
+
+Section 2: Features
+Key features include:
+- PDF, TXT, and MD file support
+- Configurable chunking with overlap
+- OpenAI-compatible embedding providers
+- SQLite storage with WAL mode
+- Machine-readable JSON output
+
+Section 3: Usage
+To ingest a document, run: harness ingest ./path/to/file.txt
+To list documents, run: harness list
+To get document details, run: harness get <document_id>
+To retry a failed document, run: harness retry <document_id>

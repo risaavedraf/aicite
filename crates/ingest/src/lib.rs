@@ -1,3 +1,7 @@
+pub mod chunker;
+pub mod extractor;
+pub mod validator;
+
 /// Ingest handles document extraction, chunking, and embedding
 pub struct Ingest;
 

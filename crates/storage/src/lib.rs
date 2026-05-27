@@ -2,7 +2,11 @@ use common::HarnessError;
 use rusqlite::Connection;
 use std::path::Path;
 
+pub mod chunks;
+pub mod documents;
+pub mod embeddings;
 mod migrations;
+mod util;
 
 /// Database handle
 pub struct Database {
@@ -53,13 +57,26 @@ impl Database {
     pub fn conn(&self) -> &Connection {
         &self.conn
     }
+
+    /// Open an in-memory database for testing.
+    pub fn open_memory() -> Result<Self, HarnessError> {
+        let conn = Connection::open_in_memory().map_err(|e| HarnessError::StorageError {
+            message: format!("Failed to open in-memory database: {e}"),
+        })?;
+
+        let mut db = Self { conn };
+        db.run_migrations()?;
+        Ok(db)
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
-    fn test_placeholder() {
-        // Placeholder for storage tests
-        // Real tests will use a temp directory with SQLite
+    fn test_open_memory_and_health_check() {
+        let db = Database::open_memory().unwrap();
+        db.check_health().unwrap();
     }
 }

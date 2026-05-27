@@ -6,3 +6,9 @@ edition.workspace = true
 [dependencies]
 common = { workspace = true }
 storage = { workspace = true }
+ingest = { workspace = true }
+providers = { workspace = true }
+config = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }

@@ -24,8 +24,8 @@
 
 ---
 
-### Phase 2: Ingest Pipeline 🔲
-**Status**: Pending
+### Phase 2: Ingest Pipeline ✅
+**Status**: Complete
 
 **What**: Document ingestion — extract text, chunk, embed
 

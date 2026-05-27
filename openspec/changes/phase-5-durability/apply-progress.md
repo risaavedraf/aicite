@@ -14,6 +14,10 @@
 - [x] Slice 3: added persistent durable rate-limit counters migration (`rate_limit_counters`).
 - [x] Slice 3: implemented storage check+increment APIs with window rollover and DB-reopen persistence tests.
 - [x] Slice 3: enforced rate-limit guards for `search`, `retrieve`, and `context` returning `rate_limit_exceeded` with retry-after.
+- [x] Slice 4: aligned retry contract/comments with implemented behavior (`retry_count` reset to 0 on manual retry).
+- [x] Slice 4: implemented deterministic/idempotent interrupted `processing` recovery in engine.
+- [x] Slice 4: wired startup recovery hook at CLI command entry (excluding `health`).
+- [x] Slice 4: guarded recovery to skip while ingest lock is actively held.
 
 ## Files changed
 
@@ -27,10 +31,14 @@
 - `crates/engine/src/ingest.rs`
 - `crates/engine/src/retrieve.rs`
 - `crates/engine/src/context.rs`
+- `crates/engine/src/recovery.rs` (new)
+- `crates/engine/src/lib.rs`
 - `crates/cli/src/commands/search.rs`
 - `crates/cli/src/commands/retrieve.rs`
 - `crates/cli/src/commands/context.rs`
 - `crates/common/src/error.rs`
+- `crates/storage/src/documents.rs`
+- `crates/cli/src/main.rs`
 
 ## Test / verify commands run
 
@@ -52,11 +60,9 @@ Full gates:
 
 ## Remaining tasks
 
-- [ ] Slice 4: retry alignment + interrupted `processing` recovery.
 - [ ] Slice 5: `refresh` + atomic snapshot swap.
 
 ## Workload / PR boundary
 
-- Boundary covered: **Phase 5 Slices 1–3** (lock/backlog foundation, queue modes, durable rate limits).
-- Slice 3 commit size: ~377 insertions / 17 deletions (within 400-line review target).
-- Next boundary: Slice 4 only (retry alignment + interrupted processing recovery).
+- Boundary covered: **Phase 5 Slices 1–4** (lock/backlog foundation, queue modes, durable rate limits, retry/recovery).
+- Next boundary: Slice 5 only (`refresh` + atomic snapshot swap).

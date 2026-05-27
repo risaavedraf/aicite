@@ -142,7 +142,7 @@ Chain strategy: pending
 
 ## PR 5 — `refresh` + atomic snapshot swap
 
-**Status:** ⏳ Pending
+**Status:** ✅ Completed (apply session 2026-05-27)
 
 **Target size:** 300–400 lines  
 **Primary files:**

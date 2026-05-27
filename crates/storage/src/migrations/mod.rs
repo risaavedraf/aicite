@@ -5,6 +5,7 @@ const INITIAL_SCHEMA: &str = include_str!("001_initial.sql");
 const TRACE_CITATIONS_SCHEMA: &str = include_str!("002_trace_citations.sql");
 const DURABLE_INGEST_SCHEMA: &str = include_str!("003_durable_ingest.sql");
 const RATE_LIMITS_SCHEMA: &str = include_str!("004_rate_limits.sql");
+const SNAPSHOTS_SCHEMA: &str = include_str!("005_snapshots.sql");
 
 /// Run pending migrations
 pub fn run(conn: &Connection) -> Result<(), HarnessError> {
@@ -45,6 +46,10 @@ pub fn run(conn: &Connection) -> Result<(), HarnessError> {
 
     if current_version < 4 {
         run_migration(conn, 4, RATE_LIMITS_SCHEMA)?;
+    }
+
+    if current_version < 5 {
+        run_migration(conn, 5, SNAPSHOTS_SCHEMA)?;
     }
 
     Ok(())

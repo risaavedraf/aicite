@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use common::ExitCode;
 use config::Config;
+use std::path::PathBuf;
 use std::process;
 
 mod commands;
@@ -52,6 +53,8 @@ enum Commands {
     Read(commands::read::ReadArgs),
     /// Look up trace metadata for a context/retrieval request
     Trace(commands::trace::TraceArgs),
+    /// Refresh corpus with atomic snapshot swap
+    Refresh,
 }
 
 fn main() {
@@ -68,6 +71,17 @@ fn main() {
         }
     };
 
+    if should_run_startup_recovery(&cli.command) {
+        if let Err(e) = run_startup_recovery(&config, cli.json) {
+            if cli.json {
+                output::print_json(&e.to_json_response());
+            } else {
+                eprintln!("Error: {e}");
+            }
+            process::exit(e.exit_code() as i32);
+        }
+    }
+
     let exit_code = match cli.command {
         Commands::Health => commands::health::execute(&config, cli.json),
         Commands::Ingest(args) => commands::ingest::execute(&args, &config, cli.json),
@@ -79,7 +93,31 @@ fn main() {
         Commands::Context(args) => commands::context::execute(&args, &config, cli.json),
         Commands::Read(args) => commands::read::execute(&args, &config, cli.json),
         Commands::Trace(args) => commands::trace::execute(&args, &config, cli.json),
+        Commands::Refresh => commands::refresh::execute(&config, cli.json),
     };
 
     process::exit(exit_code);
+}
+
+fn should_run_startup_recovery(command: &Commands) -> bool {
+    !matches!(command, Commands::Health)
+}
+
+fn run_startup_recovery(config: &Config, _json: bool) -> Result<(), common::HarnessError> {
+    let data_dir = resolve_data_dir(config);
+    std::fs::create_dir_all(&data_dir).map_err(|e| common::HarnessError::StorageError {
+        message: format!("Failed to create data directory: {e}"),
+    })?;
+
+    let db = storage::Database::open(&data_dir)?;
+    let _ = engine::recovery::recover_interrupted_processing(&db)?;
+    Ok(())
+}
+
+fn resolve_data_dir(config: &Config) -> PathBuf {
+    config.paths.data_dir.clone().unwrap_or_else(|| {
+        dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("harness")
+    })
 }

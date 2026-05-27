@@ -1,5 +1,7 @@
 pub mod context;
 pub mod ingest;
+pub mod recovery;
+pub mod refresh;
 pub mod retrieve;
 
 use common::types::DocumentStatus;

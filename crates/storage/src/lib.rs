@@ -9,6 +9,7 @@ pub mod embeddings;
 pub mod locks;
 mod migrations;
 pub mod rate_limits;
+pub mod snapshots;
 pub mod traces;
 mod util;
 

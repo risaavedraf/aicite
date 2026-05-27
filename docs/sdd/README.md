@@ -2,6 +2,8 @@
 
 This directory contains Specification-Driven Development (SDD) artifacts organized by phase.
 
+📋 **[Roadmap](roadmap.md)** — Full 7-phase plan with deliverables and dependencies
+
 ## Structure
 
 ```

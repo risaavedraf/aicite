@@ -6,7 +6,7 @@ use ingest::chunker::{self};
 use ingest::extractor::{self};
 use ingest::validator;
 use providers::EmbeddingProvider;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use storage::Database;
 use uuid::Uuid;
 
@@ -20,6 +20,12 @@ pub struct IngestResult {
     pub display_name: String,
     pub status: DocumentStatus,
     pub chunk_count: u32,
+}
+
+#[derive(Debug, Clone)]
+pub enum IngestNextResult {
+    Empty,
+    Ingested(IngestResult),
 }
 
 /// Run the full ingest pipeline for a file.
@@ -40,12 +46,87 @@ pub fn ingest(
     display_name_override: Option<&str>,
     production_mode: bool,
 ) -> Result<IngestResult, HarnessError> {
+    ingest_internal(
+        db,
+        provider,
+        config,
+        path,
+        display_name_override,
+        production_mode,
+        true,
+    )
+}
+
+pub fn enqueue_ingest(
+    db: &Database,
+    config: &IngestConfig,
+    path: &Path,
+    display_name_override: Option<&str>,
+) -> Result<(), HarnessError> {
+    let _ = validator::validate_file(path, config.max_file_size_bytes)?;
+    db.upsert_ingest_backlog(path, display_name_override)
+}
+
+pub fn ingest_next(
+    db: &Database,
+    provider: &dyn EmbeddingProvider,
+    config: &IngestConfig,
+    production_mode: bool,
+) -> Result<IngestNextResult, HarnessError> {
+    let Some(item) = db.claim_next_ingest_backlog()? else {
+        return Ok(IngestNextResult::Empty);
+    };
+
+    let source_path = PathBuf::from(&item.source_path);
+    match ingest_internal(
+        db,
+        provider,
+        config,
+        &source_path,
+        item.display_name_override.as_deref(),
+        production_mode,
+        false,
+    ) {
+        Ok(result) => {
+            db.mark_ingest_backlog_done(&item.queue_id)?;
+            Ok(IngestNextResult::Ingested(result))
+        }
+        Err(HarnessError::OperationInProgress {
+            message,
+            retry_after_seconds,
+            lock_name,
+        }) => {
+            db.requeue_ingest_backlog(&item.queue_id)?;
+            Err(HarnessError::OperationInProgress {
+                message,
+                retry_after_seconds,
+                lock_name,
+            })
+        }
+        Err(err) => {
+            db.mark_ingest_backlog_failed(&item.queue_id)?;
+            Err(err)
+        }
+    }
+}
+
+fn ingest_internal(
+    db: &Database,
+    provider: &dyn EmbeddingProvider,
+    config: &IngestConfig,
+    path: &Path,
+    display_name_override: Option<&str>,
+    production_mode: bool,
+    queue_on_lock_conflict: bool,
+) -> Result<IngestResult, HarnessError> {
     // 1. Validate
     let (file_type, file_size) = validator::validate_file(path, config.max_file_size_bytes)?;
 
     let lock_owner_id = format!("ingest_{}", Uuid::new_v4());
     if !db.try_acquire_lock(INGEST_LOCK_NAME, &lock_owner_id)? {
-        db.upsert_ingest_backlog(path, display_name_override)?;
+        if queue_on_lock_conflict {
+            db.upsert_ingest_backlog(path, display_name_override)?;
+        }
 
         return Err(HarnessError::OperationInProgress {
             message: "Ingest pipeline is busy; request queued".to_string(),
@@ -370,5 +451,62 @@ mod tests {
         );
 
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_enqueue_ingest_adds_queued_item() {
+        let db = test_db();
+        let config = IngestConfig::default();
+        let path = temp_txt_file("enqueue");
+
+        enqueue_ingest(&db, &config, &path, Some("queued-doc")).unwrap();
+
+        assert_eq!(db.ingest_backlog_count().unwrap(), 1);
+        assert_eq!(
+            db.ingest_backlog_display_name_for_source(&path).unwrap(),
+            Some("queued-doc".to_string())
+        );
+        assert_eq!(
+            db.ingest_backlog_status_for_source(&path).unwrap(),
+            Some("queued".to_string())
+        );
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_ingest_next_processes_claimed_item_and_marks_done() {
+        let db = test_db();
+        let config = IngestConfig::default();
+        let provider = TestProvider;
+        let path = temp_txt_file("next_success");
+
+        enqueue_ingest(&db, &config, &path, Some("next-doc")).unwrap();
+
+        let result = ingest_next(&db, &provider, &config, false).unwrap();
+        match result {
+            IngestNextResult::Ingested(ingested) => {
+                assert_eq!(ingested.status, DocumentStatus::Ready);
+                assert_eq!(ingested.display_name, "next-doc");
+            }
+            IngestNextResult::Empty => panic!("expected an ingested item"),
+        }
+
+        assert_eq!(
+            db.ingest_backlog_status_for_source(&path).unwrap(),
+            Some("done".to_string())
+        );
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_ingest_next_empty_queue_returns_empty() {
+        let db = test_db();
+        let config = IngestConfig::default();
+        let provider = TestProvider;
+
+        let result = ingest_next(&db, &provider, &config, false).unwrap();
+        assert!(matches!(result, IngestNextResult::Empty));
     }
 }

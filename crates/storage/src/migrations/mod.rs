@@ -4,6 +4,7 @@ use rusqlite::Connection;
 const INITIAL_SCHEMA: &str = include_str!("001_initial.sql");
 const TRACE_CITATIONS_SCHEMA: &str = include_str!("002_trace_citations.sql");
 const DURABLE_INGEST_SCHEMA: &str = include_str!("003_durable_ingest.sql");
+const RATE_LIMITS_SCHEMA: &str = include_str!("004_rate_limits.sql");
 
 /// Run pending migrations
 pub fn run(conn: &Connection) -> Result<(), HarnessError> {
@@ -40,6 +41,10 @@ pub fn run(conn: &Connection) -> Result<(), HarnessError> {
 
     if current_version < 3 {
         run_migration(conn, 3, DURABLE_INGEST_SCHEMA)?;
+    }
+
+    if current_version < 4 {
+        run_migration(conn, 4, RATE_LIMITS_SCHEMA)?;
     }
 
     Ok(())

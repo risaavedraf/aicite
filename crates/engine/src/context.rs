@@ -4,7 +4,7 @@ use common::types::{
     ResultKind, TraceCitationRecord, TraceHeaderInput, TraceResponse,
 };
 use common::HarnessError;
-use config::RetrievalConfig;
+use config::{RateLimitConfig, RetrievalConfig};
 use providers::EmbeddingProvider;
 use retrieval::rank_by_similarity;
 use storage::Database;
@@ -25,6 +25,7 @@ const CORPUS_INDEX_STATE: &str = "ready";
 const CAUTION_TEXT: &str =
     "The following citations may be low-confidence or partially cover the query. \
      Verify claims against source documents before relying on them.";
+const CONTEXT_ROUTE: &str = "context";
 
 // ---------------------------------------------------------------------------
 // Result-kind computation
@@ -97,12 +98,14 @@ pub fn build_context(
     db: &Database,
     provider: &dyn EmbeddingProvider,
     config: &RetrievalConfig,
+    rate_limit: &RateLimitConfig,
     query: &str,
     k_override: Option<u32>,
 ) -> Result<ContextResponse, HarnessError> {
     let start = std::time::Instant::now();
     let k = resolve_k(config, k_override)?;
     validate_query(query)?;
+    enforce_rate_limit(db, provider, rate_limit)?;
 
     // Check corpus readiness
     let non_ready_ids = db.list_non_ready_document_ids()?;
@@ -268,6 +271,27 @@ pub fn build_context(
 // ---------------------------------------------------------------------------
 // Public API: read_context
 // ---------------------------------------------------------------------------
+
+fn enforce_rate_limit(
+    db: &Database,
+    provider: &dyn EmbeddingProvider,
+    rate_limit: &RateLimitConfig,
+) -> Result<(), HarnessError> {
+    let key = provider.provider_id();
+    match db.check_and_increment_rate_limit(
+        CONTEXT_ROUTE,
+        key,
+        rate_limit.max_requests,
+        rate_limit.window_seconds,
+    )? {
+        storage::rate_limits::RateLimitDecision::Allowed => Ok(()),
+        storage::rate_limits::RateLimitDecision::Blocked {
+            retry_after_seconds,
+        } => Err(HarnessError::RateLimitExceeded {
+            retry_after_seconds,
+        }),
+    }
+}
 
 /// Resolve a read request by citation or chunk selector.
 pub fn read_context(db: &Database, selector: ReadSelector) -> Result<ReadResponse, HarnessError> {
@@ -444,6 +468,13 @@ mod tests {
         }
     }
 
+    fn rl_cfg() -> RateLimitConfig {
+        RateLimitConfig {
+            max_requests: 20,
+            window_seconds: 60,
+        }
+    }
+
     #[test]
     fn test_result_kind_context_above_threshold() {
         let db = test_db();
@@ -454,7 +485,7 @@ mod tests {
             vector: vec![1.0, 0.0],
         };
 
-        let result = build_context(&db, &provider, &cfg(), "hello", None).unwrap();
+        let result = build_context(&db, &provider, &cfg(), &rl_cfg(), "hello", None).unwrap();
         assert_eq!(result.result_kind, ResultKind::Context);
         assert!(!result.citations.is_empty());
         assert!(result.metadata.insufficient_context_reason.is_none());
@@ -476,7 +507,7 @@ mod tests {
             confidence_threshold: 0.5,
         };
 
-        let result = build_context(&db, &provider, &config, "hello", None).unwrap();
+        let result = build_context(&db, &provider, &config, &rl_cfg(), "hello", None).unwrap();
         assert_eq!(result.result_kind, ResultKind::NoResults);
         assert!(result.citations.is_empty());
     }
@@ -497,7 +528,7 @@ mod tests {
             confidence_threshold: 0.99,
         };
 
-        let result = build_context(&db, &provider, &config, "hello", None).unwrap();
+        let result = build_context(&db, &provider, &config, &rl_cfg(), "hello", None).unwrap();
         assert_eq!(result.result_kind, ResultKind::InsufficientContext);
         assert!(!result.citations.is_empty());
         assert!(result.metadata.caution.is_some());
@@ -526,7 +557,7 @@ mod tests {
             vector: vec![1.0, 0.0],
         };
 
-        let result = build_context(&db, &provider, &cfg(), "query", None).unwrap();
+        let result = build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None).unwrap();
         assert_eq!(result.metadata.excluded_non_ready_document_count, 1);
         assert!(result
             .metadata
@@ -542,8 +573,32 @@ mod tests {
         let provider = FakeProvider {
             vector: vec![1.0, 0.0],
         };
-        let err = build_context(&db, &provider, &cfg(), "query", None).unwrap_err();
+        let err = build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None).unwrap_err();
         assert!(matches!(err, HarnessError::DocumentNotReady { .. }));
+    }
+
+    #[test]
+    fn test_context_rate_limit_exceeded() {
+        let db = test_db();
+        insert_doc(&db, "d1", DocumentStatus::Ready);
+        insert_chunk(&db, "d1", "c1", "text", vec![1.0, 0.0]);
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let rl = RateLimitConfig {
+            max_requests: 1,
+            window_seconds: 60,
+        };
+
+        assert!(build_context(&db, &provider, &cfg(), &rl, "query", None).is_ok());
+        let err = build_context(&db, &provider, &cfg(), &rl, "query", None).unwrap_err();
+        assert!(matches!(
+            err,
+            HarnessError::RateLimitExceeded {
+                retry_after_seconds: _
+            }
+        ));
     }
 
     #[test]
@@ -555,7 +610,7 @@ mod tests {
         let provider = FakeProvider {
             vector: vec![1.0, 0.0],
         };
-        let result = build_context(&db, &provider, &cfg(), "query", None).unwrap();
+        let result = build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None).unwrap();
 
         // Should be fetchable via trace
         let envelope = db.get_trace_envelope(&result.trace_id).unwrap();
@@ -572,7 +627,7 @@ mod tests {
         let provider = FakeProvider {
             vector: vec![1.0, 0.0],
         };
-        let ctx = build_context(&db, &provider, &cfg(), "query", None).unwrap();
+        let ctx = build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None).unwrap();
 
         let read = read_context(
             &db,
@@ -668,7 +723,7 @@ mod tests {
         let provider = FakeProvider {
             vector: vec![1.0, 0.0],
         };
-        let ctx = build_context(&db, &provider, &cfg(), "query", None).unwrap();
+        let ctx = build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None).unwrap();
         let trace = get_trace(&db, &provider, &ctx.trace_id).unwrap();
 
         assert_eq!(trace.schema_version, "context-v1");

@@ -72,6 +72,7 @@ pub fn execute(args: &SearchArgs, config: &Config, json: bool) -> i32 {
         &db,
         provider.as_ref(),
         &config.retrieval,
+        &config.rate_limit,
         &args.query,
         args.k,
     ) {

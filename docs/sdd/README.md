@@ -22,8 +22,8 @@ docs/sdd/
 | Phase | Name | Status |
 |---|---|---|
 | 1 | Scaffold | ✅ Complete |
-| 2 | Ingest Pipeline | 🔲 Pending |
-| 3 | Retrieval Pipeline | 🔲 Pending |
+| 2 | Ingest Pipeline | ✅ Complete |
+| 3 | Retrieval Pipeline | ✅ Complete |
 | 4 | Context Packs + Citations | 🔲 Pending |
 | 5 | Durability (locks, rate limits) | 🔲 Pending |
 | 6 | Evaluation (golden dataset) | 🔲 Pending |

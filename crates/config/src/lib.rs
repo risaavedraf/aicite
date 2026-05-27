@@ -149,6 +149,9 @@ impl Config {
         if let Some(model) = env.embedding_model {
             config.embedding.model = model;
         }
+        if let Some(val) = env.top_k {
+            config.retrieval.top_k = val;
+        }
         if let Some(val) = env.max_file_size_bytes {
             config.ingest.max_file_size_bytes = val;
         }
@@ -176,6 +179,7 @@ struct EnvOverrides {
     cache_dir: Option<PathBuf>,
     embedding_provider: Option<String>,
     embedding_model: Option<String>,
+    top_k: Option<u32>,
     max_file_size_bytes: Option<u64>,
     chunk_size_chars: Option<usize>,
     chunk_overlap_chars: Option<usize>,
@@ -198,6 +202,9 @@ impl EnvOverrides {
             cache_dir: std::env::var("HARNESS_CACHE_DIR").ok().map(PathBuf::from),
             embedding_provider: std::env::var("HARNESS_EMBEDDING_PROVIDER").ok(),
             embedding_model: std::env::var("HARNESS_EMBEDDING_MODEL").ok(),
+            top_k: std::env::var("HARNESS_TOP_K")
+                .ok()
+                .and_then(|v| v.parse().ok()),
             max_file_size_bytes: std::env::var("HARNESS_MAX_FILE_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok()),

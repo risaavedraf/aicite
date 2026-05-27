@@ -42,6 +42,10 @@ enum Commands {
     Get(commands::get::GetArgs),
     /// Retry a failed document
     Retry(commands::retry::RetryArgs),
+    /// Search the ready corpus using vector similarity
+    Search(commands::search::SearchArgs),
+    /// Retrieve top-ranked chunks with full text
+    Retrieve(commands::retrieve::RetrieveArgs),
 }
 
 fn main() {
@@ -64,6 +68,8 @@ fn main() {
         Commands::List => commands::list::execute(&config, cli.json),
         Commands::Get(args) => commands::get::execute(&args, &config, cli.json),
         Commands::Retry(args) => commands::retry::execute(&args, &config, cli.json),
+        Commands::Search(args) => commands::search::execute(&args, &config, cli.json),
+        Commands::Retrieve(args) => commands::retrieve::execute(&args, &config, cli.json),
     };
 
     process::exit(exit_code);

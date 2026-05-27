@@ -26,6 +26,7 @@ storage = { path = "crates/storage" }
 engine = { path = "crates/engine" }
 ingest = { path = "crates/ingest" }
 providers = { path = "crates/providers" }
+retrieval = { path = "crates/retrieval" }
 cli = { path = "crates/cli" }
 
 # External dependencies

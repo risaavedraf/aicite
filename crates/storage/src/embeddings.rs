@@ -4,6 +4,32 @@ use rusqlite::params;
 use crate::util::storage_err;
 use crate::Database;
 
+#[derive(Debug, Clone)]
+pub struct ChunkEmbeddingRecord {
+    pub chunk_id: String,
+    pub document_id: String,
+    pub display_name: String,
+    pub section_id: Option<String>,
+    pub chunk_index: u32,
+    pub text: String,
+    pub page: Option<u32>,
+    pub offset_start: Option<u32>,
+    pub offset_end: Option<u32>,
+    pub vector: Vec<f32>,
+}
+
+fn decode_vector_blob(blob: &[u8]) -> Option<Vec<f32>> {
+    if !blob.len().is_multiple_of(4) {
+        return None;
+    }
+
+    Some(
+        blob.chunks_exact(4)
+            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect(),
+    )
+}
+
 // ---------------------------------------------------------------------------
 // CRUD operations
 // ---------------------------------------------------------------------------
@@ -48,6 +74,65 @@ impl Database {
             .map_err(storage_err)?;
 
         Ok(count as u64)
+    }
+
+    /// List chunk embeddings for documents with status='ready'.
+    pub fn list_ready_chunk_embeddings(&self) -> Result<Vec<ChunkEmbeddingRecord>, HarnessError> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT
+                    c.chunk_id,
+                    c.document_id,
+                    d.display_name,
+                    c.section_id,
+                    c.chunk_index,
+                    c.text,
+                    c.page,
+                    c.offset_start,
+                    c.offset_end,
+                    e.vector
+                 FROM embeddings e
+                 INNER JOIN chunks c ON c.chunk_id = e.chunk_id
+                 INNER JOIN documents d ON d.document_id = c.document_id
+                 WHERE d.status = 'ready'
+                 ORDER BY d.created_at DESC, c.chunk_index ASC",
+            )
+            .map_err(storage_err)?;
+
+        let mut rows = stmt.query([]).map_err(storage_err)?;
+        let mut out = Vec::new();
+
+        while let Some(row) = rows.next().map_err(storage_err)? {
+            let blob: Vec<u8> = row.get(9).map_err(storage_err)?;
+            let Some(vector) = decode_vector_blob(&blob) else {
+                continue;
+            };
+
+            out.push(ChunkEmbeddingRecord {
+                chunk_id: row.get(0).map_err(storage_err)?,
+                document_id: row.get(1).map_err(storage_err)?,
+                display_name: row.get(2).map_err(storage_err)?,
+                section_id: row.get(3).map_err(storage_err)?,
+                chunk_index: row.get::<_, i64>(4).map_err(storage_err)? as u32,
+                text: row.get(5).map_err(storage_err)?,
+                page: row
+                    .get::<_, Option<i64>>(6)
+                    .map_err(storage_err)?
+                    .map(|v| v as u32),
+                offset_start: row
+                    .get::<_, Option<i64>>(7)
+                    .map_err(storage_err)?
+                    .map(|v| v as u32),
+                offset_end: row
+                    .get::<_, Option<i64>>(8)
+                    .map_err(storage_err)?
+                    .map(|v| v as u32),
+                vector,
+            });
+        }
+
+        Ok(out)
     }
 }
 
@@ -152,9 +237,12 @@ mod tests {
             .unwrap();
 
         // Duplicate chunk_id should fail and roll back
-        let result = db.insert_embeddings(&[
-            ("doc-1-c0".to_string(), vec![9.0], "m2", "p2"), // dup PK
-        ]);
+        let result = db.insert_embeddings(&[(
+            "doc-1-c0".to_string(),
+            vec![9.0],
+            "m2",
+            "p2", // dup PK
+        )]);
         assert!(result.is_err());
 
         // Original embedding should still be there
@@ -216,5 +304,48 @@ mod tests {
             )
             .unwrap();
         assert!(blob.is_empty());
+    }
+
+    #[test]
+    fn test_list_ready_chunk_embeddings_filters_by_document_status() {
+        let db = Database::open_memory().unwrap();
+        insert_parent_doc(&db, "doc-ready");
+        insert_parent_doc(&db, "doc-failed");
+
+        db.update_document_status("doc-ready", DocumentStatus::Ready, None)
+            .unwrap();
+        db.update_document_status("doc-failed", DocumentStatus::Failed, None)
+            .unwrap();
+
+        insert_chunks_for_doc(&db, "doc-ready", 1);
+        insert_chunks_for_doc(&db, "doc-failed", 1);
+
+        db.insert_embeddings(&[
+            ("doc-ready-c0".to_string(), vec![0.1, 0.2], "m", "p"),
+            ("doc-failed-c0".to_string(), vec![0.9, 1.0], "m", "p"),
+        ])
+        .unwrap();
+
+        let rows = db.list_ready_chunk_embeddings().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].document_id, "doc-ready");
+        assert_eq!(rows[0].chunk_id, "doc-ready-c0");
+    }
+
+    #[test]
+    fn test_list_ready_chunk_embeddings_decodes_vector() {
+        let db = Database::open_memory().unwrap();
+        insert_parent_doc(&db, "doc-ready");
+        db.update_document_status("doc-ready", DocumentStatus::Ready, None)
+            .unwrap();
+        insert_chunks_for_doc(&db, "doc-ready", 1);
+
+        db.insert_embeddings(&[("doc-ready-c0".to_string(), vec![1.5, 2.5, 3.5], "m", "p")])
+            .unwrap();
+
+        let rows = db.list_ready_chunk_embeddings().unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].vector, vec![1.5, 2.5, 3.5]);
+        assert_eq!(rows[0].display_name, "doc-ready.txt");
     }
 }

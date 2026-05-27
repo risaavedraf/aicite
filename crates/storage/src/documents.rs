@@ -166,6 +166,43 @@ impl Database {
         Ok(documents)
     }
 
+    /// List documents filtered by status.
+    pub fn list_documents_by_status(
+        &self,
+        status: DocumentStatus,
+    ) -> Result<Vec<Document>, HarnessError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM documents WHERE status = ?1 ORDER BY created_at ASC")
+            .map_err(storage_err)?;
+
+        let mut rows = stmt
+            .query(params![status_to_str(&status)])
+            .map_err(storage_err)?;
+
+        let mut documents = Vec::new();
+        while let Some(row) = rows.next().map_err(storage_err)? {
+            documents.push(row_to_document(row)?);
+        }
+        Ok(documents)
+    }
+
+    /// List all documents currently marked as processing.
+    pub fn list_processing_documents(&self) -> Result<Vec<Document>, HarnessError> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT * FROM documents WHERE status = 'processing' ORDER BY created_at ASC")
+            .map_err(storage_err)?;
+
+        let mut rows = stmt.query([]).map_err(storage_err)?;
+
+        let mut documents = Vec::new();
+        while let Some(row) = rows.next().map_err(storage_err)? {
+            documents.push(row_to_document(row)?);
+        }
+        Ok(documents)
+    }
+
     /// Update the status (and optional error info) of a document.
     pub fn update_document_status(
         &self,
@@ -249,6 +286,31 @@ impl Database {
         }
         Ok(())
     }
+
+    /// Recover processing documents only when the ingest lock is not currently held.
+    pub fn recover_processing_documents_if_lock_free(
+        &self,
+        lock_name: &str,
+        error: &ErrorInfo,
+    ) -> Result<u32, HarnessError> {
+        let n = self
+            .conn
+            .execute(
+                "UPDATE documents
+                 SET status = 'failed',
+                     error_code = ?1,
+                     error_message = ?2,
+                     updated_at = ?3
+                 WHERE status = 'processing'
+                   AND NOT EXISTS (
+                       SELECT 1 FROM durable_locks WHERE lock_name = ?4
+                   )",
+                params![error.code, error.message, format_dt(&Utc::now()), lock_name],
+            )
+            .map_err(storage_err)?;
+
+        Ok(n as u32)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -312,6 +374,24 @@ mod tests {
 
         let docs = db.list_documents().unwrap();
         assert_eq!(docs.len(), 3);
+    }
+
+    #[test]
+    fn test_list_processing_documents_filters_correctly() {
+        let db = Database::open_memory().unwrap();
+        db.insert_document(&make_doc("pending")).unwrap();
+
+        let mut processing = make_doc("processing");
+        processing.status = DocumentStatus::Processing;
+        db.insert_document(&processing).unwrap();
+
+        let mut failed = make_doc("failed");
+        failed.status = DocumentStatus::Failed;
+        db.insert_document(&failed).unwrap();
+
+        let processing_docs = db.list_processing_documents().unwrap();
+        assert_eq!(processing_docs.len(), 1);
+        assert_eq!(processing_docs[0].document_id, "processing");
     }
 
     #[test]
@@ -436,5 +516,52 @@ mod tests {
         db.insert_document(&make_doc("dup")).unwrap();
         let result = db.insert_document(&make_doc("dup"));
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_recover_processing_documents_if_lock_free() {
+        let db = Database::open_memory().unwrap();
+
+        let mut processing = make_doc("processing");
+        processing.status = DocumentStatus::Processing;
+        db.insert_document(&processing).unwrap();
+
+        let updated = db
+            .recover_processing_documents_if_lock_free(
+                "ingest_pipeline",
+                &ErrorInfo {
+                    code: "interrupted_processing_recovered".to_string(),
+                    message: "Recovered".to_string(),
+                },
+            )
+            .unwrap();
+        assert_eq!(updated, 1);
+
+        let doc = db.get_document("processing").unwrap().unwrap();
+        assert_eq!(doc.status, DocumentStatus::Failed);
+    }
+
+    #[test]
+    fn test_recover_processing_documents_skips_when_lock_exists() {
+        let db = Database::open_memory().unwrap();
+
+        let mut processing = make_doc("processing");
+        processing.status = DocumentStatus::Processing;
+        db.insert_document(&processing).unwrap();
+        db.try_acquire_lock("ingest_pipeline", "owner-a").unwrap();
+
+        let updated = db
+            .recover_processing_documents_if_lock_free(
+                "ingest_pipeline",
+                &ErrorInfo {
+                    code: "interrupted_processing_recovered".to_string(),
+                    message: "Recovered".to_string(),
+                },
+            )
+            .unwrap();
+        assert_eq!(updated, 0);
+
+        let doc = db.get_document("processing").unwrap().unwrap();
+        assert_eq!(doc.status, DocumentStatus::Processing);
     }
 }

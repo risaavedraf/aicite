@@ -23,6 +23,20 @@ impl Database {
         Ok(inserted > 0)
     }
 
+    /// Returns true when a named lock currently exists.
+    pub fn is_lock_held(&self, lock_name: &str) -> Result<bool, HarnessError> {
+        let held: i64 = self
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM durable_locks WHERE lock_name = ?1",
+                params![lock_name],
+                |row| row.get(0),
+            )
+            .map_err(storage_err)?;
+
+        Ok(held > 0)
+    }
+
     /// Release a named durable lock only when owned by `owner_id`.
     pub fn release_lock(&self, lock_name: &str, owner_id: &str) -> Result<(), HarnessError> {
         self.conn
@@ -62,5 +76,14 @@ mod tests {
 
         db.release_lock("ingest_pipeline", "owner-a").unwrap();
         assert!(db.try_acquire_lock("ingest_pipeline", "owner-c").unwrap());
+    }
+
+    #[test]
+    fn test_is_lock_held() {
+        let db = Database::open_memory().unwrap();
+        assert!(!db.is_lock_held("ingest_pipeline").unwrap());
+
+        db.try_acquire_lock("ingest_pipeline", "owner-a").unwrap();
+        assert!(db.is_lock_held("ingest_pipeline").unwrap());
     }
 }

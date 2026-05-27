@@ -292,7 +292,7 @@ fn cleanup_partial(db: &Database, document_id: &str) -> Result<(), HarnessError>
     Ok(())
 }
 
-/// Retry a failed document: reset to pending, clear error, increment retry count
+/// Retry a failed document: reset to pending, clear error, and reset retry_count to 0
 pub fn retry_document(db: &Database, document_id: &str) -> Result<Document, HarnessError> {
     let doc = db
         .get_document(document_id)?

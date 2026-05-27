@@ -10,6 +10,9 @@ use std::path::Path;
 use storage::Database;
 use uuid::Uuid;
 
+const INGEST_LOCK_NAME: &str = "ingest_pipeline";
+const INGEST_LOCK_RETRY_AFTER_SECONDS: u32 = 5;
+
 /// Result of a successful ingestion
 #[derive(Debug, Clone)]
 pub struct IngestResult {
@@ -38,58 +41,83 @@ pub fn ingest(
     production_mode: bool,
 ) -> Result<IngestResult, HarnessError> {
     // 1. Validate
-    let (file_type, _file_size) = validator::validate_file(path, config.max_file_size_bytes)?;
+    let (file_type, file_size) = validator::validate_file(path, config.max_file_size_bytes)?;
 
-    // 2. Derive display name
-    let display_name = validator::derive_display_name(path, display_name_override, production_mode);
+    let lock_owner_id = format!("ingest_{}", Uuid::new_v4());
+    if !db.try_acquire_lock(INGEST_LOCK_NAME, &lock_owner_id)? {
+        db.upsert_ingest_backlog(path, display_name_override)?;
 
-    // 3. Create document record
-    let document_id = format!("doc_{}", &Uuid::new_v4().to_string().replace('-', "")[..12]);
-    let doc = Document {
-        document_id: document_id.clone(),
-        display_name: display_name.clone(),
-        file_path: path.to_path_buf(),
-        file_type: file_type.clone(),
-        file_size_bytes: _file_size,
-        status: DocumentStatus::Pending,
-        chunk_count: 0,
-        retry_count: 0,
-        max_retry_count: config.max_retry_count,
-        next_retry_at: None,
-        error: None,
-        created_at: Utc::now(),
-        updated_at: Utc::now(),
-    };
-    db.insert_document(&doc)?;
+        return Err(HarnessError::OperationInProgress {
+            message: "Ingest pipeline is busy; request queued".to_string(),
+            retry_after_seconds: INGEST_LOCK_RETRY_AFTER_SECONDS,
+            lock_name: Some(INGEST_LOCK_NAME.to_string()),
+        });
+    }
 
-    // 4. Mark processing
-    db.update_document_status(&document_id, DocumentStatus::Processing, None)?;
+    let result = (|| {
+        // 2. Derive display name
+        let display_name =
+            validator::derive_display_name(path, display_name_override, production_mode);
 
-    // Run the rest of the pipeline; on any error, clean up and mark failed
-    match run_pipeline(db, provider, config, &document_id, path, &file_type) {
-        Ok(chunk_count) => {
-            // Success — mark ready
-            db.update_document_status(&document_id, DocumentStatus::Ready, None)?;
-            db.update_document_chunk_count(&document_id, chunk_count)?;
+        // 3. Create document record
+        let document_id = format!("doc_{}", &Uuid::new_v4().to_string().replace('-', "")[..12]);
+        let doc = Document {
+            document_id: document_id.clone(),
+            display_name: display_name.clone(),
+            file_path: path.to_path_buf(),
+            file_type: file_type.clone(),
+            file_size_bytes: file_size,
+            status: DocumentStatus::Pending,
+            chunk_count: 0,
+            retry_count: 0,
+            max_retry_count: config.max_retry_count,
+            next_retry_at: None,
+            error: None,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        db.insert_document(&doc)?;
 
-            Ok(IngestResult {
-                document_id,
-                display_name,
-                status: DocumentStatus::Ready,
-                chunk_count,
-            })
+        // 4. Mark processing
+        db.update_document_status(&document_id, DocumentStatus::Processing, None)?;
+
+        // Run the rest of the pipeline; on any error, clean up and mark failed
+        match run_pipeline(db, provider, config, &document_id, path, &file_type) {
+            Ok(chunk_count) => {
+                // Success — mark ready
+                db.update_document_status(&document_id, DocumentStatus::Ready, None)?;
+                db.update_document_chunk_count(&document_id, chunk_count)?;
+
+                Ok(IngestResult {
+                    document_id,
+                    display_name,
+                    status: DocumentStatus::Ready,
+                    chunk_count,
+                })
+            }
+            Err(e) => {
+                // Failure — clean up partial data and mark failed
+                let _ = cleanup_partial(db, &document_id);
+                let error_info = ErrorInfo {
+                    code: e.code().to_string(),
+                    message: e.message(),
+                };
+                let _ = db.update_document_status(
+                    &document_id,
+                    DocumentStatus::Failed,
+                    Some(error_info),
+                );
+                Err(e)
+            }
         }
-        Err(e) => {
-            // Failure — clean up partial data and mark failed
-            let _ = cleanup_partial(db, &document_id);
-            let error_info = ErrorInfo {
-                code: e.code().to_string(),
-                message: e.message(),
-            };
-            let _ =
-                db.update_document_status(&document_id, DocumentStatus::Failed, Some(error_info));
-            Err(e)
-        }
+    })();
+
+    let release_result = db.release_lock(INGEST_LOCK_NAME, &lock_owner_id);
+
+    match (result, release_result) {
+        (Err(err), _) => Err(err),
+        (Ok(_), Err(release_err)) => Err(release_err),
+        (Ok(value), Ok(())) => Ok(value),
     }
 }
 
@@ -241,10 +269,38 @@ pub fn get_document(db: &Database, document_id: &str) -> Result<Document, Harnes
 #[cfg(test)]
 mod tests {
     use super::*;
+    use providers::EmbeddingProvider;
+    use std::fs;
     use storage::Database;
+
+    struct TestProvider;
+
+    impl EmbeddingProvider for TestProvider {
+        fn embed(&self, _text: &str) -> Result<Vec<f32>, HarnessError> {
+            Ok(vec![0.1, 0.2, 0.3])
+        }
+
+        fn model_id(&self) -> &str {
+            "test-model"
+        }
+
+        fn provider_id(&self) -> &str {
+            "test-provider"
+        }
+    }
 
     fn test_db() -> Database {
         Database::open_memory().expect("failed to open in-memory DB")
+    }
+
+    fn temp_txt_file(prefix: &str) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!(
+            "aiharness_ingest_{}_{}.txt",
+            prefix,
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        fs::write(&path, "hello world\nthis is a test file").unwrap();
+        path
     }
 
     #[test]
@@ -292,5 +348,27 @@ mod tests {
         let db = test_db();
         let result = retry_document(&db, "doc_nonexistent");
         assert!(matches!(result, Err(HarnessError::DocumentNotFound { .. })));
+    }
+
+    #[test]
+    fn test_ingest_lock_conflict_upserts_backlog_and_returns_operation_in_progress() {
+        let db = test_db();
+        db.try_acquire_lock(INGEST_LOCK_NAME, "other-owner")
+            .unwrap();
+
+        let path = temp_txt_file("lock_conflict");
+        let provider = TestProvider;
+        let config = IngestConfig::default();
+
+        let err = ingest(&db, &provider, &config, &path, Some("queued-doc"), false).unwrap_err();
+        assert!(matches!(err, HarnessError::OperationInProgress { .. }));
+
+        assert_eq!(db.ingest_backlog_count().unwrap(), 1);
+        assert_eq!(
+            db.ingest_backlog_display_name_for_source(&path).unwrap(),
+            Some("queued-doc".to_string())
+        );
+
+        let _ = fs::remove_file(path);
     }
 }

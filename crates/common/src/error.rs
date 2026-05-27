@@ -125,11 +125,28 @@ impl HarnessError {
 
     /// Convert to JSON error response
     pub fn to_json_response(&self) -> ErrorResponse {
+        let details = match self {
+            Self::RateLimitExceeded {
+                retry_after_seconds,
+            } => Some(serde_json::json!({
+                "retry_after_seconds": retry_after_seconds,
+            })),
+            Self::OperationInProgress {
+                retry_after_seconds,
+                lock_name,
+                ..
+            } => Some(serde_json::json!({
+                "retry_after_seconds": retry_after_seconds,
+                "lock_name": lock_name,
+            })),
+            _ => None,
+        };
+
         ErrorResponse {
             error: ErrorBody {
                 code: self.code().to_string(),
                 message: self.message(),
-                details: None,
+                details,
             },
         }
     }
@@ -147,4 +164,24 @@ pub struct ErrorBody {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<serde_json::Value>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_operation_in_progress_json_contains_retry_and_lock() {
+        let err = HarnessError::OperationInProgress {
+            message: "busy".to_string(),
+            retry_after_seconds: 5,
+            lock_name: Some("ingest_pipeline".to_string()),
+        };
+
+        let response = err.to_json_response();
+        let details = response.error.details.expect("details are required");
+
+        assert_eq!(details["retry_after_seconds"], 5);
+        assert_eq!(details["lock_name"], "ingest_pipeline");
+    }
 }

@@ -2,9 +2,11 @@ use common::HarnessError;
 use rusqlite::Connection;
 use std::path::Path;
 
+pub mod backlog;
 pub mod chunks;
 pub mod documents;
 pub mod embeddings;
+pub mod locks;
 mod migrations;
 pub mod traces;
 mod util;

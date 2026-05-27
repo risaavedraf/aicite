@@ -1,7 +1,10 @@
+pub mod context;
 pub mod get;
 pub mod health;
 pub mod ingest;
 pub mod list;
+pub mod read;
 pub mod retrieve;
 pub mod retry;
 pub mod search;
+pub mod trace;

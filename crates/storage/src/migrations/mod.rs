@@ -2,6 +2,7 @@ use common::HarnessError;
 use rusqlite::Connection;
 
 const INITIAL_SCHEMA: &str = include_str!("001_initial.sql");
+const TRACE_CITATIONS_SCHEMA: &str = include_str!("002_trace_citations.sql");
 
 /// Run pending migrations
 pub fn run(conn: &Connection) -> Result<(), HarnessError> {
@@ -30,6 +31,10 @@ pub fn run(conn: &Connection) -> Result<(), HarnessError> {
     // Run pending migrations
     if current_version < 1 {
         run_migration(conn, 1, INITIAL_SCHEMA)?;
+    }
+
+    if current_version < 2 {
+        run_migration(conn, 2, TRACE_CITATIONS_SCHEMA)?;
     }
 
     Ok(())

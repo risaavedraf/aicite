@@ -24,7 +24,7 @@ docs/sdd/
 | 1 | Scaffold | ✅ Complete |
 | 2 | Ingest Pipeline | ✅ Complete |
 | 3 | Retrieval Pipeline | ✅ Complete |
-| 4 | Context Packs + Citations | 🔲 Pending |
+| 4 | Context Packs + Citations | ✅ Complete |
 | 5 | Durability (locks, rate limits) | 🔲 Pending |
 | 6 | Evaluation (golden dataset) | 🔲 Pending |
 | 7 | Packaging + Docs | 🔲 Pending |

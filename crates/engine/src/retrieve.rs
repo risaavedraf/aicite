@@ -99,7 +99,10 @@ pub fn retrieve(
         .collect())
 }
 
-fn resolve_k(config: &RetrievalConfig, k_override: Option<u32>) -> Result<u32, HarnessError> {
+pub(crate) fn resolve_k(
+    config: &RetrievalConfig,
+    k_override: Option<u32>,
+) -> Result<u32, HarnessError> {
     let k = k_override.unwrap_or(config.top_k);
     if !(MIN_K..=MAX_K).contains(&k) {
         return Err(HarnessError::InvalidParameter {
@@ -109,7 +112,7 @@ fn resolve_k(config: &RetrievalConfig, k_override: Option<u32>) -> Result<u32, H
     Ok(k)
 }
 
-fn validate_query(query: &str) -> Result<(), HarnessError> {
+pub(crate) fn validate_query(query: &str) -> Result<(), HarnessError> {
     let trimmed = query.trim();
     if trimmed.is_empty() {
         return Err(HarnessError::InvalidParameter {

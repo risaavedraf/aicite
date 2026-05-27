@@ -1,0 +1,134 @@
+use clap::Args;
+use common::ExitCode;
+use config::Config;
+use engine::context;
+use providers::gemini::GeminiProvider;
+use providers::openai::OpenAICompatibleProvider;
+use providers::EmbeddingProvider;
+use std::path::PathBuf;
+
+use crate::output::print_json;
+
+#[derive(Args)]
+pub struct ContextArgs {
+    /// Natural-language query
+    pub query: String,
+
+    /// Number of results (1..10)
+    #[arg(long)]
+    pub k: Option<u32>,
+}
+
+pub fn execute(args: &ContextArgs, config: &Config, json: bool) -> i32 {
+    let data_dir = resolve_data_dir(config);
+    let db = match storage::Database::open(&data_dir) {
+        Ok(db) => db,
+        Err(e) => {
+            if json {
+                print_json(&e.to_json_response());
+            } else {
+                eprintln!("Error: {e}");
+            }
+            return e.exit_code() as i32;
+        }
+    };
+
+    let provider: Box<dyn EmbeddingProvider> = match create_provider(config) {
+        Ok(p) => p,
+        Err(e) => {
+            if json {
+                print_json(&e.to_json_response());
+            } else {
+                eprintln!("Error: {e}");
+            }
+            return e.exit_code() as i32;
+        }
+    };
+
+    match context::build_context(
+        &db,
+        provider.as_ref(),
+        &config.retrieval,
+        &args.query,
+        args.k,
+    ) {
+        Ok(response) => {
+            if json {
+                print_json(&response);
+            } else {
+                println!("Context pack ({}):", response.result_kind);
+                println!("  Citations: {}", response.citations.len());
+                println!("  Trace ID: {}", response.trace_id);
+                println!();
+                for (idx, citation) in response.citations.iter().enumerate() {
+                    println!(
+                        "  {}. [{:.4}] {} [{}]",
+                        idx + 1,
+                        citation.score.unwrap_or(0.0),
+                        citation.display_name,
+                        citation.citation_id
+                    );
+                    println!("     {}", truncate(&citation.text, 160));
+                }
+                println!();
+                println!("{}", response.metadata.disclaimer);
+                if let Some(caution) = &response.metadata.caution {
+                    println!("⚠ {}", caution);
+                }
+            }
+
+            ExitCode::Success as i32
+        }
+        Err(e) => {
+            if json {
+                print_json(&e.to_json_response());
+            } else {
+                eprintln!("Error: {e}");
+            }
+            e.exit_code() as i32
+        }
+    }
+}
+
+fn truncate(text: &str, max_chars: usize) -> String {
+    let mut chars = text.chars();
+    let truncated: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        format!("{}…", truncated)
+    } else {
+        truncated
+    }
+}
+
+fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, common::HarnessError> {
+    let api_key = std::env::var("HARNESS_EMBEDDING_API_KEY")
+        .or_else(|_| std::env::var("GEMINI_API_KEY"))
+        .or_else(|_| std::env::var("OPENAI_API_KEY"))
+        .unwrap_or_default();
+
+    match config.embedding.provider.as_str() {
+        "gemini" => {
+            let provider = GeminiProvider::new(&config.embedding.model, &api_key)?;
+            Ok(Box::new(provider))
+        }
+        _ => {
+            let endpoint = config
+                .ingest
+                .embedding_endpoint
+                .as_deref()
+                .unwrap_or("https://api.openai.com/v1/embeddings");
+
+            let provider =
+                OpenAICompatibleProvider::new(endpoint, &config.embedding.model, &api_key)?;
+            Ok(Box::new(provider))
+        }
+    }
+}
+
+fn resolve_data_dir(config: &Config) -> PathBuf {
+    config.paths.data_dir.clone().unwrap_or_else(|| {
+        dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("harness")
+    })
+}

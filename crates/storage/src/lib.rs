@@ -6,6 +6,7 @@ pub mod chunks;
 pub mod documents;
 pub mod embeddings;
 mod migrations;
+pub mod traces;
 mod util;
 
 /// Database handle

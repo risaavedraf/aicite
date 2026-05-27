@@ -46,6 +46,12 @@ enum Commands {
     Search(commands::search::SearchArgs),
     /// Retrieve top-ranked chunks with full text
     Retrieve(commands::retrieve::RetrieveArgs),
+    /// Build an agent-consumable context pack with citations
+    Context(commands::context::ContextArgs),
+    /// Read a citation or chunk by ID
+    Read(commands::read::ReadArgs),
+    /// Look up trace metadata for a context/retrieval request
+    Trace(commands::trace::TraceArgs),
 }
 
 fn main() {
@@ -70,6 +76,9 @@ fn main() {
         Commands::Retry(args) => commands::retry::execute(&args, &config, cli.json),
         Commands::Search(args) => commands::search::execute(&args, &config, cli.json),
         Commands::Retrieve(args) => commands::retrieve::execute(&args, &config, cli.json),
+        Commands::Context(args) => commands::context::execute(&args, &config, cli.json),
+        Commands::Read(args) => commands::read::execute(&args, &config, cli.json),
+        Commands::Trace(args) => commands::trace::execute(&args, &config, cli.json),
     };
 
     process::exit(exit_code);

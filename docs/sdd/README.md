@@ -1,0 +1,28 @@
+# SDD Artifacts — AI Harness CLI
+
+This directory contains Specification-Driven Development (SDD) artifacts organized by phase.
+
+## Structure
+
+```
+docs/sdd/
+├── phase-1-scaffold/     # Project scaffolding and core infrastructure
+│   ├── explore-notes.md  # PRD analysis and architectural decisions
+│   ├── proposal.md       # Change proposal and scope
+│   ├── spec.md           # Functional specification
+│   ├── design.md         # Technical design decisions
+│   └── tasks.md          # Implementation task breakdown
+└── phase-N-*/            # Future phases
+```
+
+## Phases
+
+| Phase | Name | Status |
+|---|---|---|
+| 1 | Scaffold | ✅ Complete |
+| 2 | Ingest Pipeline | 🔲 Pending |
+| 3 | Retrieval Pipeline | 🔲 Pending |
+| 4 | Context Packs + Citations | 🔲 Pending |
+| 5 | Durability (locks, rate limits) | 🔲 Pending |
+| 6 | Evaluation (golden dataset) | 🔲 Pending |
+| 7 | Packaging + Docs | 🔲 Pending |

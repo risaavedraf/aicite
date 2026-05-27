@@ -1,0 +1,42 @@
+# SDD Configuration — AI Harness CLI
+# This file configures the SDD flow for this project.
+
+project:
+  name: aiharness
+  description: "CLI-first semantic document engine for AI agents — Rust + SQLite + vector search"
+  language: rust
+  repo_root: "."
+
+sdd:
+  execution_mode: interactive
+  artifact_store: openspec
+  artifact_dir: docs/sdd
+  chained_pr_strategy: ask_always
+  review_budget_lines: 400
+
+testing:
+  strict_tdd: false
+  test_command: "cargo test"
+  lint_command: "cargo clippy -- -D warnings"
+  format_command: "cargo fmt --check"
+
+phases:
+  - init
+  - explore
+  - proposal
+  - spec
+  - design
+  - tasks
+  - apply
+  - verify
+  - archive
+
+constraints:
+  - "MVP is CLI-first, no daemon required"
+  - "Single-shot durable process model"
+  - "Vector-first retrieval, no built-in answer generation"
+  - "SQLite for persistence, WAL mode"
+  - "9 crate module structure: engine, storage, config, graph, retrieval, ingest, providers, cli, common"
+  - "Public packaged demo uses sample documents only; uploads disabled"
+  - "Local/private mode allows imports after no-sensitive-data warning"
+  - "Production mode blocked until compliance checklist complete"

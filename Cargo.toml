@@ -1,0 +1,46 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/cli",
+  "crates/engine",
+  "crates/storage",
+  "crates/config",
+  "crates/graph",
+  "crates/retrieval",
+  "crates/ingest",
+  "crates/providers",
+  "crates/common",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/your-org/aiharness"
+
+[workspace.dependencies]
+# Internal crates
+common = { path = "crates/common" }
+config = { path = "crates/config" }
+storage = { path = "crates/storage" }
+engine = { path = "crates/engine" }
+cli = { path = "crates/cli" }
+
+# External dependencies
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+chrono = { version = "0.4", features = ["serde"] }
+rusqlite = { version = "0.31", features = ["bundled"] }
+toml = "0.8"
+dirs = "5"
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

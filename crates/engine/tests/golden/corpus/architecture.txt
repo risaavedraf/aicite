@@ -1,0 +1,73 @@
+NovaPay Platform — System Architecture Overview
+
+Version: 2.4.0
+Last updated: 2026-03-12
+Owner: Platform Engineering
+
+1. Overview
+
+NovaPay is a cloud-native payment processing platform designed to handle high-throughput
+transaction workloads with strong consistency guarantees. The system is deployed across
+three availability zones on AWS and follows a microservices architecture pattern with
+event-driven communication between bounded contexts. This document describes the core
+infrastructure components, their interactions, and the key architectural decisions that
+govern the platform's behavior under normal and degraded conditions.
+
+2. API Gateway
+
+The API gateway routes all external requests to internal microservices and handles
+authentication token validation. It serves as the single entry point for all client
+traffic, including merchant dashboards, mobile SDKs, and third-party integrations. The
+gateway enforces rate limiting per API key, applies request transformation rules for
+versioned endpoints, and maintains circuit breaker state for each downstream service.
+When a downstream service becomes unhealthy, the gateway returns a structured error
+response with a correlation ID that clients can use for support inquiries. The gateway
+is deployed as a fleet of stateless instances behind a Network Load Balancer, with
+auto-scaling triggered at 70% connection utilization.
+
+3. Data Layer
+
+The system uses PostgreSQL with read replicas for high availability, with automatic
+failover within 30 seconds. The primary instance handles all write operations, while
+read replicas serve analytics queries and reporting endpoints. Connection pooling is
+managed through PgBouncer with a pool size of 200 connections per application instance.
+Schema migrations are applied through a versioned migration tool with advisory locks to
+prevent concurrent execution. Sensitive fields such as card numbers are encrypted at the
+application layer using AES-256-GCM before storage, with keys rotated quarterly through
+AWS KMS.
+
+4. Authentication and Token Management
+
+Authentication uses JWT tokens with 15-minute expiry and refresh tokens valid for 7 days.
+Access tokens are signed with RS256 and include claims for user identity, assigned roles,
+and the originating service. Refresh tokens are stored as opaque references in a dedicated
+token store backed by Redis, allowing server-side revocation when a user logs out or when
+suspicious activity is detected. The token rotation strategy issues a new refresh token
+with each use, invalidating the previous one to limit replay attack surface. Administrative
+actions such as role changes trigger immediate invalidation of all active sessions for the
+affected user.
+
+5. Observability
+
+All services emit structured JSON logs shipped to a centralized ELK stack for analysis.
+Log entries include a correlation ID, service name, environment, and a nanosecond-precision
+timestamp. The ELK pipeline applies index lifecycle management policies that retain hot
+data for 14 days and archive older data to S3 for 90 days. In addition to logs, each
+service exposes Prometheus-compatible metrics scraped at 15-second intervals, and
+distributed traces are collected via OpenTelemetry with a default sampling rate of 10%,
+increased to 100% for error paths. Alerting rules in Grafana PagerDuty integration route
+P1 incidents to the on-call engineer within two minutes of threshold breach.
+
+6. Deployment and CI/CD
+
+The platform uses a trunk-based development model with short-lived feature branches.
+All merges to main trigger a CI pipeline that runs unit tests, contract tests against
+shared API schemas, and a security scan. Production deployments use blue-green releases
+with automated rollback on health check failure. Infrastructure is defined in Terraform
+modules stored in a separate repository, with plan output reviewed before apply.
+
+7. Non-Goals
+
+This architecture does not aim to support multi-region active-active writes. Regional
+failover is handled at the DNS level with an expected RTO of five minutes and an RPO of
+zero for committed transactions due to synchronous replication to the standby.

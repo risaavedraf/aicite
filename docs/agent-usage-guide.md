@@ -182,6 +182,21 @@ A `--doc` flag to search within specific documents:
 harness context "query" --doc architecture.txt --doc api-reference.md
 ```
 
+## Known issue: `insufficient_context` with large chunks
+
+When chunks are large (800-1000+ chars), the vector similarity score tends to drop because the query only matches a small portion of the chunk text. This can cause `result_kind: "insufficient_context"` even when the relevant information is present.
+
+**Example**: A query about "functional requirements" might match a 900-char chunk that contains 100 chars of relevant text and 800 chars of other content. The cosine similarity averages over the whole chunk, diluting the score.
+
+**Observed behavior**: Queries about project requirements returned scores of 0.62-0.69 (below the 0.70 confidence threshold), even though the correct documents were retrieved.
+
+**Potential solutions**:
+- Smaller chunks (300-500 chars) for more precise matching
+- Hybrid scoring: vector similarity + keyword overlap boost
+- Score normalization based on chunk length
+- Adaptive thresholds per document type
+- Reranking pass that scores query-relevant portions of chunks
+
 ## Performance characteristics
 
 | Metric | Typical value |

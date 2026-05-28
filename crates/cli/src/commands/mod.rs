@@ -1,4 +1,5 @@
 pub mod context;
+pub mod evaluate;
 pub mod get;
 pub mod health;
 pub mod ingest;

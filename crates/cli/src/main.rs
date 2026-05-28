@@ -55,6 +55,8 @@ enum Commands {
     Trace(commands::trace::TraceArgs),
     /// Refresh corpus with atomic snapshot swap
     Refresh,
+    /// Run golden dataset evaluation to verify retrieval quality
+    Evaluate(commands::evaluate::EvaluateArgs),
 }
 
 fn main() {
@@ -94,6 +96,7 @@ fn main() {
         Commands::Read(args) => commands::read::execute(&args, &config, cli.json),
         Commands::Trace(args) => commands::trace::execute(&args, &config, cli.json),
         Commands::Refresh => commands::refresh::execute(&config, cli.json),
+        Commands::Evaluate(args) => commands::evaluate::execute(&args, &config, cli.json),
     };
 
     process::exit(exit_code);

@@ -298,7 +298,7 @@ mod tests {
         db.attach_document_to_snapshot("snap-1", "doc-1").unwrap();
         db.attach_document_to_snapshot("snap-1", "doc-1").unwrap(); // duplicate
 
-        let members = db.get_active_snapshot_member_ids().unwrap();
+        let _members = db.get_active_snapshot_member_ids().unwrap();
         // Snapshot not activated yet, so members query returns None
         // Instead, query directly
         let count: i64 = db

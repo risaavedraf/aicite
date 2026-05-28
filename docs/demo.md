@@ -9,7 +9,7 @@ This guide walks through two demo tracks: a packaged demo (no Rust required) and
 ### Step 1: Health check
 
 ```bash
-./harness health --json
+./cite health --json
 ```
 
 **Expected output**: JSON with `"status": "healthy"` and config summary.
@@ -19,7 +19,7 @@ This guide walks through two demo tracks: a packaged demo (no Rust required) and
 ### Step 2: List sample documents
 
 ```bash
-./harness list
+./cite list
 ```
 
 **Expected output**: 3 preloaded sample documents (architecture, API reference, security policy) with `ready` status.
@@ -29,7 +29,7 @@ This guide walks through two demo tracks: a packaged demo (no Rust required) and
 ### Step 3: Query for known information
 
 ```bash
-./harness context "What does the API gateway do?"
+./cite context "What does the API gateway do?"
 ```
 
 **Expected output**: Context pack with `result_kind: "context"`, citations, and a verification disclaimer.
@@ -39,7 +39,7 @@ This guide walks through two demo tracks: a packaged demo (no Rust required) and
 ### Step 4: Inspect a citation
 
 ```bash
-./harness read <citation-id-from-step-3>
+./cite read <citation-id-from-step-3>
 ```
 
 **Expected output**: Source text showing API gateway routing details.
@@ -49,7 +49,7 @@ This guide walks through two demo tracks: a packaged demo (no Rust required) and
 ### Step 5: Query for unknown information
 
 ```bash
-./harness context "What is quantum computing?"
+./cite context "What is quantum computing?"
 ```
 
 **Expected output**: `result_kind: "no_results"` with no citations. No fabricated answers.
@@ -67,7 +67,7 @@ The output from Steps 3-5 should show:
 ### Step 7: Run evaluation (optional)
 
 ```bash
-./harness evaluate
+./cite evaluate
 ```
 
 **Expected output**: 8/8 fixtures pass, hit rate ≥ 80%.
@@ -98,7 +98,7 @@ cp .env.example .env
 ### Step 3: Ingest demo documents
 
 ```bash
-./target/release/harness ingest demo/
+./target/release/cite ingest demo/
 ```
 
 **Expected output**:
@@ -111,7 +111,7 @@ cp .env.example .env
 ### Step 4: Verify ingestion
 
 ```bash
-./target/release/harness list
+./target/release/cite list
 ```
 
 **Expected output**: 3 documents with `ready` status and chunk counts.
@@ -121,7 +121,7 @@ cp .env.example .env
 ### Step 5: Query with citations
 
 ```bash
-./target/release/harness context "How are passwords validated?"
+./target/release/cite context "How are passwords validated?"
 ```
 
 **Expected output**: Context pack with citations referencing the security policy document.
@@ -131,7 +131,7 @@ cp .env.example .env
 ### Step 6: Inspect source
 
 ```bash
-./target/release/harness read <citation-id-from-step-5>
+./target/release/cite read <citation-id-from-step-5>
 ```
 
 **Expected output**: Source text showing password requirements (12+ characters, complexity rules).
@@ -141,7 +141,7 @@ cp .env.example .env
 ### Step 7: No-results query
 
 ```bash
-./target/release/harness context "What is quantum computing?"
+./target/release/cite context "What is quantum computing?"
 ```
 
 **Expected output**: `result_kind: "no_results"`, no citations.
@@ -151,7 +151,7 @@ cp .env.example .env
 ### Step 8: Run evaluation
 
 ```bash
-./target/release/harness evaluate
+./target/release/cite evaluate
 ```
 
 **Expected output**:

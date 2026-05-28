@@ -9,7 +9,7 @@ mod output;
 
 /// AI Harness CLI — semantic document context engine for AI agents
 #[derive(Parser)]
-#[command(name = "harness", version, about)]
+#[command(name = "cite", version, about)]
 struct Cli {
     /// Output format
     #[arg(long, global = true)]

@@ -20,40 +20,40 @@ cd aiharness
 cargo build --release
 
 # Verify the installation
-./target/release/harness health
+./target/release/cite health
 
 # Ingest a document
-./target/release/harness ingest ./demo/security-policy.txt
+./target/release/cite ingest ./demo/security-policy.txt
 
 # Search the corpus
-./target/release/harness search "what is the security policy"
+./target/release/cite search "what is the security policy"
 
 # Get agent-consumable context with citations
-./target/release/harness context "how does authentication work"
+./target/release/cite context "how does authentication work"
 ```
 
 All commands accept `--json` for structured output suitable for agent pipelines:
 
 ```bash
-harness health --json
+cite health --json
 ```
 
 ## All commands
 
 | Command | Description | Example |
 |---|---|---|
-| `health` | Check CLI runtime and local state health | `harness health --json` |
-| `ingest` | Ingest a document into the corpus | `harness ingest ./doc.txt` |
-| `list` | List documents in the corpus | `harness list` |
-| `get` | Get document metadata | `harness get <doc-id>` |
-| `retry` | Retry a failed document | `harness retry <doc-id>` |
-| `search` | Search the ready corpus using vector similarity | `harness search "what is the API gateway"` |
-| `retrieve` | Retrieve top-ranked chunks with full text | `harness retrieve "database setup"` |
-| `context` | Build an agent-consumable context pack with citations | `harness context "how does auth work"` |
-| `read` | Read a citation or chunk by ID | `harness read <citation-id>` |
-| `trace` | Look up trace metadata for a context/retrieval request | `harness trace <trace-id>` |
-| `refresh` | Refresh corpus with atomic snapshot swap | `harness refresh` |
-| `evaluate` | Run golden dataset evaluation to verify retrieval quality | `harness evaluate --json` |
+| `health` | Check CLI runtime and local state health | `cite health --json` |
+| `ingest` | Ingest a document into the corpus | `cite ingest ./doc.txt` |
+| `list` | List documents in the corpus | `cite list` |
+| `get` | Get document metadata | `cite get <doc-id>` |
+| `retry` | Retry a failed document | `cite retry <doc-id>` |
+| `search` | Search the ready corpus using vector similarity | `cite search "what is the API gateway"` |
+| `retrieve` | Retrieve top-ranked chunks with full text | `cite retrieve "database setup"` |
+| `context` | Build an agent-consumable context pack with citations | `cite context "how does auth work"` |
+| `read` | Read a citation or chunk by ID | `cite read <citation-id>` |
+| `trace` | Look up trace metadata for a context/retrieval request | `cite trace <trace-id>` |
+| `refresh` | Refresh corpus with atomic snapshot swap | `cite refresh` |
+| `evaluate` | Run golden dataset evaluation to verify retrieval quality | `cite evaluate --json` |
 
 Global flags available on every command:
 
@@ -73,22 +73,22 @@ Download the pre-built binary for your platform, then run:
 
 ```bash
 # 1. Verify runtime health
-harness health --json
+cite health --json
 
 # 2. List the bundled sample documents
-harness list
+cite list
 
 # 3. Search the sample corpus
-harness search "what is the security policy"
+cite search "what is the security policy"
 
 # 4. Get a full context pack with citations
-harness context "how does the API reference work"
+cite context "how does the API reference work"
 
 # 5. Inspect a specific citation by ID
-harness read <citation-id>
+cite read <citation-id>
 
 # 6. View trace metadata for the context request
-harness trace <trace-id>
+cite trace <trace-id>
 ```
 
 The packaged demo runs in `public_packaged_demo` mode: uploads are disabled and only bundled sample documents are available. Do not enter personal or confidential information.
@@ -106,16 +106,16 @@ cp .env.example .env
 # Edit .env and set HARNESS_EMBEDDING_API_KEY
 
 # 3. Ingest the demo documents
-./target/release/harness ingest ./demo/api-reference.md
-./target/release/harness ingest ./demo/architecture.txt
-./target/release/harness ingest ./demo/security-policy.txt
+./target/release/cite ingest ./demo/api-reference.md
+./target/release/cite ingest ./demo/architecture.txt
+./target/release/cite ingest ./demo/security-policy.txt
 
 # 4. Search and retrieve
-./target/release/harness search "what are the architecture boundaries"
-./target/release/harness context "explain the API contract"
+./target/release/cite search "what are the architecture boundaries"
+./target/release/cite context "explain the API contract"
 
 # 5. Evaluate retrieval quality against golden fixtures
-./target/release/harness evaluate --json
+./target/release/cite evaluate --json
 ```
 
 The local/private demo runs in `local_private_demo` mode: uploads are enabled and data is stored locally. Do not upload personal, sensitive, or confidential information unless you control the environment and provider configuration.
@@ -203,7 +203,7 @@ rm $HARNESS_DATA_DIR/harness.db*
 After a database reset, re-ingest documents to rebuild the corpus:
 
 ```bash
-harness refresh
+cite refresh
 ```
 
 ## Privacy and compliance

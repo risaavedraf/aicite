@@ -19,16 +19,16 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            artifact_name: harness-linux-amd64
-            binary_path: target/release/harness
+            artifact_name: cite-linux-amd64
+            binary_path: target/release/cite
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            artifact_name: harness-windows-amd64.exe
-            binary_path: target/release/harness.exe
+            artifact_name: cite-windows-amd64.exe
+            binary_path: target/release/cite.exe
           - target: aarch64-apple-darwin
             os: macos-latest
-            artifact_name: harness-macos-arm64
-            binary_path: target/release/harness
+            artifact_name: cite-macos-arm64
+            binary_path: target/release/cite
     steps:
       - uses: actions/checkout@v4
 
@@ -68,6 +68,6 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            harness-linux-amd64
-            harness-windows-amd64.exe
-            harness-macos-arm64
+            cite-linux-amd64
+            cite-windows-amd64.exe
+            cite-macos-arm64

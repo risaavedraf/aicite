@@ -1,34 +1,34 @@
-# Installation Guide — Harness CLI
+# Installation Guide — CITE CLI
 
-This document describes how to install the Harness CLI on different platforms. Currently, only manual binary download is available. Automated installation methods are planned.
+This document describes how to install the CITE CLI on different platforms. Currently, only manual binary download is available. Automated installation methods are planned.
 
 ## Current: Manual binary download
 
 ### Linux (x86_64)
 
 ```bash
-curl -sSfL https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/harness-linux-amd64 -o harness
-chmod +x harness
-sudo mv harness /usr/local/bin/
-harness health --json
+curl -sSfL https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-linux-amd64 -o cite
+chmod +x cite
+sudo mv cite /usr/local/bin/
+cite health --json
 ```
 
 ### macOS (Apple Silicon)
 
 ```bash
-curl -sSfL https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/harness-macos-arm64 -o harness
-chmod +x harness
-sudo mv harness /usr/local/bin/
-harness health --json
+curl -sSfL https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-macos-arm64 -o cite
+chmod +x cite
+sudo mv cite /usr/local/bin/
+cite health --json
 ```
 
 ### Windows (PowerShell)
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/harness-windows-amd64.exe" -OutFile "harness.exe"
+Invoke-WebRequest -Uri "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-windows-amd64.exe" -OutFile "cite.exe"
 # Move to a directory in PATH, e.g.:
-Move-Item harness.exe C:\Users\$env:USERNAME\AppData\Local\Microsoft\WinGet\Links\
-harness health --json
+Move-Item cite.exe C:\Users\$env:USERNAME\AppData\Local\Microsoft\WinGet\Links\
+cite health --json
 ```
 
 ---
@@ -42,20 +42,20 @@ harness health --json
 **Installation:**
 
 ```powershell
-# Add the harness bucket
-scoop bucket add harness https://github.com/risaavedraf/harness-scoop
+# Add the cite bucket
+scoop bucket add cite https://github.com/risaavedraf/cite-scoop
 
-# Install harness
-scoop install harness
+# Install cite
+scoop install cite
 ```
 
 **Updating:**
 
 ```powershell
-scoop update harness
+scoop update cite
 ```
 
-**Manifest example** (`harness.json`):
+**Manifest example** (`cite.json`):
 
 ```json
 {
@@ -65,18 +65,18 @@ scoop update harness
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/harness-windows-amd64.exe#/harness.exe",
+      "url": "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-windows-amd64.exe#/cite.exe",
       "hash": "sha256:..."
     }
   },
-  "bin": "harness.exe",
+  "bin": "cite.exe",
   "checkver": {
     "github": "https://github.com/risaavedraf/aiharness"
   },
   "autoupdate": {
     "architecture": {
       "64bit": {
-        "url": "https://github.com/risaavedraf/aiharness/releases/download/v$version/harness-windows-amd64.exe#/harness.exe"
+        "url": "https://github.com/risaavedraf/aiharness/releases/download/v$version/cite-windows-amd64.exe#/cite.exe"
       }
     }
   }
@@ -85,7 +85,7 @@ scoop update harness
 
 **Steps to set up:**
 
-1. Create repo `risaavedraf/harness-scoop` with the manifest
+1. Create repo `risaavedraf/cite-scoop` with the manifest
 2. Or submit to the main Scoop bucket
 3. Update hash after each release (CI can automate this)
 
@@ -99,22 +99,22 @@ scoop update harness
 
 ```bash
 # Add the tap
-brew tap risaavedraf/harness
+brew tap risaavedraf/cite
 
-# Install harness
-brew install harness
+# Install cite
+brew install cite
 ```
 
 **Updating:**
 
 ```bash
-brew upgrade harness
+brew upgrade cite
 ```
 
-**Formula example** (`harness.rb`):
+**Formula example** (`cite.rb`):
 
 ```ruby
-class Harness < Formula
+class Cite < Formula
   desc "CLI-first semantic document engine for AI agents"
   homepage "https://github.com/risaavedraf/aiharness"
   version "0.1.0"
@@ -122,36 +122,36 @@ class Harness < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/harness-macos-arm64"
+      url "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-macos-arm64"
       sha256 "..."
     end
     on_intel do
-      url "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/harness-macos-amd64"
+      url "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-macos-amd64"
       sha256 "..."
     end
   end
 
   on_linux do
     on_intel do
-      url "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/harness-linux-amd64"
+      url "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-linux-amd64"
       sha256 "..."
     end
   end
 
   def install
-    bin.install "harness"
+    bin.install "cite"
   end
 
   test do
-    system "#{bin}/harness", "health", "--json"
+    system "#{bin}/cite", "health", "--json"
   end
 end
 ```
 
 **Steps to set up:**
 
-1. Create repo `risaavedraf/homebrew-harness`
-2. Add `harness.rb` formula
+1. Create repo `risaavedraf/homebrew-cite`
+2. Add `cite.rb` formula
 3. Update SHA256 hashes after each release (CI can automate this)
 
 ---
@@ -165,7 +165,7 @@ If the user has a Rust toolchain, they can install directly from the repo:
 cargo install --git https://github.com/risaavedraf/aiharness --tag v0.1.0
 
 # Or from crates.io (once published)
-cargo install harness
+cargo install cite
 ```
 
 **Prerequisites:** Rust 1.75+
@@ -178,7 +178,7 @@ A universal install script that detects OS and architecture:
 
 ```bash
 #!/bin/bash
-# install.sh — Instala harness CLI
+# install.sh — Instala cite CLI
 set -e
 
 VERSION="${HARNESS_VERSION:-0.1.0}"
@@ -208,18 +208,18 @@ detect_platform() {
 main() {
   local platform
   platform=$(detect_platform)
-  local url="${BASE_URL}/harness-${platform}"
+  local url="${BASE_URL}/cite-${platform}"
   local install_dir="${INSTALL_DIR:-/usr/local/bin}"
 
-  echo "Installing harness v${VERSION} for ${platform}..."
+  echo "Installing cite v${VERSION} for ${platform}..."
   echo "Download: ${url}"
 
-  curl -sSfL "$url" -o "${install_dir}/harness"
-  chmod +x "${install_dir}/harness"
+  curl -sSfL "$url" -o "${install_dir}/cite"
+  chmod +x "${install_dir}/cite"
 
   echo ""
-  echo "Installed: ${install_dir}/harness"
-  "${install_dir}/harness" health --json
+  echo "Installed: ${install_dir}/cite"
+  "${install_dir}/cite" health --json
 }
 
 main "$@"
@@ -246,28 +246,28 @@ For environments where installing binaries isn't preferred:
 
 ```dockerfile
 FROM debian:bookworm-slim
-COPY harness /usr/local/bin/harness
-RUN chmod +x /usr/local/bin/harness
-ENTRYPOINT ["harness"]
+COPY cite /usr/local/bin/cite
+RUN chmod +x /usr/local/bin/cite
+ENTRYPOINT ["cite"]
 ```
 
 **Usage:**
 
 ```bash
 # Build
-docker build -t harness .
+docker build -t cite .
 
 # Run
-docker run harness health --json
-docker run -v ./docs:/docs harness ingest /docs/readme.md
-docker run harness context "what is this project about?"
+docker run cite health --json
+docker run -v ./docs:/docs cite ingest /docs/readme.md
+docker run cite context "what is this project about?"
 ```
 
 **Or from GitHub Container Registry:**
 
 ```bash
-docker pull ghcr.io/risaavedraf/harness:latest
-docker run ghcr.io/risaavedraf/harness:latest context "query" --json
+docker pull ghcr.io/risaavedraf/cite:latest
+docker run ghcr.io/risaavedraf/cite:latest context "query" --json
 ```
 
 ---
@@ -281,11 +281,11 @@ For Debian-based systems, a `.deb` package:
 ```bash
 # Add the repository
 curl -sSf https://packages.harness.dev/gpg.key | sudo apt-key add -
-echo "deb https://packages.harness.dev stable main" | sudo tee /etc/apt/sources.list.d/harness.list
+echo "deb https://packages.harness.dev stable main" | sudo tee /etc/apt/sources.list.d/cite.list
 
 # Install
 sudo apt update
-sudo apt install harness
+sudo apt install cite
 ```
 
 **Building the .deb (CI):**
@@ -294,7 +294,7 @@ sudo apt install harness
 # Using cargo-deb
 cargo install cargo-deb
 cargo deb --release
-# Output: target/debian/harness_0.1.0_amd64.deb
+# Output: target/debian/cite_0.1.0_amd64.deb
 ```
 
 ---
@@ -313,6 +313,10 @@ cargo deb --release
 
 ## Post-install setup
 
+> Phase 8 note: runtime configuration names remain `HARNESS_*` for now. The migration to `CITE_*` and data/db path renaming is deferred to Phase 9.
+>
+> See `docs/sdd/phase-8-rename-cite/migration-checklist.md` for the local migration checklist.
+
 After installing, configure the embedding provider:
 
 ```bash
@@ -327,7 +331,7 @@ export HARNESS_EMBEDDING_API_KEY=your-key-here
 export HARNESS_EMBEDDING_PROVIDER=gemini
 
 # Verify
-harness health --json
+cite health --json
 ```
 
 ## Uninstall
@@ -335,20 +339,20 @@ harness health --json
 ### Manual
 
 ```bash
-sudo rm /usr/local/bin/harness
+sudo rm /usr/local/bin/cite
 rm -rf $HARNESS_DATA_DIR
 ```
 
 ### Scoop
 
 ```powershell
-scoop uninstall harness
-scoop bucket rm harness
+scoop uninstall cite
+scoop bucket rm cite
 ```
 
 ### Homebrew
 
 ```bash
-brew uninstall harness
-brew untap risaavedraf/harness
+brew uninstall cite
+brew untap risaavedraf/cite
 ```

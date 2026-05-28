@@ -10,13 +10,13 @@ After building the project (`cargo build --release`) or installing a release bin
 
 ```bash
 # Direct binary (if in PATH)
-harness context "what are the acceptance criteria?"
+cite context "what are the acceptance criteria?"
 
 # Or with full path
-./target/release/harness context "what are the acceptance criteria?"
+./target/release/cite context "what are the acceptance criteria?"
 
 # JSON output for machine parsing
-harness context "what are the acceptance criteria?" --json
+cite context "what are the acceptance criteria?" --json
 ```
 
 The agent calls the CLI as a subprocess, parses the JSON output, and uses the citations to answer questions.
@@ -24,7 +24,7 @@ The agent calls the CLI as a subprocess, parses the JSON output, and uses the ci
 ### Typical agent workflow
 
 ```
-1. harness context "<question>" --json
+1. cite context "<question>" --json
 2. Parse result_kind → decide if answer is possible
 3. Parse citations[] → extract text + scores
 4. Build response using ONLY cited text
@@ -131,7 +131,7 @@ This would reduce token usage by 50-80% for agents that don't need full chunk te
 A `--max-chars` option to limit total context size:
 
 ```bash
-harness context "query" --max-chars 2000
+cite context "query" --max-chars 2000
 ```
 
 The CLI would return the most relevant citations that fit within the character budget.
@@ -154,10 +154,10 @@ For long-running queries, streaming the results as they're computed would improv
 
 ### 5. Multi-query batching
 
-A `harness context-batch` command that accepts multiple queries in one call:
+A `cite context-batch` command that accepts multiple queries in one call:
 
 ```bash
-harness context-batch --json << 'EOF'
+cite context-batch --json << 'EOF'
 ["query 1", "query 2", "query 3"]
 EOF
 ```
@@ -169,7 +169,7 @@ This would reduce overhead for agents that need to ask multiple related question
 A `--min-score` flag to only return citations above a certain threshold:
 
 ```bash
-harness context "query" --min-score 0.7
+cite context "query" --min-score 0.7
 ```
 
 This would filter out low-relevance results automatically.
@@ -179,7 +179,7 @@ This would filter out low-relevance results automatically.
 A `--doc` flag to search within specific documents:
 
 ```bash
-harness context "query" --doc architecture.txt --doc api-reference.md
+cite context "query" --doc architecture.txt --doc api-reference.md
 ```
 
 ### 8. Compact mode for agents (`--compact`)
@@ -230,10 +230,10 @@ The current JSON contract returns all metadata fields, most of which an agent do
 **Usage**:
 ```bash
 # Compact mode (default for agents)
-harness context "query"
+cite context "query"
 
 # Full mode (when you need all metadata)
-harness context "query" --full
+cite context "query" --full
 ```
 
 **Fields comparison**:
@@ -262,7 +262,7 @@ Limit the text returned per citation:
 
 ```bash
 # Return only 200 chars per citation instead of full chunk
-harness context "query" --max-snippet-chars 200
+cite context "query" --max-snippet-chars 200
 ```
 
 **Impact**: Reduces token usage by 50-70% while keeping the most relevant content.
@@ -272,7 +272,7 @@ harness context "query" --max-snippet-chars 200
 Let the agent specify exactly which fields it needs:
 
 ```bash
-harness context "query" --fields result_kind,citations.id,citations.snippet,citations.score
+cite context "query" --fields result_kind,citations.id,citations.snippet,citations.score
 ```
 
 This is the most flexible approach but adds CLI complexity.

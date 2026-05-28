@@ -1,4 +1,4 @@
-# SDD Proposal — AI Harness CLI: MVP Implementation
+# SDD Proposal — AI Cite CLI: MVP Implementation
 
 ## Change name
 
@@ -38,7 +38,7 @@ Set up the complete Rust workspace with the 9-crate module structure defined in 
 2. `cargo test` runs and passes (even if tests are minimal)
 3. `cargo clippy -- -D warnings` passes
 4. `cargo fmt --check` passes
-5. `harness health --json` returns valid health JSON
+5. `cite health --json` returns valid health JSON
 6. Config loads from env vars, config file, and CLI flags with correct precedence
 7. SQLite database initializes with migration system
 8. CI pipeline runs on push/PR

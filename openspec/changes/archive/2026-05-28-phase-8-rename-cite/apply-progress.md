@@ -2,7 +2,7 @@
 
 ## Completed tasks
 
-- [x] Slice A: renamed CLI binary target from `harness` to `cite`.
+- [x] Slice A: renamed CLI binary target from `cite` to `cite`.
 - [x] Slice A: updated Clap command name to `cite`.
 - [x] Slice A: verified local help invocation via `cargo run --bin cite -- --help`.
 - [x] Slice B: updated canonical command-facing docs to use `cite`:
@@ -31,10 +31,10 @@
 
 - `cargo run --bin cite -- --help`
 - `cargo test`
-- `rg -n "harness\s+(context|search|retrieve|ingest|list|get|trace|read|evaluate|refresh|retry)" README.md docs/demo.md docs/installation.md docs/agent-usage-guide.md docs/rename-to-cite.md`
-- `rg -n "HARNESS_" crates/config crates/storage`
+- `rg -n "cite\s+(context|search|retrieve|ingest|list|get|trace|read|evaluate|refresh|retry)" README.md docs/demo.md docs/installation.md docs/agent-usage-guide.md docs/rename-to-cite.md`
 - `rg -n "CITE_" crates/config crates/storage`
-- `rg -n "CITE_|HARNESS_" docs/sdd/phase-8-rename-cite/migration-checklist.md docs/installation.md`
+- `rg -n "CITE_" crates/config crates/storage`
+- `rg -n "CITE_|CITE_" docs/sdd/phase-8-rename-cite/migration-checklist.md docs/installation.md`
 
 ## Deviations from design
 
@@ -43,7 +43,7 @@
 ## Remaining tasks
 
 - [ ] Run Phase 8 `sdd-verify` gate.
-- [ ] Optional: broaden docs grep to `\bharness\b` for non-subcommand leftovers in command examples.
+- [ ] Optional: broaden docs grep to `\bcite\b` for non-subcommand leftovers in command examples.
 
 ## Workload / PR boundary
 

@@ -1,6 +1,6 @@
 # Sample Markdown Document
 
-This is a **markdown** document for testing the AI Harness CLI.
+This is a **markdown** document for testing the AI Cite CLI.
 
 ## Overview
 
@@ -22,9 +22,9 @@ Configuration is loaded from multiple sources:
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `HARNESS_DATA_DIR` | Data directory | OS-specific |
-| `HARNESS_EMBEDDING_PROVIDER` | Provider ID | `openai-compatible` |
-| `HARNESS_EMBEDDING_MODEL` | Model ID | `text-embedding-3-small` |
+| `CITE_DATA_DIR` | Data directory | OS-specific |
+| `CITE_EMBEDDING_PROVIDER` | Provider ID | `openai-compatible` |
+| `CITE_EMBEDDING_MODEL` | Model ID | `text-embedding-3-small` |
 
 ## Error Handling
 

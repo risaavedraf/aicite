@@ -26,8 +26,8 @@ Configuration is part of the public contract because agents need reproducible au
 | Layer | Examples | Rule |
 |---|---|---|
 | CLI flags | `--config`, `--data-dir`, `--cache-dir`, `--runtime-mode`, `--top-k`, `--json` | Highest precedence |
-| Environment | `HARNESS_CONFIG`, `HARNESS_DATA_DIR`, `HARNESS_CACHE_DIR`, `HARNESS_RUNTIME_MODE`, `HARNESS_EMBEDDING_PROVIDER`, `HARNESS_EMBEDDING_MODEL`, provider secret vars | Overrides config files |
-| Config file | `$XDG_CONFIG_HOME/harness/config.toml`, `%APPDATA%\\harness\\config.toml`, `~/Library/Application Support/harness/config.toml`, or `HARNESS_CONFIG` | Overrides defaults |
+| Environment | `CITE_CONFIG`, `CITE_DATA_DIR`, `CITE_CACHE_DIR`, `CITE_RUNTIME_MODE`, `CITE_EMBEDDING_PROVIDER`, `CITE_EMBEDDING_MODEL`, provider secret vars | Overrides config files |
+| Config file | `$XDG_CONFIG_HOME/cite/config.toml`, `%APPDATA%\\cite\\config.toml`, `~/Library/Application Support/cite/config.toml`, or `CITE_CONFIG` | Overrides defaults |
 | Defaults | public packaged demo defaults or local/private dev defaults | Lowest precedence |
 
 Required config topics:
@@ -56,7 +56,7 @@ The CLI must not rely on process-local sessions for correctness.
 
 ## Health
 
-### `harness health`
+### `cite health`
 
 Returns runtime and local-state status.
 
@@ -84,7 +84,7 @@ Documents use this canonical lifecycle:
 
 ## Commands
 
-### `harness ingest`
+### `cite ingest`
 
 Imports a document and processes it when the current runtime mode permits uploads. In `public_packaged_demo`, the command rejects uploads because the CLI uses preloaded sample documents. In `production`, the command rejects uploads until the compliance checklist is complete.
 
@@ -100,7 +100,7 @@ Imports a document and processes it when the current runtime mode permits upload
 Request example:
 
 ```bash
-harness ingest ./docs/handbook.pdf --display-name "handbook.pdf" --json
+cite ingest ./docs/handbook.pdf --display-name "handbook.pdf" --json
 ```
 
 Response:
@@ -118,9 +118,9 @@ Response:
 
 `display_name` is optional. When omitted, the system derives a sanitized display label from the selected file. When provided, it overrides the display name shown in `list`, `get`, `search`, `retrieve`, `context`, `read`, and `trace` output. Raw filenames are internal/debug metadata and must not be returned to normal consumers or logs.
 
-**Backlog behavior:** `harness ingest <path>` validates the file, atomically upserts a durable backlog/loadable-document record for the same path/corpus, and attempts immediate processing when the ingestion lock is free. If the same path is already present in the active corpus, the command returns the existing document/backlog ID and must not create duplicate rows. `harness ingest <path> --queue-only --json` performs the same validation/upsert but leaves the record `pending` without processing it. `harness ingest --next --json` or `harness ingest --queued --json` processes pending backlog records in explicit command invocations. If another ingestion or refresh holds the lock, the upsert remains committed and the command returns `operation_in_progress` with exit code `6`, `retry_after_seconds`, and the document/backlog ID; no daemon or hidden async queue drains backlog records.
+**Backlog behavior:** `cite ingest <path>` validates the file, atomically upserts a durable backlog/loadable-document record for the same path/corpus, and attempts immediate processing when the ingestion lock is free. If the same path is already present in the active corpus, the command returns the existing document/backlog ID and must not create duplicate rows. `cite ingest <path> --queue-only --json` performs the same validation/upsert but leaves the record `pending` without processing it. `cite ingest --next --json` or `cite ingest --queued --json` processes pending backlog records in explicit command invocations. If another ingestion or refresh holds the lock, the upsert remains committed and the command returns `operation_in_progress` with exit code `6`, `retry_after_seconds`, and the document/backlog ID; no daemon or hidden async queue drains backlog records.
 
-### `harness list`
+### `cite list`
 
 Lists documents available in the active runtime corpus. Public packaged demo returns sample documents only; local/private demo returns imported documents only.
 
@@ -140,7 +140,7 @@ Lists documents available in the active runtime corpus. Public packaged demo ret
 }
 ```
 
-### `harness get`
+### `cite get`
 
 Returns document metadata and ingestion state.
 
@@ -163,12 +163,12 @@ Automatic ingestion retries are bounded. MVP default is 3 total attempts per doc
 
 A failed document does not block later ingestion after it reaches terminal `failed`. The CLI exposes a manual `retry` command for `failed` documents; the retry requeues the document from a clean state and returns the updated document metadata.
 
-### `harness retry`
+### `cite retry`
 
 Requeues a `failed` document for manual retry after the user fixes the file/provider issue. The retry clears or ignores partial data from previous failed attempts before reprocessing. It returns `invalid_parameter` if the document is not `failed`, `document_not_found` if the document does not exist, and `file_not_found` if the original local file is no longer accessible.
 
 ```bash
-harness retry doc_123 --json
+cite retry doc_123 --json
 ```
 
 ```json
@@ -182,13 +182,13 @@ harness retry doc_123 --json
 }
 ```
 
-### `harness refresh`
+### `cite refresh`
 
 Rebuilds index data and minimal source/section/chunk metadata for `ready` already-ingested sources. It does not import new files. It accepts one document ID or `--all`, acquires the ingestion/refresh lock, and returns `operation_in_progress` if another mutating command is active. Refresh uses atomic snapshot semantics: new chunks, index rows, embeddings, and metadata are built in staging, then swapped into the current ready snapshot only after the refresh succeeds.
 
 ```bash
-harness refresh doc_123 --json
-harness refresh --all --json
+cite refresh doc_123 --json
+cite refresh --all --json
 ```
 
 ```json
@@ -207,12 +207,12 @@ During refresh, `search`, `retrieve`, `context`, and `read` continue to resolve 
 
 Retrieval commands are stateless from the caller's perspective. Follow-up-style requests are sent as new retrieval queries, and persistent conversation memory is post-MVP. When no documents are `ready` in the active corpus, retrieval commands return `document_not_ready`. If some documents are `ready` and others are `pending` or `processing`, retrieval runs against the ready subset only and returns partial-corpus metadata.
 
-### `harness search`
+### `cite search`
 
 Returns a concise ranked overview for humans and agents.
 
 ```bash
-harness search "refund policy" --top-k 5 --json
+cite search "refund policy" --top-k 5 --json
 ```
 
 ```json
@@ -246,12 +246,12 @@ harness search "refund policy" --top-k 5 --json
 }
 ```
 
-### `harness retrieve`
+### `cite retrieve`
 
 Returns chunk-level retrieval records for agent/tool use.
 
 ```bash
-harness retrieve "refund policy" --top-k 5 --json
+cite retrieve "refund policy" --top-k 5 --json
 ```
 
 ```json
@@ -286,12 +286,12 @@ harness retrieve "refund policy" --top-k 5 --json
 }
 ```
 
-### `harness context`
+### `cite context`
 
 Builds the MVP's primary agent-facing artifact: a cited context pack. This command does not call a built-in LLM answer generator.
 
 ```bash
-harness context "What does the refund policy say?" --top-k 5 --json
+cite context "What does the refund policy say?" --top-k 5 --json
 ```
 
 ```json
@@ -340,7 +340,7 @@ harness context "What does the refund policy say?" --top-k 5 --json
 
 `evidence_floor` and `confidence_threshold` are config/model calibration values and must be reported in retrieval metadata when available. `no_results` always has empty citations; `insufficient_context` may include citations, but they must be marked by low score/metadata and human-readable caution.
 
-### `harness read`
+### `cite read`
 
 Reads a citation or chunk so an agent can inspect source text without re-running retrieval.
 
@@ -352,8 +352,8 @@ Selectors are mutually exclusive:
 Providing both `--citation-id` and `--chunk-id`, omitting the required scope, or matching multiple records returns `invalid_parameter`. Missing citation records return `citation_not_found`; missing documents return `document_not_found`; missing chunk IDs in an existing document return `chunk_not_found`. `read --chunk-id` resolves only against the current ready snapshot for that document. Stale chunk IDs from superseded refresh snapshots, chunks from failed attempts, or chunks belonging to non-ready documents return `chunk_not_found` or `document_not_ready` as applicable; implementations must not expose partial/staging chunks.
 
 ```bash
-harness read --citation-id c1 --trace-id trace_123 --json
-harness read --chunk-id chunk_009 --document-id doc_123 --json
+cite read --citation-id c1 --trace-id trace_123 --json
+cite read --chunk-id chunk_009 --document-id doc_123 --json
 ```
 
 ```json
@@ -369,12 +369,12 @@ harness read --chunk-id chunk_009 --document-id doc_123 --json
 }
 ```
 
-### `harness trace`
+### `cite trace`
 
 Returns the trace for a completed retrieval/context request.
 
 ```bash
-harness trace trace_123 --json
+cite trace trace_123 --json
 ```
 
 ```json

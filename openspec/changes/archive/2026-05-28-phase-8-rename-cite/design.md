@@ -1,6 +1,6 @@
-# Design — Phase 8 Rename `harness` → `cite`
+# Design — Phase 8 Rename `cite` → `cite`
 
-Phase 8 performs a **CLI identity cutover only**: command name/help/docs move to `cite`, while runtime naming (`HARNESS_*`, `harness` data/db paths) is intentionally preserved for Phase 9.
+Phase 8 performs a **CLI identity cutover only**: command name/help/docs move to `cite`, while runtime naming (`CITE_*`, `cite` data/db paths) is intentionally preserved for Phase 9.
 
 ## Quick path
 
@@ -23,8 +23,8 @@ Phase 8 performs a **CLI identity cutover only**: command name/help/docs move to
 - Verification evidence for spec-required commands.
 
 ### Explicitly deferred to Phase 9
-- Runtime env var rename (`HARNESS_*` → `CITE_*`).
-- Data directory/database path rename (`harness/`, `harness.db` naming migration).
+- Runtime env var rename (`CITE_*` → `CITE_*`).
+- Data directory/database path rename (`cite/`, `cite.db` naming migration).
 - Installer/release artifact naming hardening.
 
 ## Architecture / decision log
@@ -32,8 +32,8 @@ Phase 8 performs a **CLI identity cutover only**: command name/help/docs move to
 | ID | Decision | Why |
 |---|---|---|
 | AD-1 | Hard cutover for command identity: primary invocation is `cite`. | Avoids repeated churn before later phases add more CLI surface. |
-| AD-2 | No runtime alias layer in Phase 8 (`harness` alias/symlink not required). | Keeps scope small and reviewable; migration is checklist-based. |
-| AD-3 | Runtime naming remains `HARNESS_*` and existing data/db paths in this phase. | Matches approved proposal/spec boundary; prevents risky storage/config migration now. |
+| AD-2 | No runtime alias layer in Phase 8 (`cite` alias/symlink not required). | Keeps scope small and reviewable; migration is checklist-based. |
+| AD-3 | Runtime naming remains `CITE_*` and existing data/db paths in this phase. | Matches approved proposal/spec boundary; prevents risky storage/config migration now. |
 | AD-4 | Canonical docs only are updated in Phase 8; broader historical/infra docs wait for later phases. | Minimizes blast radius and keeps slices under 300 changed lines. |
 
 ## Data flow impact
@@ -42,7 +42,7 @@ Phase 8 performs a **CLI identity cutover only**: command name/help/docs move to
 `user command (cite ...)` → Cargo bin target `cite` (`crates/cli/Cargo.toml`) → Clap command metadata (`crates/cli/src/main.rs`) emits help/usage with `cite` → existing command handlers unchanged.
 
 ### Runtime/config flow (unchanged in Phase 8)
-`Config::load` + runtime env/data resolution remain as-is (`HARNESS_*`, current data-dir/db naming). This is a deliberate compatibility hold until Phase 9.
+`Config::load` + runtime env/data resolution remain as-is (`CITE_*`, current data-dir/db naming). This is a deliberate compatibility hold until Phase 9.
 
 ## File-level design
 
@@ -54,14 +54,14 @@ Phase 8 performs a **CLI identity cutover only**: command name/help/docs move to
 - `crates/cli/src/main.rs`
 
 **Planned changes**
-- Rename `[[bin]] name` from `harness` to `cite`.
-- Update Clap `#[command(name = "harness", ...)]` to `cite`.
-- Keep runtime path/env naming logic untouched (no `HARNESS_*` edits).
+- Rename `[[bin]] name` from `cite` to `cite`.
+- Update Clap `#[command(name = "cite", ...)]` to `cite`.
+- Keep runtime path/env naming logic untouched (no `CITE_*` edits).
 
 **Validation (immediate)**
 - `cargo run --bin cite -- --help`
   - Expected: `Usage:` starts with `cite`.
-  - Expected: `harness` is not primary app name in help header/usage.
+  - Expected: `cite` is not primary app name in help header/usage.
 
 ---
 
@@ -76,11 +76,11 @@ Phase 8 performs a **CLI identity cutover only**: command name/help/docs move to
 - `docs/rename-to-cite.md`
 
 **Planned changes**
-- Replace command invocations (`harness ...`, `./target/release/harness ...`, release binary names in examples) with `cite`-based equivalents where they are command-facing examples.
-- Preserve explicit Phase 8 note where runtime naming stays on `HARNESS_*`.
+- Replace command invocations (`cite ...`, `./target/release/cite ...`, release binary names in examples) with `cite`-based equivalents where they are command-facing examples.
+- Preserve explicit Phase 8 note where runtime naming stays on `CITE_*`.
 
 **Validation (immediate)**
-- `rg -n "harness\s+(context|search|retrieve|ingest|list|get|trace|read|evaluate|refresh|retry)" README.md docs/demo.md docs/installation.md docs/agent-usage-guide.md docs/rename-to-cite.md`
+- `rg -n "cite\s+(context|search|retrieve|ingest|list|get|trace|read|evaluate|refresh|retry)" README.md docs/demo.md docs/installation.md docs/agent-usage-guide.md docs/rename-to-cite.md`
   - Expected: no matches for canonical command examples.
 
 ---
@@ -96,14 +96,14 @@ Phase 8 performs a **CLI identity cutover only**: command name/help/docs move to
 - Add checklist covering:
   - update local scripts/aliases to `cite`
   - validate command help and representative command(s)
-  - confirm runtime vars remain `HARNESS_*`
+  - confirm runtime vars remain `CITE_*`
   - confirm existing data/db location compatibility
   - rollback steps
 - Add explicit “Phase 9 handles `CITE_*` + data/db rename” statement.
 
 **Validation (immediate)**
-- `rg -n "CITE_|HARNESS_" docs/sdd/phase-8-rename-cite/migration-checklist.md docs/installation.md`
-  - Expected: text clearly states current `HARNESS_*` usage and deferral of `CITE_*` to Phase 9.
+- `rg -n "CITE_|CITE_" docs/sdd/phase-8-rename-cite/migration-checklist.md docs/installation.md`
+  - Expected: text clearly states current `CITE_*` usage and deferral of `CITE_*` to Phase 9.
 
 ---
 
@@ -119,13 +119,13 @@ Phase 8 performs a **CLI identity cutover only**: command name/help/docs move to
    - Expected: primary name/usage is `cite`.
 2. `cargo test`
    - Expected: tests pass.
-3. `rg -n "harness\s+(context|search|retrieve|ingest|list|get|trace|read|evaluate|refresh|retry)" README.md docs/demo.md docs/installation.md docs/agent-usage-guide.md docs/rename-to-cite.md`
+3. `rg -n "cite\s+(context|search|retrieve|ingest|list|get|trace|read|evaluate|refresh|retry)" README.md docs/demo.md docs/installation.md docs/agent-usage-guide.md docs/rename-to-cite.md`
    - Expected: no canonical command hits.
-4. `rg -n "HARNESS_" crates/config crates/storage`
+4. `rg -n "CITE_" crates/config crates/storage`
    - Expected: at least one match (runtime naming still present).
 5. `rg -n "CITE_" crates/config crates/storage`
    - Expected: no matches (runtime naming migration not started).
-6. `rg -n "CITE_|HARNESS_" docs/sdd/phase-8-rename-cite/migration-checklist.md docs/installation.md`
+6. `rg -n "CITE_|CITE_" docs/sdd/phase-8-rename-cite/migration-checklist.md docs/installation.md`
    - Expected: deferral policy clearly documented.
 
 ## Contract mapping (spec traceability)
@@ -138,12 +138,12 @@ Phase 8 performs a **CLI identity cutover only**: command name/help/docs move to
 ## Failure handling and rollback
 
 ### Failure handling
-- If CLI rename compiles but help still shows `harness`: stop after Slice A, fix Clap metadata before doc edits.
+- If CLI rename compiles but help still shows `cite`: stop after Slice A, fix Clap metadata before doc edits.
 - If docs have mixed naming after Slice B: run grep gate and fix only allowlisted files before proceeding.
 - If any attempt introduces `CITE_` runtime references in `crates/config` or `crates/storage`: revert that hunk immediately; treat as out-of-scope.
 
 ### Rollback
-- Revert Slice A commit(s) to restore binary/help identity to `harness`.
+- Revert Slice A commit(s) to restore binary/help identity to `cite`.
 - Revert Slice B/C docs commits to restore prior docs.
 - Since runtime naming is untouched in Phase 8, no config/data migration rollback is required.
 

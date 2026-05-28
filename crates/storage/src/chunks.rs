@@ -1,5 +1,5 @@
 use common::types::Chunk;
-use common::HarnessError;
+use common::CiteError;
 use rusqlite::params;
 
 use crate::util::{format_dt, storage_err};
@@ -10,7 +10,7 @@ use crate::Database;
 // ---------------------------------------------------------------------------
 
 #[allow(dead_code)]
-fn row_to_chunk(row: &rusqlite::Row<'_>) -> Result<Chunk, HarnessError> {
+fn row_to_chunk(row: &rusqlite::Row<'_>) -> Result<Chunk, CiteError> {
     let chunk_id: String = row.get("chunk_id").map_err(storage_err)?;
     let document_id: String = row.get("document_id").map_err(storage_err)?;
     let section_id: Option<String> = row.get("section_id").map_err(storage_err)?;
@@ -40,12 +40,12 @@ fn row_to_chunk(row: &rusqlite::Row<'_>) -> Result<Chunk, HarnessError> {
 
 impl Database {
     /// Bulk-insert chunks for a document inside a single transaction.
-    pub fn insert_chunks(&self, document_id: &str, chunks: &[Chunk]) -> Result<(), HarnessError> {
+    pub fn insert_chunks(&self, document_id: &str, chunks: &[Chunk]) -> Result<(), CiteError> {
         let tx = self.conn.unchecked_transaction().map_err(storage_err)?;
 
         for chunk in chunks {
             if chunk.document_id != document_id {
-                return Err(HarnessError::StorageError {
+                return Err(CiteError::StorageError {
                     message: format!(
                         "Chunk {} belongs to document {}, expected {}",
                         chunk.chunk_id, chunk.document_id, document_id
@@ -78,7 +78,7 @@ impl Database {
     }
 
     /// Delete all chunks belonging to a document. Returns the number deleted.
-    pub fn delete_chunks_for_document(&self, document_id: &str) -> Result<u64, HarnessError> {
+    pub fn delete_chunks_for_document(&self, document_id: &str) -> Result<u64, CiteError> {
         let count = self
             .conn
             .execute(

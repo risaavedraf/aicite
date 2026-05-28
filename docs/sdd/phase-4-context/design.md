@@ -23,7 +23,7 @@ CLI (context/read/trace)
   - persisting citation records linked to traces/context pack,
   - lookup by `(trace_id, citation_id)`,
   - lookup by `(document_id, chunk_id)` constrained to current ready snapshot,
-  - loading trace details for `harness trace`.
+  - loading trace details for `cite trace`.
 - Keep compatibility with existing retrieval storage primitives.
 
 ### `crates/engine`

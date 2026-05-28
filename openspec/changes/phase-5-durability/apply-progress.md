@@ -8,7 +8,7 @@
 - [x] Slice 1: kept ingest happy-path behavior when lock is acquired.
 - [x] Slice 1: added tests for lock serialization, owner-bound release, backlog idempotent upsert/update, and ingest conflict behavior.
 - [x] Slice 1: wired JSON error details for `operation_in_progress` (`retry_after_seconds`, `lock_name`).
-- [x] Slice 2: added queue entrypoints (`harness ingest --queued <path>`, `harness ingest --next`) with clap mode validation.
+- [x] Slice 2: added queue entrypoints (`cite ingest --queued <path>`, `cite ingest --next`) with clap mode validation.
 - [x] Slice 2: implemented backlog claim/requeue/done/failed transitions and engine next-item processing flow.
 - [x] Slice 2: added tests for enqueue, FIFO claim, next-item processing, and empty-queue behavior.
 - [x] Slice 3: added persistent durable rate-limit counters migration (`rate_limit_counters`).

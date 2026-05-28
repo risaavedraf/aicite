@@ -2,7 +2,7 @@
 
 ## Problem
 
-The AI Harness CLI has a complete retrieval pipeline (Phases 1–5) but no automated way to verify that retrieval actually returns correct, relevant results for known queries. Without evaluation tooling, we cannot:
+The AI Cite CLI has a complete retrieval pipeline (Phases 1–5) but no automated way to verify that retrieval actually returns correct, relevant results for known queries. Without evaluation tooling, we cannot:
 
 1. Confirm the 80% top-5 hit rate acceptance criterion
 2. Detect regressions when changing chunking, ranking, or context assembly
@@ -25,7 +25,7 @@ A small, curated sample corpus (3 documents, 10+ facts) with 8 query fixtures co
 A `GoldenProvider` (mock embedding provider) that returns pre-computed vectors for the golden corpus, making evaluation fully deterministic and API-free. An evaluation engine loads fixtures, runs each query through the existing context pipeline, and computes pass/fail per fixture plus overall hit rate.
 
 ### 3. CLI `evaluate` command
-A `harness evaluate` command that runs the evaluation suite and outputs structured results (per-fixture pass/fail, hit rate, summary). Exits 0 on all-pass, 1 on any failure.
+A `cite evaluate` command that runs the evaluation suite and outputs structured results (per-fixture pass/fail, hit rate, summary). Exits 0 on all-pass, 1 on any failure.
 
 ## Scope
 

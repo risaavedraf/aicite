@@ -14,13 +14,13 @@ PASS
 ### Requirement: Canonical command documentation MUST use `cite`
 - **Covered by**: `README.md`, `docs/demo.md`, `docs/installation.md`, `docs/agent-usage-guide.md`, `docs/rename-to-cite.md`
 - **Evidence**: command-surface grep returns no matches:
-  - `rg -n "harness\s+(context|search|retrieve|ingest|list|get|trace|read|evaluate|refresh|retry)" ...`
+  - `rg -n "cite\s+(context|search|retrieve|ingest|list|get|trace|read|evaluate|refresh|retry)" ...`
   - exit `1` (expected no matches)
 - **Result**: PASS
 
 ### Requirement: Runtime naming migration MUST be deferred to Phase 9
 - **Code evidence**:
-  - `rg -n "HARNESS_" crates/config crates/storage` exit `0` (matches present)
+  - `rg -n "CITE_" crates/config crates/storage` exit `0` (matches present)
   - `rg -n "CITE_" crates/config crates/storage` exit `1` (no matches)
 - **Docs evidence**:
   - `docs/sdd/phase-8-rename-cite/migration-checklist.md`
@@ -46,10 +46,10 @@ Reference: `openspec/changes/phase-8-rename-cite/apply-progress.md`
 
 1. `cargo run --bin cite -- --help` → exit `0` ✅
 2. `cargo test` → exit `0` ✅
-3. `rg -n "harness\s+(context|search|retrieve|ingest|list|get|trace|read|evaluate|refresh|retry)" README.md docs/demo.md docs/installation.md docs/agent-usage-guide.md docs/rename-to-cite.md` → exit `1` (expected no hits) ✅
-4. `rg -n "HARNESS_" crates/config crates/storage` → exit `0` (expected hits) ✅
+3. `rg -n "cite\s+(context|search|retrieve|ingest|list|get|trace|read|evaluate|refresh|retry)" README.md docs/demo.md docs/installation.md docs/agent-usage-guide.md docs/rename-to-cite.md` → exit `1` (expected no hits) ✅
+4. `rg -n "CITE_" crates/config crates/storage` → exit `0` (expected hits) ✅
 5. `rg -n "CITE_" crates/config crates/storage` → exit `1` (expected no hits) ✅
-6. `rg -n "CITE_|HARNESS_" docs/sdd/phase-8-rename-cite/migration-checklist.md docs/installation.md` → exit `0` ✅
+6. `rg -n "CITE_|CITE_" docs/sdd/phase-8-rename-cite/migration-checklist.md docs/installation.md` → exit `0` ✅
 
 ## Strict TDD compliance
 
@@ -72,7 +72,7 @@ None.
 
 ## Risks / follow-ups
 
-- Optional hardening: add a broader docs grep (`\bharness\b`) in future verify runs to catch non-subcommand command remnants.
+- Optional hardening: add a broader docs grep (`\bcite\b`) in future verify runs to catch non-subcommand command remnants.
 
 ## Conclusion
 

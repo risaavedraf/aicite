@@ -3,7 +3,7 @@ use common::types::{
     Citation, ContextMetadata, ContextResponse, OffsetRange, ReadResponse, ReadSelector,
     ResultKind, TraceCitationRecord, TraceHeaderInput, TraceResponse,
 };
-use common::HarnessError;
+use common::CiteError;
 use config::{RateLimitConfig, RetrievalConfig};
 use providers::EmbeddingProvider;
 use retrieval::rank_by_similarity;
@@ -101,7 +101,7 @@ pub fn build_context(
     rate_limit: &RateLimitConfig,
     query: &str,
     k_override: Option<u32>,
-) -> Result<ContextResponse, HarnessError> {
+) -> Result<ContextResponse, CiteError> {
     let start = std::time::Instant::now();
     let k = resolve_k(config, k_override)?;
     validate_query(query)?;
@@ -116,7 +116,7 @@ pub fn build_context(
         .count() as u32;
 
     if ready_count == 0 {
-        return Err(HarnessError::DocumentNotReady {
+        return Err(CiteError::DocumentNotReady {
             document_id: "(corpus)".into(),
         });
     }
@@ -276,7 +276,7 @@ fn enforce_rate_limit(
     db: &Database,
     provider: &dyn EmbeddingProvider,
     rate_limit: &RateLimitConfig,
-) -> Result<(), HarnessError> {
+) -> Result<(), CiteError> {
     let key = provider.provider_id();
     match db.check_and_increment_rate_limit(
         CONTEXT_ROUTE,
@@ -287,14 +287,14 @@ fn enforce_rate_limit(
         storage::rate_limits::RateLimitDecision::Allowed => Ok(()),
         storage::rate_limits::RateLimitDecision::Blocked {
             retry_after_seconds,
-        } => Err(HarnessError::RateLimitExceeded {
+        } => Err(CiteError::RateLimitExceeded {
             retry_after_seconds,
         }),
     }
 }
 
 /// Resolve a read request by citation or chunk selector.
-pub fn read_context(db: &Database, selector: ReadSelector) -> Result<ReadResponse, HarnessError> {
+pub fn read_context(db: &Database, selector: ReadSelector) -> Result<ReadResponse, CiteError> {
     match selector {
         ReadSelector::Citation {
             trace_id,
@@ -350,7 +350,7 @@ pub fn get_trace(
     db: &Database,
     provider: &dyn EmbeddingProvider,
     trace_id: &str,
-) -> Result<TraceResponse, HarnessError> {
+) -> Result<TraceResponse, CiteError> {
     let envelope = db.get_trace_envelope(trace_id)?;
 
     let doc_ids: Vec<String> = envelope
@@ -409,7 +409,7 @@ mod tests {
     }
 
     impl EmbeddingProvider for FakeProvider {
-        fn embed(&self, _text: &str) -> Result<Vec<f32>, HarnessError> {
+        fn embed(&self, _text: &str) -> Result<Vec<f32>, CiteError> {
             Ok(self.vector.clone())
         }
         fn model_id(&self) -> &str {
@@ -574,7 +574,7 @@ mod tests {
             vector: vec![1.0, 0.0],
         };
         let err = build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None).unwrap_err();
-        assert!(matches!(err, HarnessError::DocumentNotReady { .. }));
+        assert!(matches!(err, CiteError::DocumentNotReady { .. }));
     }
 
     #[test]
@@ -595,7 +595,7 @@ mod tests {
         let err = build_context(&db, &provider, &cfg(), &rl, "query", None).unwrap_err();
         assert!(matches!(
             err,
-            HarnessError::RateLimitExceeded {
+            CiteError::RateLimitExceeded {
                 retry_after_seconds: _
             }
         ));
@@ -678,7 +678,7 @@ mod tests {
         )
         .unwrap_err();
 
-        assert!(matches!(err, HarnessError::DocumentNotReady { .. }));
+        assert!(matches!(err, CiteError::DocumentNotReady { .. }));
     }
 
     #[test]
@@ -711,7 +711,7 @@ mod tests {
         )
         .unwrap_err();
 
-        assert!(matches!(err, HarnessError::CitationNotFound { .. }));
+        assert!(matches!(err, CiteError::CitationNotFound { .. }));
     }
 
     #[test]
@@ -740,6 +740,6 @@ mod tests {
             vector: vec![1.0, 0.0],
         };
         let err = get_trace(&db, &provider, "missing-trace").unwrap_err();
-        assert!(matches!(err, HarnessError::TraceNotFound { .. }));
+        assert!(matches!(err, CiteError::TraceNotFound { .. }));
     }
 }

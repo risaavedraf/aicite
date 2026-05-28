@@ -1,4 +1,4 @@
-# Phase 8 — Rename Harness → CITE (Explore Notes)
+# Phase 8 — Rename Cite → CITE (Explore Notes)
 
 ## Context
 
@@ -35,7 +35,7 @@ v0.2.0 tag is cut only after Phase 12 acceptance is green.
 ## Initial scope for Phase 8
 
 In:
-- CLI binary rename (`harness` -> `cite`)
+- CLI binary rename (`cite` -> `cite`)
 - Clap command name and help examples
 - Core docs command examples (`README.md`, `docs/demo.md`, `docs/installation.md`, `docs/agent-usage-guide.md`)
 - Local config naming migration policy for single-user setup

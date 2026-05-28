@@ -64,7 +64,7 @@ Visibility rule:
 
 ## 3) CLI contracts
 
-## 3.1 `harness ingest <path>`
+## 3.1 `cite ingest <path>`
 
 Behavior:
 - tries to acquire ingest lock before processing
@@ -78,14 +78,14 @@ Conflict error contract (`operation_in_progress`):
   - `retry_after_seconds` (u32 > 0)
   - `lock_name` (for ingest: `ingest_pipeline`)
 
-## 3.2 `harness ingest --queued <path>`
+## 3.2 `cite ingest --queued <path>`
 
 Behavior:
 - MUST enqueue/upsert ingest work without immediate processing
 - MUST return success when enqueue/upsert succeeds
 - MUST be idempotent for equivalent ingest intent
 
-## 3.3 `harness ingest --next`
+## 3.3 `cite ingest --next`
 
 Behavior:
 - MUST claim exactly one next queued item atomically
@@ -93,7 +93,7 @@ Behavior:
 - if queue is empty: MUST return success with explicit empty-queue result
 - if lock is held by another process: MUST return `operation_in_progress` with retry metadata
 
-## 3.4 `harness retry <document_id>`
+## 3.4 `cite retry <document_id>`
 
 Behavior:
 - only valid for documents in `failed`
@@ -107,7 +107,7 @@ Failure mapping remains:
 - not failed => `invalid_parameter`
 - missing source file => `file_not_found`
 
-## 3.5 `harness refresh`
+## 3.5 `cite refresh`
 
 Behavior:
 - MUST execute refresh as staged build + atomic snapshot promotion
@@ -145,9 +145,9 @@ Default policy values:
 - `window_seconds = 60`
 
 Applies to command entrypoints:
-- `harness search`
-- `harness retrieve`
-- `harness context`
+- `cite search`
+- `cite retrieve`
+- `cite context`
 
 When limit is exceeded:
 - command MUST not execute retrieval/context computation
@@ -173,7 +173,7 @@ Allowed safe fields include:
 
 This phase does NOT include:
 - retrieval quality/ranking upgrades
-- golden dataset/evaluation harness (Phase 6)
+- golden dataset/evaluation cite (Phase 6)
 - packaging/release flows (Phase 7)
 - CLI binary rename
 - answer generation over retrieved context

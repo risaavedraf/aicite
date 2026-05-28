@@ -1,4 +1,4 @@
-# AI Harness CLI
+# AI Cite CLI
 
 CLI-first semantic document engine for AI agents. Ingest private documents, retrieve cited context through stable CLI commands.
 
@@ -9,34 +9,48 @@ CLI-first semantic document engine for AI agents. Ingest private documents, retr
 - Rust 1.75+
 - An embedding provider API key (Gemini or OpenAI-compatible)
 
-### Build and run
+### Canonical run/install matrix
+
+| Pathway | Use when | Command style |
+|---|---|---|
+| Dev run | Iterating without building release binaries | `cargo run --bin cite -- <command> ...` |
+| Local built binary | Testing the exact local release artifact | `cargo build --release` then `./target/release/cite <command> ...` |
+| Installed release binary | Using a downloaded/installed release in PATH | `cite <command> ...` (or `cite.exe` on Windows) |
+
+### Path A — Dev run (no release build required)
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/aiharness.git
-cd aiharness
+git clone https://github.com/your-org/aicite.git
+cd aicite
 
-# Build the release binary
+# Run directly from source
+cargo run --bin cite -- health --json
+cargo run --bin cite -- list
+```
+
+### Path B — Local built binary
+
+```bash
+# Build release binary
 cargo build --release
 
-# Verify the installation
-./target/release/cite health
-
-# Ingest a document
+# Run local release artifact
+./target/release/cite health --json
 ./target/release/cite ingest ./demo/security-policy.txt
-
-# Search the corpus
-./target/release/cite search "what is the security policy"
-
-# Get agent-consumable context with citations
 ./target/release/cite context "how does authentication work"
 ```
 
-All commands accept `--json` for structured output suitable for agent pipelines:
+### Path C — Installed release binary
 
 ```bash
+# After installing/downloading and adding to PATH
 cite health --json
+cite search "what is the security policy"
+cite context "how does authentication work"
 ```
+
+All commands accept `--json` for structured output suitable for agent pipelines.
 
 ## All commands
 
@@ -97,13 +111,13 @@ The packaged demo runs in `public_packaged_demo` mode: uploads are disabled and 
 
 ```bash
 # 1. Clone and build
-git clone https://github.com/your-org/aiharness.git
-cd aiharness
+git clone https://github.com/your-org/aicite.git
+cd aicite
 cargo build --release
 
 # 2. Configure your embedding provider
 cp .env.example .env
-# Edit .env and set HARNESS_EMBEDDING_API_KEY
+# Edit .env and set CITE_EMBEDDING_API_KEY
 
 # 3. Ingest the demo documents
 ./target/release/cite ingest ./demo/api-reference.md
@@ -133,23 +147,30 @@ The local/private demo runs in `local_private_demo` mode: uploads are enabled an
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `HARNESS_CONFIG` | Config file path | OS-appropriate |
-| `HARNESS_DATA_DIR` | Data directory (SQLite, indexes) | OS-appropriate |
-| `HARNESS_CACHE_DIR` | Cache directory | OS-appropriate |
-| `HARNESS_RUNTIME_MODE` | Runtime mode | `local_private_demo` |
-| `HARNESS_EMBEDDING_PROVIDER` | Embedding provider ID | `openai-compatible` |
-| `HARNESS_EMBEDDING_MODEL` | Embedding model ID | `text-embedding-3-small` |
-| `HARNESS_EMBEDDING_API_KEY` | Embedding provider API key | _(none)_ |
-| `HARNESS_EMBEDDING_ENDPOINT` | Custom embedding endpoint (openai-compatible only) | Provider default |
-| `HARNESS_EMBEDDING_TIMEOUT` | Embedding request timeout in seconds | `30` |
-| `HARNESS_MAX_FILE_SIZE` | Maximum file size in bytes | `52428800` (50 MB) |
-| `HARNESS_CHUNK_SIZE` | Chunk size in characters | `1000` |
-| `HARNESS_CHUNK_OVERLAP` | Chunk overlap in characters | `200` |
-| `HARNESS_TOP_K` | Default retrieval top-k | `5` |
+| `CITE_CONFIG` | Config file path | OS-appropriate |
+| `CITE_DATA_DIR` | Data directory (SQLite, indexes) | OS-appropriate |
+| `CITE_CACHE_DIR` | Cache directory | OS-appropriate |
+| `CITE_RUNTIME_MODE` | Runtime mode | `local_private_demo` |
+| `CITE_EMBEDDING_PROVIDER` | Embedding provider ID | `openai-compatible` |
+| `CITE_EMBEDDING_MODEL` | Embedding model ID | `text-embedding-3-small` |
+| `CITE_EMBEDDING_API_KEY` | Embedding provider API key | _(none)_ |
+| `CITE_EMBEDDING_ENDPOINT` | Custom embedding endpoint (openai-compatible only) | Provider default |
+| `CITE_EMBEDDING_TIMEOUT` | Embedding request timeout in seconds | `30` |
+| `CITE_MAX_FILE_SIZE` | Maximum file size in bytes | `52428800` (50 MB) |
+| `CITE_CHUNK_SIZE` | Chunk size in characters | `1000` |
+| `CITE_CHUNK_OVERLAP` | Chunk overlap in characters | `200` |
+| `CITE_TOP_K` | Default retrieval top-k | `5` |
+
+### Runtime naming policy (Phase 9)
+
+- Canonical runtime namespace: `CITE_*`.
+- Canonical local paths: config under `.../cite/config.toml`, data dir `.../cite/`, database `cite.db`.
+- Compatibility policy: legacy `HARNESS_*` runtime variables and legacy `harness` data/db naming are **not auto-aliased** by the runtime; migrate them manually in your local environment.
+- Exception: provider key fallbacks `GEMINI_API_KEY` / `OPENAI_API_KEY` are still accepted for embedding commands, but `CITE_EMBEDDING_API_KEY` remains the documented default.
 
 ### Config file
 
-TOML format at `$XDG_CONFIG_HOME/harness/config.toml` (Linux), `%APPDATA%\harness\config.toml` (Windows), or `~/Library/Application Support/harness/config.toml` (macOS).
+TOML format at `$XDG_CONFIG_HOME/cite/config.toml` (Linux), `%APPDATA%\cite\config.toml` (Windows), or `~/Library/Application Support/cite/config.toml` (macOS).
 
 ```toml
 [runtime]
@@ -179,25 +200,25 @@ confidence_threshold = 0.70
 
 ## Storage paths
 
-All CLI-managed data is stored in the configured data directory (`HARNESS_DATA_DIR` or OS default):
+All CLI-managed data is stored in the configured data directory (`CITE_DATA_DIR` or OS default):
 
 | Path | Content | Manual reset |
 |---|---|---|
-| `harness.db` | SQLite database: documents, chunks, embeddings, traces, metadata | `rm harness.db` |
-| `harness.db-wal` | SQLite write-ahead log | Removed with `harness.db` |
-| `harness.db-shm` | SQLite shared memory file | Removed with `harness.db` |
+| `cite.db` | SQLite database: documents, chunks, embeddings, traces, metadata | `rm cite.db` |
+| `cite.db-wal` | SQLite write-ahead log | Removed with `cite.db` |
+| `cite.db-shm` | SQLite shared memory file | Removed with `cite.db` |
 
 ### Reset all local data
 
 ```bash
 # Remove everything in the data directory
-rm -rf $HARNESS_DATA_DIR/*
+rm -rf $CITE_DATA_DIR/*
 ```
 
 ### Reset only the database
 
 ```bash
-rm $HARNESS_DATA_DIR/harness.db*
+rm $CITE_DATA_DIR/cite.db*
 ```
 
 After a database reset, re-ingest documents to rebuild the corpus:

@@ -1,4 +1,4 @@
-use common::HarnessError;
+use common::CiteError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -97,7 +97,7 @@ impl Default for IngestConfig {
 
 impl Config {
     /// Load configuration with precedence: flags > env > file > defaults
-    pub fn load() -> Result<Self, HarnessError> {
+    pub fn load() -> Result<Self, CiteError> {
         let defaults = Self::defaults();
         let env = EnvOverrides::load();
         let file = FileConfig::load(None);
@@ -190,7 +190,7 @@ struct EnvOverrides {
 impl EnvOverrides {
     fn load() -> Self {
         Self {
-            runtime_mode: std::env::var("HARNESS_RUNTIME_MODE").ok().and_then(|v| {
+            runtime_mode: std::env::var("CITE_RUNTIME_MODE").ok().and_then(|v| {
                 match v.as_str() {
                     "public_packaged_demo" => Some(RuntimeMode::PublicPackagedDemo),
                     "local_private_demo" => Some(RuntimeMode::LocalPrivateDemo),
@@ -198,26 +198,26 @@ impl EnvOverrides {
                     _ => None,
                 }
             }),
-            data_dir: std::env::var("HARNESS_DATA_DIR").ok().map(PathBuf::from),
-            cache_dir: std::env::var("HARNESS_CACHE_DIR").ok().map(PathBuf::from),
-            embedding_provider: std::env::var("HARNESS_EMBEDDING_PROVIDER").ok(),
-            embedding_model: std::env::var("HARNESS_EMBEDDING_MODEL").ok(),
-            top_k: std::env::var("HARNESS_TOP_K")
+            data_dir: std::env::var("CITE_DATA_DIR").ok().map(PathBuf::from),
+            cache_dir: std::env::var("CITE_CACHE_DIR").ok().map(PathBuf::from),
+            embedding_provider: std::env::var("CITE_EMBEDDING_PROVIDER").ok(),
+            embedding_model: std::env::var("CITE_EMBEDDING_MODEL").ok(),
+            top_k: std::env::var("CITE_TOP_K")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            max_file_size_bytes: std::env::var("HARNESS_MAX_FILE_SIZE")
+            max_file_size_bytes: std::env::var("CITE_MAX_FILE_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            chunk_size_chars: std::env::var("HARNESS_CHUNK_SIZE")
+            chunk_size_chars: std::env::var("CITE_CHUNK_SIZE")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            chunk_overlap_chars: std::env::var("HARNESS_CHUNK_OVERLAP")
+            chunk_overlap_chars: std::env::var("CITE_CHUNK_OVERLAP")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            embedding_timeout_secs: std::env::var("HARNESS_EMBEDDING_TIMEOUT")
+            embedding_timeout_secs: std::env::var("CITE_EMBEDDING_TIMEOUT")
                 .ok()
                 .and_then(|v| v.parse().ok()),
-            embedding_endpoint: std::env::var("HARNESS_EMBEDDING_ENDPOINT").ok(),
+            embedding_endpoint: std::env::var("CITE_EMBEDDING_ENDPOINT").ok(),
         }
     }
 }

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use common::{FileType, HarnessError};
+use common::{FileType, CiteError};
 use lopdf::Document;
 
 /// Text from a single page.
@@ -18,7 +18,7 @@ pub struct ExtractionResult {
 }
 
 /// Extract text from a file, dispatching by file type.
-pub fn extract_text(path: &Path, file_type: &FileType) -> Result<ExtractionResult, HarnessError> {
+pub fn extract_text(path: &Path, file_type: &FileType) -> Result<ExtractionResult, CiteError> {
     match file_type {
         FileType::Txt | FileType::Md => extract_plain_text(path),
         FileType::Pdf => extract_pdf_text(path),
@@ -29,8 +29,8 @@ pub fn extract_text(path: &Path, file_type: &FileType) -> Result<ExtractionResul
 ///
 /// Returns a single page (page=1) containing the entire file content.
 /// Fails with `InternalError` if the file is not valid UTF-8.
-fn extract_plain_text(path: &Path) -> Result<ExtractionResult, HarnessError> {
-    let content = std::fs::read_to_string(path).map_err(|e| HarnessError::InternalError {
+fn extract_plain_text(path: &Path) -> Result<ExtractionResult, CiteError> {
+    let content = std::fs::read_to_string(path).map_err(|e| CiteError::InternalError {
         message: format!("Failed to read file {}: {}", path.display(), e),
     })?;
 
@@ -57,8 +57,8 @@ fn extract_plain_text(path: &Path) -> Result<ExtractionResult, HarnessError> {
 /// Returns one `PageText` per page in the document. Pages with no extractable
 /// text (e.g. scanned images without OCR) produce an empty string.
 /// Fails with `InternalError` on corrupted or unreadable PDFs.
-fn extract_pdf_text(path: &Path) -> Result<ExtractionResult, HarnessError> {
-    let doc = Document::load(path).map_err(|e| HarnessError::InternalError {
+fn extract_pdf_text(path: &Path) -> Result<ExtractionResult, CiteError> {
+    let doc = Document::load(path).map_err(|e| CiteError::InternalError {
         message: format!("Failed to load PDF {}: {}", path.display(), e),
     })?;
 

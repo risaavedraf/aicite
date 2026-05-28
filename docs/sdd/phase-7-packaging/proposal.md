@@ -25,7 +25,7 @@ Phase 7 closes the MVP. The CLI works end-to-end (ingest → retrieve → contex
 - Actual binary distribution (Homebrew, apt, etc.) — post-MVP
 - GUI/TUI — post-MVP
 - Production compliance checklist completion — blocks production mode, not MVP
-- CLI binary rename — user decision, keep `harness` for now
+- CLI binary rename — user decision, keep `cite` for now
 - Cross-compilation tooling beyond basic cargo build targets
 
 ## Approach
@@ -54,7 +54,7 @@ Phase 7 closes the MVP. The CLI works end-to-end (ingest → retrieve → contex
 - Trigger on tag push (`v*`)
 - Build matrix: linux-x86_64, windows-x86_64, macos-arm64
 - Upload binaries as release artifacts
-- Basic smoke test (run `harness health --json`) before upload
+- Basic smoke test (run `cite health --json`) before upload
 
 ## Risks
 

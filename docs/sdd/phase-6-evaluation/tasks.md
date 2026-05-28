@@ -119,12 +119,12 @@ cargo clippy -- -D warnings
     4. Build GoldenProvider with corpus embeddings
     5. Call `engine::evaluate::run_evaluation`
     6. Output human-readable or JSON report
-  - Acceptance: `harness evaluate --json` outputs valid JSON
+  - Acceptance: `cite evaluate --json` outputs valid JSON
 
 - [ ] **T3.2** Wire evaluate command into CLI
   - Add `pub mod evaluate;` to `crates/cli/src/commands/mod.rs`
   - Add `Commands::Evaluate(EvaluateArgs)` to `crates/cli/src/main.rs`
-  - Acceptance: `harness evaluate --help` shows usage
+  - Acceptance: `cite evaluate --help` shows usage
 
 - [ ] **T3.3** Create `tests/runtime_mode.rs`
   - Test: `PublicPackagedDemo` mode rejects `ingest` with `runtime_mode_forbidden`
@@ -133,16 +133,16 @@ cargo clippy -- -D warnings
   - Acceptance: `cargo test --test runtime_mode` passes
 
 - [ ] **T3.4** Manual verification
-  - Run `harness evaluate` and verify output matches expected
-  - Run `harness evaluate --json` and verify JSON structure
+  - Run `cite evaluate` and verify output matches expected
+  - Run `cite evaluate --json` and verify JSON structure
   - Acceptance: output matches spec format
 
 ### Acceptance gate (Slice 3)
 
 ```
-harness evaluate
+cite evaluate
 # All 8 fixtures pass, hit rate shown
-harness evaluate --json
+cite evaluate --json
 # Valid JSON output
 cargo test --test runtime_mode
 # All 3 mode tests pass
@@ -159,7 +159,7 @@ cargo test
 - [ ] All 8 golden fixtures pass
 - [ ] Hit rate >= 80%
 - [ ] Runtime mode enforcement tests pass
-- [ ] `harness evaluate` command works (human + JSON)
+- [ ] `cite evaluate` command works (human + JSON)
 - [ ] `cargo clippy -- -D warnings` clean
 - [ ] `cargo test` all green (no regressions)
 - [ ] All 3 slices committed separately

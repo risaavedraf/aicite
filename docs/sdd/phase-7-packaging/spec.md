@@ -23,7 +23,7 @@ Total: ~1200 words, 12+ retrievable facts, 3 documents.
 
 ### 1.3 Integration
 
-- `harness ingest demo/` ingests all 3 files in `local_private_demo` mode
+- `cite ingest demo/` ingests all 3 files in `local_private_demo` mode
 - `public_packaged_demo` mode auto-loads demo corpus on first run if no corpus exists
 - Demo files are committed to repo (not binary artifacts)
 
@@ -75,8 +75,8 @@ Two subsections:
 
 | Path | Content | Manual reset |
 |---|---|---|
-| `$HARNESS_DATA_DIR/harness.db` | SQLite database | Delete file |
-| `$HARNESS_DATA_DIR/harness.db-wal` | WAL file | Delete with .db |
+| `$CITE_DATA_DIR/cite.db` | SQLite database | Delete file |
+| `$CITE_DATA_DIR/cite.db-wal` | WAL file | Delete with .db |
 | ... | ... | ... |
 
 #### Compliance summary
@@ -107,7 +107,7 @@ Brief section referencing:
 ### 5.2 Structure
 
 ```markdown
-# AI Harness CLI — Demo Guide
+# AI Cite CLI — Demo Guide
 
 ## Track A: Packaged Demo (5 minutes)
 1. Download binary
@@ -149,9 +149,9 @@ on:
 
 | Target | Runner | Binary |
 |---|---|---|
-| x86_64-unknown-linux-gnu | ubuntu-latest | harness-linux-amd64 |
-| x86_64-pc-windows-msvc | windows-latest | harness-windows-amd64.exe |
-| aarch64-apple-darwin | macos-latest | harness-macos-arm64 |
+| x86_64-unknown-linux-gnu | ubuntu-latest | cite-linux-amd64 |
+| x86_64-pc-windows-msvc | windows-latest | cite-windows-amd64.exe |
+| aarch64-apple-darwin | macos-latest | cite-macos-arm64 |
 
 ### 6.4 Steps per target
 
@@ -159,7 +159,7 @@ on:
 2. Install Rust stable
 3. `cargo build --release`
 4. Rename binary to target-specific name
-5. Smoke test: `./harness health --json`
+5. Smoke test: `./cite health --json`
 6. Upload as release artifact
 
 ### 6.5 Release creation

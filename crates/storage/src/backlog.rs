@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use chrono::Utc;
-use common::HarnessError;
+use common::CiteError;
 use rusqlite::{params, OptionalExtension};
 
 use crate::util::{format_dt, storage_err};
@@ -43,7 +43,7 @@ impl Database {
         &self,
         source_path: &Path,
         display_name_override: Option<&str>,
-    ) -> Result<(), HarnessError> {
+    ) -> Result<(), CiteError> {
         let idempotency_key = build_idempotency_key(source_path);
         let queue_id = format!("queue:{idempotency_key}");
         let source_path_raw = source_path_for_storage(source_path);
@@ -73,7 +73,7 @@ impl Database {
         Ok(())
     }
 
-    pub fn claim_next_ingest_backlog(&self) -> Result<Option<IngestBacklogItem>, HarnessError> {
+    pub fn claim_next_ingest_backlog(&self) -> Result<Option<IngestBacklogItem>, CiteError> {
         let now = format_dt(&Utc::now());
         let mut stmt = self
             .conn
@@ -107,7 +107,7 @@ impl Database {
         Ok(maybe_item)
     }
 
-    pub fn mark_ingest_backlog_done(&self, queue_id: &str) -> Result<(), HarnessError> {
+    pub fn mark_ingest_backlog_done(&self, queue_id: &str) -> Result<(), CiteError> {
         let now = format_dt(&Utc::now());
         self.conn
             .execute(
@@ -118,7 +118,7 @@ impl Database {
         Ok(())
     }
 
-    pub fn mark_ingest_backlog_failed(&self, queue_id: &str) -> Result<(), HarnessError> {
+    pub fn mark_ingest_backlog_failed(&self, queue_id: &str) -> Result<(), CiteError> {
         let now = format_dt(&Utc::now());
         self.conn
             .execute(
@@ -129,7 +129,7 @@ impl Database {
         Ok(())
     }
 
-    pub fn requeue_ingest_backlog(&self, queue_id: &str) -> Result<(), HarnessError> {
+    pub fn requeue_ingest_backlog(&self, queue_id: &str) -> Result<(), CiteError> {
         let now = format_dt(&Utc::now());
         self.conn
             .execute(
@@ -140,7 +140,7 @@ impl Database {
         Ok(())
     }
 
-    pub fn ingest_backlog_count(&self) -> Result<u64, HarnessError> {
+    pub fn ingest_backlog_count(&self) -> Result<u64, CiteError> {
         let count: i64 = self
             .conn
             .query_row("SELECT COUNT(*) FROM ingest_backlog", [], |row| row.get(0))
@@ -151,7 +151,7 @@ impl Database {
     pub fn ingest_backlog_display_name_for_source(
         &self,
         source_path: &Path,
-    ) -> Result<Option<String>, HarnessError> {
+    ) -> Result<Option<String>, CiteError> {
         let idempotency_key = build_idempotency_key(source_path);
         let mut stmt = self
             .conn
@@ -168,7 +168,7 @@ impl Database {
     pub fn ingest_backlog_status_for_source(
         &self,
         source_path: &Path,
-    ) -> Result<Option<String>, HarnessError> {
+    ) -> Result<Option<String>, CiteError> {
         let idempotency_key = build_idempotency_key(source_path);
         let mut stmt = self
             .conn
@@ -190,7 +190,7 @@ mod tests {
 
     fn unique_test_path(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
-            "aiharness_backlog_{}_{}.txt",
+            "aicite_backlog_{}_{}.txt",
             name,
             Utc::now().timestamp_nanos_opt().unwrap_or_default()
         ))

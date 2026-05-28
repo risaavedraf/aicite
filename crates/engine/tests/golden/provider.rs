@@ -1,4 +1,4 @@
-use common::HarnessError;
+use common::CiteError;
 use providers::EmbeddingProvider;
 use std::collections::HashMap;
 
@@ -179,7 +179,7 @@ impl Default for GoldenProvider {
 }
 
 impl EmbeddingProvider for GoldenProvider {
-    fn embed(&self, text: &str) -> Result<Vec<f32>, HarnessError> {
+    fn embed(&self, text: &str) -> Result<Vec<f32>, CiteError> {
         let key = normalize_key(text);
         if let Some(cached) = self.cache.get(&key) {
             return Ok(cached.clone());

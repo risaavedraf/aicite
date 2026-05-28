@@ -1,5 +1,5 @@
 use chrono::Utc;
-use common::HarnessError;
+use common::CiteError;
 use rusqlite::params;
 
 use crate::util::{format_dt, storage_err};
@@ -9,7 +9,7 @@ impl Database {
     /// Try to acquire a named durable lock.
     ///
     /// Returns `true` when lock was acquired, `false` when it is already held.
-    pub fn try_acquire_lock(&self, lock_name: &str, owner_id: &str) -> Result<bool, HarnessError> {
+    pub fn try_acquire_lock(&self, lock_name: &str, owner_id: &str) -> Result<bool, CiteError> {
         let now = format_dt(&Utc::now());
         let inserted = self
             .conn
@@ -24,7 +24,7 @@ impl Database {
     }
 
     /// Returns true when a named lock currently exists.
-    pub fn is_lock_held(&self, lock_name: &str) -> Result<bool, HarnessError> {
+    pub fn is_lock_held(&self, lock_name: &str) -> Result<bool, CiteError> {
         let held: i64 = self
             .conn
             .query_row(
@@ -38,7 +38,7 @@ impl Database {
     }
 
     /// Release a named durable lock only when owned by `owner_id`.
-    pub fn release_lock(&self, lock_name: &str, owner_id: &str) -> Result<(), HarnessError> {
+    pub fn release_lock(&self, lock_name: &str, owner_id: &str) -> Result<(), CiteError> {
         self.conn
             .execute(
                 "DELETE FROM durable_locks WHERE lock_name = ?1 AND owner_id = ?2",

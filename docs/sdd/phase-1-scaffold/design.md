@@ -69,7 +69,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load() -> Result<Self, HarnessError> {
+    pub fn load() -> Result<Self, CiteError> {
         let defaults = Defaults::load();
         let file = FileConfig::load(config_path_from_env())?;
         let env = EnvConfig::load();
@@ -85,7 +85,7 @@ impl Config {
 - Env vars override config file
 - Config file overrides defaults
 - Secrets (API keys) never in config file, always in env vars
-- Config file path: `HARNESS_CONFIG` env var or OS-appropriate default
+- Config file path: `CITE_CONFIG` env var or OS-appropriate default
 
 ### 2.3 SQLite connection management
 
@@ -97,8 +97,8 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn open(data_dir: &Path) -> Result<Self, HarnessError> {
-        let db_path = data_dir.join("harness.db");
+    pub fn open(data_dir: &Path) -> Result<Self, CiteError> {
+        let db_path = data_dir.join("cite.db");
         let conn = Connection::open(&db_path)?;
         
         conn.pragma_update(None, "journal_mode", "WAL")?;
@@ -126,7 +126,7 @@ crates/storage/src/migrations/
 
 **Implementation**:
 ```rust
-pub fn run_migrations(conn: &Connection) -> Result<(), HarnessError> {
+pub fn run_migrations(conn: &Connection) -> Result<(), CiteError> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS _migrations (
             version INTEGER PRIMARY KEY,
@@ -155,7 +155,7 @@ pub fn run_migrations(conn: &Connection) -> Result<(), HarnessError> {
 
 ```rust
 #[derive(Debug, thiserror::Error)]
-pub enum HarnessError {
+pub enum CiteError {
     #[error("Unsupported file type: {file_type}")]
     UnsupportedFileType { file_type: String },
     
@@ -181,7 +181,7 @@ pub enum HarnessError {
     InternalError { message: String },
 }
 
-impl HarnessError {
+impl CiteError {
     pub fn code(&self) -> &'static str {
         match self {
             Self::UnsupportedFileType { .. } => "unsupported_file_type",
@@ -282,7 +282,7 @@ const TEST_CONFIG: &str = r#"
 mode = "local_private_demo"
 
 [paths]
-data_dir = "/tmp/harness-test"
+data_dir = "/tmp/cite-test"
 
 [embedding]
 provider = "mock"

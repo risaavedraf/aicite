@@ -1,4 +1,4 @@
-# Tasks — Phase 8 Rename `harness` → `cite`
+# Tasks — Phase 8 Rename `cite` → `cite`
 
 ## Review Workload Forecast
 
@@ -30,9 +30,9 @@ Chain strategy: size-exception
 - `crates/cli/src/main.rs`
 
 **Steps**
-1. Rename CLI binary target name from `harness` to `cite`.
+1. Rename CLI binary target name from `cite` to `cite`.
 2. Update Clap command/app name to `cite`.
-3. Confirm no runtime naming edits (`HARNESS_*`) are introduced.
+3. Confirm no runtime naming edits (`CITE_*`) are introduced.
 
 **Verify**
 - `cargo run --bin cite -- --help` (Usage starts with `cite`)
@@ -56,11 +56,11 @@ Chain strategy: size-exception
 - `docs/rename-to-cite.md`
 
 **Steps**
-1. Replace command-facing examples using `harness` with `cite`.
+1. Replace command-facing examples using `cite` with `cite`.
 2. Keep Phase 9 deferral text coherent where runtime naming is mentioned.
 
 **Verify**
-- `rg -n "harness\s+(context|search|retrieve|ingest|list|get|trace|read|evaluate|refresh|retry)" README.md docs/demo.md docs/installation.md docs/agent-usage-guide.md docs/rename-to-cite.md`
+- `rg -n "cite\s+(context|search|retrieve|ingest|list|get|trace|read|evaluate|refresh|retry)" README.md docs/demo.md docs/installation.md docs/agent-usage-guide.md docs/rename-to-cite.md`
   - Expected: no command-example hits.
 - Append outputs + pass/fail to `docs/sdd/phase-8-rename-cite/verification-evidence.md`
 
@@ -82,13 +82,13 @@ Chain strategy: size-exception
 1. Create checklist for local single-user migration:
    - update scripts/aliases to `cite`
    - run help smoke command
-   - keep runtime env naming on `HARNESS_*`
+   - keep runtime env naming on `CITE_*`
    - confirm current data/db paths remain unchanged
    - rollback steps
 2. State explicitly: `CITE_*` and data/db path rename start in Phase 9.
 
 **Verify**
-- `rg -n "CITE_|HARNESS_" docs/sdd/phase-8-rename-cite/migration-checklist.md docs/installation.md`
+- `rg -n "CITE_|CITE_" docs/sdd/phase-8-rename-cite/migration-checklist.md docs/installation.md`
   - Expected: deferral policy is explicit.
 - Append outputs + pass/fail to `docs/sdd/phase-8-rename-cite/verification-evidence.md`
 
@@ -112,9 +112,9 @@ Chain strategy: size-exception
    - `cargo run --bin cite -- --help`
    - `cargo test`
    - docs grep from Task 2
-   - `rg -n "HARNESS_" crates/config crates/storage` (expect >=1 match)
+   - `rg -n "CITE_" crates/config crates/storage` (expect >=1 match)
    - `rg -n "CITE_" crates/config crates/storage` (expect 0 matches)
-   - `rg -n "CITE_|HARNESS_" docs/sdd/phase-8-rename-cite/migration-checklist.md docs/installation.md`
+   - `rg -n "CITE_|CITE_" docs/sdd/phase-8-rename-cite/migration-checklist.md docs/installation.md`
 2. Record command, exit result, and short outcome in evidence file.
 3. Mark Phase 8 acceptance gate pass/fail.
 

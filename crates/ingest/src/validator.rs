@@ -1,5 +1,5 @@
 use common::FileType;
-use common::HarnessError;
+use common::CiteError;
 use std::path::Path;
 
 /// Validate a file for ingestion: path safety, existence, type, and size.
@@ -8,12 +8,12 @@ use std::path::Path;
 pub fn validate_file(
     path: &Path,
     max_file_size_bytes: u64,
-) -> Result<(FileType, u64), HarnessError> {
+) -> Result<(FileType, u64), CiteError> {
     // Path policy checks before any filesystem access
     is_path_safe(path)?;
 
     // Resolve symlinks to prevent symlink escape
-    let canonical = std::fs::canonicalize(path).map_err(|_| HarnessError::FileNotFound {
+    let canonical = std::fs::canonicalize(path).map_err(|_| CiteError::FileNotFound {
         path: path.to_path_buf(),
     })?;
 
@@ -24,7 +24,7 @@ pub fn validate_file(
 
     // Must be a regular file
     if !canonical.is_file() {
-        return Err(HarnessError::FileNotFound {
+        return Err(CiteError::FileNotFound {
             path: path.to_path_buf(),
         });
     }
@@ -40,16 +40,16 @@ pub fn validate_file(
                 .and_then(|ext| ext.to_str())
                 .unwrap_or("<none>")
                 .to_string();
-            HarnessError::UnsupportedFileType { file_type }
+            CiteError::UnsupportedFileType { file_type }
         })?;
 
     // Size check
-    let metadata = std::fs::metadata(&canonical).map_err(|_| HarnessError::FileNotFound {
+    let metadata = std::fs::metadata(&canonical).map_err(|_| CiteError::FileNotFound {
         path: path.to_path_buf(),
     })?;
     let size = metadata.len();
     if size > max_file_size_bytes {
-        return Err(HarnessError::FileTooLarge {
+        return Err(CiteError::FileTooLarge {
             size_bytes: size,
             max_bytes: max_file_size_bytes,
         });
@@ -106,25 +106,25 @@ pub fn sanitize_display_name(name: &str) -> String {
 /// Check that a path is safe for file access.
 ///
 /// Rejects path traversal (`..`), UNC paths (`\\`), and device file paths (`/dev/`).
-pub fn is_path_safe(path: &Path) -> Result<(), HarnessError> {
+pub fn is_path_safe(path: &Path) -> Result<(), CiteError> {
     let path_str = path.to_string_lossy();
 
     // Reject UNC / network paths (\\server or //server)
     // but allow Windows extended-length paths (\\?\...)
     if path_str.starts_with("\\\\") && !path_str.starts_with("\\\\?\\") {
-        return Err(HarnessError::PathRejected {
+        return Err(CiteError::PathRejected {
             message: "Network paths are not allowed".to_string(),
         });
     }
     if path_str.starts_with("//") {
-        return Err(HarnessError::PathRejected {
+        return Err(CiteError::PathRejected {
             message: "Network paths are not allowed".to_string(),
         });
     }
 
     // Reject device file paths
     if path_str.starts_with("/dev/") || path_str.starts_with("\\\\.\\") {
-        return Err(HarnessError::PathRejected {
+        return Err(CiteError::PathRejected {
             message: "Device file paths are not allowed".to_string(),
         });
     }
@@ -132,7 +132,7 @@ pub fn is_path_safe(path: &Path) -> Result<(), HarnessError> {
     // Reject .. components (path traversal)
     for component in path.components() {
         if let std::path::Component::ParentDir = component {
-            return Err(HarnessError::PathRejected {
+            return Err(CiteError::PathRejected {
                 message: "Path traversal (..) is not allowed".to_string(),
             });
         }
@@ -146,22 +146,22 @@ pub fn is_path_safe(path: &Path) -> Result<(), HarnessError> {
 /// On Windows, `std::fs::canonicalize` returns extended-length paths like
 /// `\\?\C:\...` which are local, not network. We allow `\\?\` but reject
 /// `\\?\UNC\` (extended-length UNC) and bare `\\server` (standard UNC).
-fn reject_network_path(path: &Path) -> Result<(), HarnessError> {
+fn reject_network_path(path: &Path) -> Result<(), CiteError> {
     let s = path.to_string_lossy();
     // Reject extended-length UNC paths
     if s.starts_with("\\\\?\\UNC\\") || s.starts_with("\\\\?\\unc\\") {
-        return Err(HarnessError::PathRejected {
+        return Err(CiteError::PathRejected {
             message: "Network paths are not allowed".to_string(),
         });
     }
     // Reject bare UNC paths but allow \\?\ extended-length local paths
     if s.starts_with("\\\\") && !s.starts_with("\\\\?\\") {
-        return Err(HarnessError::PathRejected {
+        return Err(CiteError::PathRejected {
             message: "Network paths are not allowed".to_string(),
         });
     }
     if s.starts_with("//") {
-        return Err(HarnessError::PathRejected {
+        return Err(CiteError::PathRejected {
             message: "Network paths are not allowed".to_string(),
         });
     }
@@ -169,10 +169,10 @@ fn reject_network_path(path: &Path) -> Result<(), HarnessError> {
 }
 
 /// Reject device file paths on an already-resolved path.
-fn reject_device_path(path: &Path) -> Result<(), HarnessError> {
+fn reject_device_path(path: &Path) -> Result<(), CiteError> {
     let s = path.to_string_lossy();
     if s.starts_with("/dev/") || s.starts_with("\\\\.\\") {
-        return Err(HarnessError::PathRejected {
+        return Err(CiteError::PathRejected {
             message: "Device file paths are not allowed".to_string(),
         });
     }
@@ -192,7 +192,7 @@ mod tests {
     #[test]
     fn test_validate_txt_file() {
         let dir = temp_dir();
-        let file_path = dir.join("aiharness_test_validator.txt");
+        let file_path = dir.join("aicite_test_validator.txt");
         fs::write(&file_path, b"hello world").expect("write temp file");
 
         let result = validate_file(&file_path, 1024);
@@ -207,13 +207,13 @@ mod tests {
     #[test]
     fn test_validate_unsupported_type() {
         let dir = temp_dir();
-        let file_path = dir.join("aiharness_test_validator.csv");
+        let file_path = dir.join("aicite_test_validator.csv");
         fs::write(&file_path, b"a,b,c").expect("write temp file");
 
         let result = validate_file(&file_path, 1024);
         assert!(result.is_err());
         match result.unwrap_err() {
-            HarnessError::UnsupportedFileType { file_type } => {
+            CiteError::UnsupportedFileType { file_type } => {
                 assert_eq!(file_type, "csv");
             }
             other => panic!("Expected UnsupportedFileType, got: {:?}", other),
@@ -224,11 +224,11 @@ mod tests {
 
     #[test]
     fn test_validate_missing_file() {
-        let file_path = temp_dir().join("aiharness_nonexistent_12345.txt");
+        let file_path = temp_dir().join("aicite_nonexistent_12345.txt");
         let result = validate_file(&file_path, 1024);
         assert!(result.is_err());
         match result.unwrap_err() {
-            HarnessError::FileNotFound { .. } => {}
+            CiteError::FileNotFound { .. } => {}
             other => panic!("Expected FileNotFound, got: {:?}", other),
         }
     }
@@ -239,7 +239,7 @@ mod tests {
         let result = validate_file(&file_path, 1024);
         assert!(result.is_err());
         match result.unwrap_err() {
-            HarnessError::PathRejected { .. } => {}
+            CiteError::PathRejected { .. } => {}
             other => panic!("Expected PathRejected, got: {:?}", other),
         }
     }
@@ -247,14 +247,14 @@ mod tests {
     #[test]
     fn test_validate_file_too_large() {
         let dir = temp_dir();
-        let file_path = dir.join("aiharness_test_validator_large.txt");
+        let file_path = dir.join("aicite_test_validator_large.txt");
         fs::write(&file_path, b"hello world").expect("write temp file");
 
         // Set max_file_size_bytes to 5, which is smaller than 11 bytes
         let result = validate_file(&file_path, 5);
         assert!(result.is_err());
         match result.unwrap_err() {
-            HarnessError::FileTooLarge {
+            CiteError::FileTooLarge {
                 size_bytes,
                 max_bytes,
             } => {
@@ -337,7 +337,7 @@ mod tests {
         let result = is_path_safe(Path::new("/home/user/../../../etc/passwd"));
         assert!(result.is_err());
         match result.unwrap_err() {
-            HarnessError::PathRejected { .. } => {}
+            CiteError::PathRejected { .. } => {}
             other => panic!("Expected PathRejected, got: {:?}", other),
         }
     }
@@ -348,7 +348,7 @@ mod tests {
         let result = is_path_safe(Path::new("//server/share/file.txt"));
         assert!(result.is_err());
         match result.unwrap_err() {
-            HarnessError::PathRejected { message } => {
+            CiteError::PathRejected { message } => {
                 assert!(message.contains("Network"));
             }
             other => panic!("Expected PathRejected, got: {:?}", other),
@@ -360,7 +360,7 @@ mod tests {
         let result = is_path_safe(Path::new("/dev/null"));
         assert!(result.is_err());
         match result.unwrap_err() {
-            HarnessError::PathRejected { message } => {
+            CiteError::PathRejected { message } => {
                 assert!(message.contains("Device"));
             }
             other => panic!("Expected PathRejected, got: {:?}", other),

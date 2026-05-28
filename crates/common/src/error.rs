@@ -2,9 +2,9 @@ use crate::exit::ExitCode;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// All errors in the AI Harness system
+/// All errors in the AI Cite system
 #[derive(Debug, thiserror::Error)]
-pub enum HarnessError {
+pub enum CiteError {
     #[error("Unsupported file type: {file_type}")]
     UnsupportedFileType { file_type: String },
 
@@ -67,7 +67,7 @@ pub enum HarnessError {
     RetrievalTimeout,
 }
 
-impl HarnessError {
+impl CiteError {
     /// Machine-readable error code
     pub fn code(&self) -> &'static str {
         match self {
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn test_operation_in_progress_json_contains_retry_and_lock() {
-        let err = HarnessError::OperationInProgress {
+        let err = CiteError::OperationInProgress {
             message: "busy".to_string(),
             retry_after_seconds: 5,
             lock_name: Some("ingest_pipeline".to_string()),

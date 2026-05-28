@@ -1,5 +1,5 @@
 use chrono::Utc;
-use common::HarnessError;
+use common::CiteError;
 use rusqlite::{params, OptionalExtension};
 
 use crate::util::{format_dt, storage_err};
@@ -18,7 +18,7 @@ impl Database {
         key: &str,
         max_requests: u32,
         window_seconds: u32,
-    ) -> Result<RateLimitDecision, HarnessError> {
+    ) -> Result<RateLimitDecision, CiteError> {
         let now_epoch = Utc::now().timestamp();
         self.check_and_increment_rate_limit_at(route, key, max_requests, window_seconds, now_epoch)
     }
@@ -30,9 +30,9 @@ impl Database {
         max_requests: u32,
         window_seconds: u32,
         now_epoch: i64,
-    ) -> Result<RateLimitDecision, HarnessError> {
+    ) -> Result<RateLimitDecision, CiteError> {
         if max_requests == 0 || window_seconds == 0 {
-            return Err(HarnessError::InvalidParameter {
+            return Err(CiteError::InvalidParameter {
                 message: "rate limit config must have max_requests>0 and window_seconds>0"
                     .to_string(),
             });
@@ -134,7 +134,7 @@ mod tests {
     #[test]
     fn test_rate_limit_persists_across_db_reopen() {
         let temp_dir = std::env::temp_dir().join(format!(
-            "aiharness_rate_limit_{}",
+            "aicite_rate_limit_{}",
             Utc::now().timestamp_nanos_opt().unwrap_or_default()
         ));
         std::fs::create_dir_all(&temp_dir).unwrap();
@@ -161,9 +161,9 @@ mod tests {
             assert!(matches!(blocked, RateLimitDecision::Blocked { .. }));
         }
 
-        let _ = std::fs::remove_file(temp_dir.join("harness.db"));
-        let _ = std::fs::remove_file(temp_dir.join("harness.db-wal"));
-        let _ = std::fs::remove_file(temp_dir.join("harness.db-shm"));
+        let _ = std::fs::remove_file(temp_dir.join("cite.db"));
+        let _ = std::fs::remove_file(temp_dir.join("cite.db-wal"));
+        let _ = std::fs::remove_file(temp_dir.join("cite.db-shm"));
         let _ = std::fs::remove_dir_all(temp_dir);
     }
 }

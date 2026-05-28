@@ -38,7 +38,7 @@ A CLI-first private semantic document engine with cited retrieval, source inspec
 
 | Feature | Reason |
 |---|---|
-| Built-in answer generation / internal assistant | The MVP is a context harness for external agents; an answer adapter can be added later without defining the core product |
+| Built-in answer generation / internal assistant | The MVP is a context cite for external agents; an answer adapter can be added later without defining the core product |
 | Native app / desktop UI | Moves to a separate future/V2 document |
 | Web companion | Not part of the MVP contract |
 | MCP server/access | Deferred extension; the MVP CLI JSON contract should be good enough to wrap later |

@@ -81,7 +81,7 @@
 - [ ] Create `.github/workflows/release.yml`
 - [ ] Trigger on tag push `v*`
 - [ ] Build matrix: linux-x86_64, windows-x86_64, macos-arm64
-- [ ] Smoke test each binary (`harness health --json`)
+- [ ] Smoke test each binary (`cite health --json`)
 - [ ] Upload artifacts
 
 ### Task 4.2: Release creation

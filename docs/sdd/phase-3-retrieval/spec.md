@@ -45,7 +45,7 @@ Rules:
 
 - Query must be non-empty after trim.
 - Max query length: 4000 chars.
-- Violations return `HarnessError::InvalidParameter` (empty) or `HarnessError::QueryTooLong`.
+- Violations return `CiteError::InvalidParameter` (empty) or `CiteError::QueryTooLong`.
 
 ## 5) Engine behavior
 
@@ -67,12 +67,12 @@ Output per hit:
 
 ## 6) CLI behavior
 
-### `harness search <query> [--k N]`
+### `cite search <query> [--k N]`
 
 - JSON output contains `{ query, top_k, hit_count, results[] }`
 - Human output prints ranked concise lines.
 
-### `harness retrieve <query> [--k N]`
+### `cite retrieve <query> [--k N]`
 
 - JSON output contains `{ query, top_k, hit_count, results[] }`
 - Human output prints ranked hits and chunk text.

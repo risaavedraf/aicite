@@ -101,8 +101,8 @@ fn truncate(text: &str, max_chars: usize) -> String {
     }
 }
 
-fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, common::HarnessError> {
-    let api_key = std::env::var("HARNESS_EMBEDDING_API_KEY")
+fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, common::CiteError> {
+    let api_key = std::env::var("CITE_EMBEDDING_API_KEY")
         .or_else(|_| std::env::var("GEMINI_API_KEY"))
         .or_else(|_| std::env::var("OPENAI_API_KEY"))
         .unwrap_or_default();
@@ -130,6 +130,6 @@ fn resolve_data_dir(config: &Config) -> PathBuf {
     config.paths.data_dir.clone().unwrap_or_else(|| {
         dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("harness")
+            .join("cite")
     })
 }

@@ -113,7 +113,7 @@ pub struct ChunkInput {
 
 ```rust
 pub trait EmbeddingProvider {
-    fn embed(&self, text: &str) -> Result<Vec<f32>, HarnessError>;
+    fn embed(&self, text: &str) -> Result<Vec<f32>, CiteError>;
     fn model_id(&self) -> &str;
     fn provider_id(&self) -> &str;
 }
@@ -125,7 +125,7 @@ New struct `OpenAICompatibleProvider`:
 - HTTP POST to configurable endpoint (default: `https://api.openai.com/v1/embeddings`)
 - Request body: `{"input": text, "model": model_id}`
 - Response: `{"data": [{"embedding": [...]}]}`
-- API key from `HARNESS_EMBEDDING_API_KEY` env var
+- API key from `CITE_EMBEDDING_API_KEY` env var
 - HTTPS-only enforcement: reject non-HTTPS URLs at construction time
 - Configurable timeout (default: 30 seconds)
 - Error mapping: HTTP errors → `EmbeddingProviderError`
@@ -143,13 +143,13 @@ For efficiency, embed all chunks in a single document ingestion:
 
 ```rust
 impl Database {
-    pub fn insert_document(&self, doc: &Document) -> Result<(), HarnessError>;
-    pub fn get_document(&self, id: &str) -> Result<Document, HarnessError>;
-    pub fn list_documents(&self) -> Result<Vec<Document>, HarnessError>;
-    pub fn update_document_status(&self, id: &str, status: DocumentStatus, error: Option<ErrorInfo>) -> Result<(), HarnessError>;
-    pub fn update_document_chunk_count(&self, id: &str, count: u32) -> Result<(), HarnessError>;
-    pub fn increment_retry_count(&self, id: &str) -> Result<(), HarnessError>;
-    pub fn reset_retry_count(&self, id: &str) -> Result<(), HarnessError>;
+    pub fn insert_document(&self, doc: &Document) -> Result<(), CiteError>;
+    pub fn get_document(&self, id: &str) -> Result<Document, CiteError>;
+    pub fn list_documents(&self) -> Result<Vec<Document>, CiteError>;
+    pub fn update_document_status(&self, id: &str, status: DocumentStatus, error: Option<ErrorInfo>) -> Result<(), CiteError>;
+    pub fn update_document_chunk_count(&self, id: &str, count: u32) -> Result<(), CiteError>;
+    pub fn increment_retry_count(&self, id: &str) -> Result<(), CiteError>;
+    pub fn reset_retry_count(&self, id: &str) -> Result<(), CiteError>;
 }
 ```
 
@@ -157,9 +157,9 @@ impl Database {
 
 ```rust
 impl Database {
-    pub fn insert_chunks(&self, chunks: &[Chunk]) -> Result<(), HarnessError>;
-    pub fn get_chunks_for_document(&self, doc_id: &str) -> Result<Vec<Chunk>, HarnessError>;
-    pub fn delete_chunks_for_document(&self, doc_id: &str) -> Result<(), HarnessError>;
+    pub fn insert_chunks(&self, chunks: &[Chunk]) -> Result<(), CiteError>;
+    pub fn get_chunks_for_document(&self, doc_id: &str) -> Result<Vec<Chunk>, CiteError>;
+    pub fn delete_chunks_for_document(&self, doc_id: &str) -> Result<(), CiteError>;
 }
 ```
 
@@ -167,8 +167,8 @@ impl Database {
 
 ```rust
 impl Database {
-    pub fn insert_embeddings(&self, embeddings: &[(String, Vec<f32>, String, String)]) -> Result<(), HarnessError>;
-    pub fn delete_embeddings_for_document(&self, doc_id: &str) -> Result<(), HarnessError>;
+    pub fn insert_embeddings(&self, embeddings: &[(String, Vec<f32>, String, String)]) -> Result<(), CiteError>;
+    pub fn delete_embeddings_for_document(&self, doc_id: &str) -> Result<(), CiteError>;
 }
 ```
 
@@ -178,7 +178,7 @@ impl Database {
 
 ```rust
 impl Engine {
-    pub fn ingest(&self, db: &Database, provider: &dyn EmbeddingProvider, config: &IngestConfig, path: &Path, display_name: Option<&str>) -> Result<IngestResult, HarnessError>;
+    pub fn ingest(&self, db: &Database, provider: &dyn EmbeddingProvider, config: &IngestConfig, path: &Path, display_name: Option<&str>) -> Result<IngestResult, CiteError>;
 }
 ```
 
@@ -226,7 +226,7 @@ impl Engine {
 ### Partial cleanup on failure
 
 ```rust
-fn cleanup_partial(db: &Database, document_id: &str) -> Result<(), HarnessError> {
+fn cleanup_partial(db: &Database, document_id: &str) -> Result<(), CiteError> {
     // Delete embeddings for this document's chunks
     db.delete_embeddings_for_document(document_id)?;
     // Delete chunks for this document
@@ -238,7 +238,7 @@ fn cleanup_partial(db: &Database, document_id: &str) -> Result<(), HarnessError>
 
 ## 7. CLI commands
 
-### `harness ingest <path>`
+### `cite ingest <path>`
 
 **Flags**:
 - `--display-name <name>`: Override display name
@@ -270,7 +270,7 @@ fn cleanup_partial(db: &Database, document_id: &str) -> Result<(), HarnessError>
 }
 ```
 
-### `harness list`
+### `cite list`
 
 **Flags**:
 - `--json`: Machine output
@@ -297,7 +297,7 @@ fn cleanup_partial(db: &Database, document_id: &str) -> Result<(), HarnessError>
 }
 ```
 
-### `harness get <document_id>`
+### `cite get <document_id>`
 
 **Flags**:
 - `--json`: Machine output
@@ -322,7 +322,7 @@ fn cleanup_partial(db: &Database, document_id: &str) -> Result<(), HarnessError>
 }
 ```
 
-### `harness retry <document_id>`
+### `cite retry <document_id>`
 
 **Flags**:
 - `--json`: Machine output
@@ -365,11 +365,11 @@ pub struct IngestConfig {
 ```
 
 Environment variables:
-- `HARNESS_MAX_FILE_SIZE` (bytes)
-- `HARNESS_CHUNK_SIZE` (chars)
-- `HARNESS_CHUNK_OVERLAP` (chars)
-- `HARNESS_EMBEDDING_TIMEOUT` (seconds)
-- `HARNESS_EMBEDDING_ENDPOINT` (URL)
+- `CITE_MAX_FILE_SIZE` (bytes)
+- `CITE_CHUNK_SIZE` (chars)
+- `CITE_CHUNK_OVERLAP` (chars)
+- `CITE_EMBEDDING_TIMEOUT` (seconds)
+- `CITE_EMBEDDING_ENDPOINT` (URL)
 
 ## 9. Testing requirements
 
@@ -403,7 +403,7 @@ Environment variables:
 - Context packs (Phase 4)
 - Durable locks + backlog (Phase 5)
 - Rate limiting (Phase 5)
-- `harness refresh` (Phase 5)
+- `cite refresh` (Phase 5)
 - Golden dataset (Phase 6)
 - Keyword extraction or NLP
 - Graph construction

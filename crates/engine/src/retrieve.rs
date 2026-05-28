@@ -1,4 +1,4 @@
-use common::HarnessError;
+use common::CiteError;
 use config::{RateLimitConfig, RetrievalConfig};
 use providers::EmbeddingProvider;
 use retrieval::rank_by_similarity;
@@ -46,7 +46,7 @@ pub fn search(
     rate_limit: &RateLimitConfig,
     query: &str,
     k_override: Option<u32>,
-) -> Result<Vec<SearchHit>, HarnessError> {
+) -> Result<Vec<SearchHit>, CiteError> {
     let k = resolve_k(config, k_override)?;
     validate_query(query)?;
     enforce_rate_limit(db, provider, rate_limit, SEARCH_ROUTE)?;
@@ -79,7 +79,7 @@ pub fn retrieve(
     rate_limit: &RateLimitConfig,
     query: &str,
     k_override: Option<u32>,
-) -> Result<Vec<RetrieveHit>, HarnessError> {
+) -> Result<Vec<RetrieveHit>, CiteError> {
     let k = resolve_k(config, k_override)?;
     validate_query(query)?;
     enforce_rate_limit(db, provider, rate_limit, RETRIEVE_ROUTE)?;
@@ -114,7 +114,7 @@ fn enforce_rate_limit(
     provider: &dyn EmbeddingProvider,
     rate_limit: &RateLimitConfig,
     route: &str,
-) -> Result<(), HarnessError> {
+) -> Result<(), CiteError> {
     let key = rate_limit_key(provider);
     match db.check_and_increment_rate_limit(
         route,
@@ -125,7 +125,7 @@ fn enforce_rate_limit(
         storage::rate_limits::RateLimitDecision::Allowed => Ok(()),
         storage::rate_limits::RateLimitDecision::Blocked {
             retry_after_seconds,
-        } => Err(HarnessError::RateLimitExceeded {
+        } => Err(CiteError::RateLimitExceeded {
             retry_after_seconds,
         }),
     }
@@ -134,27 +134,27 @@ fn enforce_rate_limit(
 pub(crate) fn resolve_k(
     config: &RetrievalConfig,
     k_override: Option<u32>,
-) -> Result<u32, HarnessError> {
+) -> Result<u32, CiteError> {
     let k = k_override.unwrap_or(config.top_k);
     if !(MIN_K..=MAX_K).contains(&k) {
-        return Err(HarnessError::InvalidParameter {
+        return Err(CiteError::InvalidParameter {
             message: format!("top-k must be between {MIN_K} and {MAX_K}, got {k}"),
         });
     }
     Ok(k)
 }
 
-pub(crate) fn validate_query(query: &str) -> Result<(), HarnessError> {
+pub(crate) fn validate_query(query: &str) -> Result<(), CiteError> {
     let trimmed = query.trim();
     if trimmed.is_empty() {
-        return Err(HarnessError::InvalidParameter {
+        return Err(CiteError::InvalidParameter {
             message: "query must not be empty".to_string(),
         });
     }
 
     let len = trimmed.chars().count();
     if len > MAX_QUERY_CHARS {
-        return Err(HarnessError::QueryTooLong {
+        return Err(CiteError::QueryTooLong {
             length: len,
             max: MAX_QUERY_CHARS,
         });
@@ -186,7 +186,7 @@ mod tests {
     }
 
     impl EmbeddingProvider for FakeProvider {
-        fn embed(&self, _text: &str) -> Result<Vec<f32>, HarnessError> {
+        fn embed(&self, _text: &str) -> Result<Vec<f32>, CiteError> {
             Ok(self.vector.clone())
         }
 
@@ -266,7 +266,7 @@ mod tests {
         };
 
         let err = search(&db, &provider, &cfg, &rl_cfg(), "   ", None).unwrap_err();
-        assert!(matches!(err, HarnessError::InvalidParameter { .. }));
+        assert!(matches!(err, CiteError::InvalidParameter { .. }));
     }
 
     #[test]
@@ -282,7 +282,7 @@ mod tests {
         };
 
         let err = search(&db, &provider, &cfg, &rl_cfg(), "hello", None).unwrap_err();
-        assert!(matches!(err, HarnessError::InvalidParameter { .. }));
+        assert!(matches!(err, CiteError::InvalidParameter { .. }));
     }
 
     #[test]
@@ -378,7 +378,7 @@ mod tests {
 
         let query = "a".repeat(4001);
         let err = search(&db, &provider, &cfg, &rl_cfg(), &query, None).unwrap_err();
-        assert!(matches!(err, HarnessError::QueryTooLong { .. }));
+        assert!(matches!(err, CiteError::QueryTooLong { .. }));
     }
 
     #[test]
@@ -410,7 +410,7 @@ mod tests {
         let err = search(&db, &provider, &cfg, &rl, "query", None).unwrap_err();
         assert!(matches!(
             err,
-            HarnessError::RateLimitExceeded {
+            CiteError::RateLimitExceeded {
                 retry_after_seconds: _
             }
         ));
@@ -445,7 +445,7 @@ mod tests {
         let err = retrieve(&db, &provider, &cfg, &rl, "query", None).unwrap_err();
         assert!(matches!(
             err,
-            HarnessError::RateLimitExceeded {
+            CiteError::RateLimitExceeded {
                 retry_after_seconds: _
             }
         ));

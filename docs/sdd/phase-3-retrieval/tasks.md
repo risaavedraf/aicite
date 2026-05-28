@@ -31,7 +31,7 @@
 - Map ranked candidates to output DTOs
 
 ### 4) CLI commands
-- Add `harness search` and `harness retrieve`
+- Add `cite search` and `cite retrieve`
 - Support `--k` override
 - JSON + human-friendly outputs
 - Wire in `commands/mod.rs` and `main.rs`

@@ -21,31 +21,31 @@ Implement the full ingest pipeline: file validation, text extraction (PDF/TXT/MD
 - **Embedding generation**: OpenAI-compatible provider via reqwest (HTTPS-only), configurable model/API key
 - **Document lifecycle**: pending → processing → ready → failed, with error info
 - **Storage CRUD**: insert/get/list/update for documents, chunks, embeddings
-- **CLI commands**: `harness ingest <path>`, `harness list`, `harness get`, `harness retry`
+- **CLI commands**: `cite ingest <path>`, `cite list`, `cite get`, `cite retry`
 - **Retry logic**: bounded retries (3 attempts), exponential backoff, recovery on startup
 - **Partial cleanup**: rollback chunks/embeddings on failure
 - **Display name**: derive sanitized label from filename when not provided
 
 ### Out of scope
 - Durable locks + backlog (Phase 5)
-- `harness refresh` (Phase 5)
+- `cite refresh` (Phase 5)
 - Retrieval pipeline (Phase 3)
 - Context packs (Phase 4)
 - Golden dataset (Phase 6)
 - Rate limiting (Phase 5)
-- `harness search/retrieve/context/read/trace` (Phases 3-4)
+- `cite search/retrieve/context/read/trace` (Phases 3-4)
 
 ## Acceptance criteria
 
-1. `harness ingest ./docs/sample.txt --json` ingests a text file and returns document_id, status, chunk_count
-2. `harness ingest ./docs/sample.pdf --json` ingests a PDF with page-level extraction
-3. `harness ingest ./docs/sample.md --json` ingests a markdown file
-4. `harness list --json` returns all documents with status
-5. `harness get <doc_id> --json` returns document metadata
-6. `harness ingest ./unsupported.csv --json` returns `unsupported_file_type` error
-7. `harness ingest ./huge.pdf --json` returns `file_too_large` if exceeds limit
+1. `cite ingest ./docs/sample.txt --json` ingests a text file and returns document_id, status, chunk_count
+2. `cite ingest ./docs/sample.pdf --json` ingests a PDF with page-level extraction
+3. `cite ingest ./docs/sample.md --json` ingests a markdown file
+4. `cite list --json` returns all documents with status
+5. `cite get <doc_id> --json` returns document metadata
+6. `cite ingest ./unsupported.csv --json` returns `unsupported_file_type` error
+7. `cite ingest ./huge.pdf --json` returns `file_too_large` if exceeds limit
 8. Failed ingestion marks document as `failed` with error info
-9. `harness retry <doc_id> --json` resets a failed document to `pending`
+9. `cite retry <doc_id> --json` resets a failed document to `pending`
 10. Partial data (chunks, embeddings) is cleaned up on failure
 11. `cargo test` passes
 12. `cargo clippy -- -D warnings` passes

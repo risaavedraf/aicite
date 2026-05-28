@@ -15,9 +15,9 @@ From roadmap and PRD contracts:
 1. Context-pack assembly (`context_pack_id`, `result_kind`, `trace_id`, citations, metadata)
 2. Canonical `result_kind` behavior (`context`, `no_results`, `insufficient_context`)
 3. Citation model for agent-consumable evidence
-4. `harness context` command (JSON + human output)
-5. `harness read` command (scoped citation/chunk lookup)
-6. `harness trace` command (traceability envelope)
+4. `cite context` command (JSON + human output)
+5. `cite read` command (scoped citation/chunk lookup)
+6. `cite trace` command (traceability envelope)
 7. Agent instruction template + verification disclaimer
 8. Partial-corpus metadata and ready-snapshot behavior
 

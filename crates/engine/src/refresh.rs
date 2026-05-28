@@ -1,5 +1,5 @@
 use common::types::{DocumentStatus, ErrorInfo};
-use common::HarnessError;
+use common::CiteError;
 use storage::Database;
 use uuid::Uuid;
 
@@ -20,7 +20,7 @@ pub struct RefreshResult {
 /// 3. Activate the snapshot atomically (supersedes previous)
 ///
 /// On failure at any step, the previous active snapshot remains intact.
-pub fn refresh_corpus(db: &Database) -> Result<RefreshResult, HarnessError> {
+pub fn refresh_corpus(db: &Database) -> Result<RefreshResult, CiteError> {
     let snapshot_id = format!(
         "snap_{}",
         &Uuid::new_v4().to_string().replace('-', "")[..12]
@@ -41,7 +41,7 @@ pub fn refresh_corpus(db: &Database) -> Result<RefreshResult, HarnessError> {
                 message: "No ready documents found to include in snapshot".to_string(),
             },
         )?;
-        return Err(HarnessError::InvalidParameter {
+        return Err(CiteError::InvalidParameter {
             message: "No ready documents found to include in snapshot".to_string(),
         });
     }
@@ -123,7 +123,7 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
-            HarnessError::InvalidParameter { .. }
+            CiteError::InvalidParameter { .. }
         ));
 
         // No active snapshot should exist

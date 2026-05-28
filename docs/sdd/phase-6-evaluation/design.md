@@ -81,7 +81,7 @@ impl GoldenProvider {
 }
 
 impl EmbeddingProvider for GoldenProvider {
-    fn embed(&self, text: &str) -> Result<Vec<f32>, HarnessError> {
+    fn embed(&self, text: &str) -> Result<Vec<f32>, CiteError> {
         let key = normalize(text);
         Ok(self.vectors.get(&key).cloned().unwrap_or_else(|| vec![0.0; DIM]))
     }

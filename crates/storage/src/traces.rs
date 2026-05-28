@@ -2,13 +2,13 @@ use common::types::{
     Chunk, ContextMetadataScaffold, TraceCitationRecord, TraceEnvelope, TraceHeaderInput,
     TraceHeaderRecord,
 };
-use common::HarnessError;
+use common::CiteError;
 use rusqlite::params;
 
 use crate::util::{parse_dt, storage_err};
 use crate::Database;
 
-fn row_to_chunk(row: &rusqlite::Row<'_>) -> Result<Chunk, HarnessError> {
+fn row_to_chunk(row: &rusqlite::Row<'_>) -> Result<Chunk, CiteError> {
     let created_at_str: String = row.get("created_at").map_err(storage_err)?;
 
     Ok(Chunk {
@@ -39,7 +39,7 @@ impl Database {
         &self,
         header: &TraceHeaderInput,
         citations: &[TraceCitationRecord],
-    ) -> Result<(), HarnessError> {
+    ) -> Result<(), CiteError> {
         let tx = self.conn.unchecked_transaction().map_err(storage_err)?;
 
         let citation_ids = header.citation_ids.clone().or_else(|| {
@@ -88,7 +88,7 @@ impl Database {
 
         for citation in citations {
             if citation.trace_id != header.trace_id {
-                return Err(HarnessError::StorageError {
+                return Err(CiteError::StorageError {
                     message: format!(
                         "Citation {} belongs to trace {}, expected {}",
                         citation.citation_id, citation.trace_id, header.trace_id
@@ -136,7 +136,7 @@ impl Database {
         &self,
         trace_id: &str,
         citation_id: &str,
-    ) -> Result<TraceCitationRecord, HarnessError> {
+    ) -> Result<TraceCitationRecord, CiteError> {
         let mut stmt = self
             .conn
             .prepare(
@@ -185,7 +185,7 @@ impl Database {
                 confidence_label: row.get(10).map_err(storage_err)?,
             })
         } else {
-            Err(HarnessError::CitationNotFound {
+            Err(CiteError::CitationNotFound {
                 citation_id: citation_id.to_string(),
             })
         }
@@ -196,7 +196,7 @@ impl Database {
         &self,
         document_id: &str,
         chunk_id: &str,
-    ) -> Result<Chunk, HarnessError> {
+    ) -> Result<Chunk, CiteError> {
         let mut status_stmt = self
             .conn
             .prepare("SELECT status FROM documents WHERE document_id = ?1")
@@ -208,14 +208,14 @@ impl Database {
         let status = match status_rows.next().map_err(storage_err)? {
             Some(row) => row.get::<_, String>(0).map_err(storage_err)?,
             None => {
-                return Err(HarnessError::DocumentNotFound {
+                return Err(CiteError::DocumentNotFound {
                     document_id: document_id.to_string(),
                 });
             }
         };
 
         if status != "ready" {
-            return Err(HarnessError::DocumentNotReady {
+            return Err(CiteError::DocumentNotReady {
                 document_id: document_id.to_string(),
             });
         }
@@ -235,14 +235,14 @@ impl Database {
         if let Some(row) = rows.next().map_err(storage_err)? {
             row_to_chunk(row)
         } else {
-            Err(HarnessError::ChunkNotFound {
+            Err(CiteError::ChunkNotFound {
                 chunk_id: chunk_id.to_string(),
             })
         }
     }
 
     /// Get a trace envelope by trace id.
-    pub fn get_trace_envelope(&self, trace_id: &str) -> Result<TraceEnvelope, HarnessError> {
+    pub fn get_trace_envelope(&self, trace_id: &str) -> Result<TraceEnvelope, CiteError> {
         let mut trace_stmt = self
             .conn
             .prepare(
@@ -289,7 +289,7 @@ impl Database {
                 created_at: parse_dt(&created_at)?,
             }
         } else {
-            return Err(HarnessError::TraceNotFound {
+            return Err(CiteError::TraceNotFound {
                 trace_id: trace_id.to_string(),
             });
         };
@@ -358,7 +358,7 @@ impl Database {
     }
 
     /// List all non-ready document IDs.
-    pub fn list_non_ready_document_ids(&self) -> Result<Vec<String>, HarnessError> {
+    pub fn list_non_ready_document_ids(&self) -> Result<Vec<String>, CiteError> {
         let mut stmt = self
             .conn
             .prepare(
@@ -509,7 +509,7 @@ mod tests {
             .unwrap_err();
         assert!(matches!(
             not_ready_err,
-            HarnessError::DocumentNotReady { .. }
+            CiteError::DocumentNotReady { .. }
         ));
     }
 
@@ -522,19 +522,19 @@ mod tests {
             .unwrap();
 
         let trace_err = db.get_trace_envelope("trace-missing").unwrap_err();
-        assert!(matches!(trace_err, HarnessError::TraceNotFound { .. }));
+        assert!(matches!(trace_err, CiteError::TraceNotFound { .. }));
 
         let citation_err = db
             .get_citation_by_trace("trace-existing", "citation-missing")
             .unwrap_err();
         assert!(matches!(
             citation_err,
-            HarnessError::CitationNotFound { .. }
+            CiteError::CitationNotFound { .. }
         ));
 
         let chunk_err = db
             .get_ready_chunk_by_document("doc-ready", "chunk-missing")
             .unwrap_err();
-        assert!(matches!(chunk_err, HarnessError::ChunkNotFound { .. }));
+        assert!(matches!(chunk_err, CiteError::ChunkNotFound { .. }));
     }
 }

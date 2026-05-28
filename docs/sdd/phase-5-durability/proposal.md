@@ -15,10 +15,10 @@ Implement Phase 5 durability end-to-end across storage, engine, and CLI while pr
 Key additions:
 - Durable ingest lock with explicit conflict handling
 - Backlog persistence/upsert on lock conflict
-- Queue processing modes (`harness ingest --queued`, `harness ingest --next`)
+- Queue processing modes (`cite ingest --queued`, `cite ingest --next`)
 - Durable rate limiting for `search`, `retrieve`, and `context` (20 req/min per key)
 - Retry contract alignment for failed documents
-- `harness refresh` command with atomic snapshot swap
+- `cite refresh` command with atomic snapshot swap
 - Recovery routine for interrupted `processing` documents on startup/command entry
 
 ## In scope
@@ -42,11 +42,11 @@ Key additions:
 
 1. Concurrent ingest attempts are serialized by a durable ingest lock.
 2. On lock conflict, ingest upserts a backlog record and returns `operation_in_progress` (exit code `6`) with stable error details.
-3. `harness ingest --queued` enqueues without immediate processing; `harness ingest --next` claims and processes the next queued item deterministically.
+3. `cite ingest --queued` enqueues without immediate processing; `cite ingest --next` claims and processes the next queued item deterministically.
 4. `search`, `retrieve`, and `context` enforce durable rate limits at 20 requests/minute per key and return `rate_limit_exceeded` (exit code `7`) with retry-after information.
 5. Rate-limit counters survive CLI restart/database reopen.
-6. `harness retry` behavior is contract-aligned and implementation/comment drift is removed.
-7. `harness refresh` performs an atomic snapshot promotion/swap; readers never observe mixed pre/post-refresh state.
+6. `cite retry` behavior is contract-aligned and implementation/comment drift is removed.
+7. `cite refresh` performs an atomic snapshot promotion/swap; readers never observe mixed pre/post-refresh state.
 8. Interrupted `processing` documents are recovered on startup/command entry via deterministic state transition policy.
 9. Existing happy-path behavior from Phases 2–4 remains valid when no lock/rate-limit/recovery conditions are triggered.
 10. `cargo test`, `cargo clippy -- -D warnings`, and `cargo fmt --check` pass.

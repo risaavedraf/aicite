@@ -71,6 +71,6 @@ fn resolve_data_dir(config: &Config) -> PathBuf {
     config.paths.data_dir.clone().unwrap_or_else(|| {
         dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("harness")
+            .join("cite")
     })
 }

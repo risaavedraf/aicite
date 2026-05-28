@@ -1,5 +1,5 @@
 use clap::Args;
-use common::{ExitCode, HarnessError, ReadSelector};
+use common::{ExitCode, CiteError, ReadSelector};
 use config::Config;
 use engine::context;
 use std::path::PathBuf;
@@ -90,18 +90,18 @@ pub fn execute(args: &ReadArgs, config: &Config, json: bool) -> i32 {
     }
 }
 
-fn build_selector(args: &ReadArgs) -> Result<ReadSelector, HarnessError> {
+fn build_selector(args: &ReadArgs) -> Result<ReadSelector, CiteError> {
     let has_citation = args.citation_id.is_some();
     let has_chunk = args.chunk_id.is_some();
 
     if has_citation && has_chunk {
-        return Err(HarnessError::InvalidParameter {
+        return Err(CiteError::InvalidParameter {
             message: "Cannot specify both --citation-id and --chunk-id".into(),
         });
     }
 
     if !has_citation && !has_chunk {
-        return Err(HarnessError::InvalidParameter {
+        return Err(CiteError::InvalidParameter {
             message: "Must specify either --citation-id --trace-id or --chunk-id --document-id"
                 .into(),
         });
@@ -112,7 +112,7 @@ fn build_selector(args: &ReadArgs) -> Result<ReadSelector, HarnessError> {
         let trace_id = args
             .trace_id
             .clone()
-            .ok_or_else(|| HarnessError::InvalidParameter {
+            .ok_or_else(|| CiteError::InvalidParameter {
                 message: "--trace-id is required when using --citation-id".into(),
             })?;
         Ok(ReadSelector::Citation {
@@ -124,7 +124,7 @@ fn build_selector(args: &ReadArgs) -> Result<ReadSelector, HarnessError> {
         let document_id =
             args.document_id
                 .clone()
-                .ok_or_else(|| HarnessError::InvalidParameter {
+                .ok_or_else(|| CiteError::InvalidParameter {
                     message: "--document-id is required when using --chunk-id".into(),
                 })?;
         Ok(ReadSelector::Chunk {
@@ -138,6 +138,6 @@ fn resolve_data_dir(config: &Config) -> PathBuf {
     config.paths.data_dir.clone().unwrap_or_else(|| {
         dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("harness")
+            .join("cite")
     })
 }

@@ -2,7 +2,7 @@ pub mod error;
 pub mod exit;
 pub mod types;
 
-pub use error::HarnessError;
+pub use error::CiteError;
 pub use exit::ExitCode;
 pub use types::{
     Chunk, Citation, ContextMetadata, ContextMetadataScaffold, ContextResponse, Document,

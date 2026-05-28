@@ -158,7 +158,7 @@ Chain strategy: pending
 1. Add migration 005 for snapshot metadata, membership, and active pointer tables.
 2. Implement snapshot storage APIs including atomic `activate_snapshot` transaction.
 3. Add engine refresh orchestration for staged build + promote/swap.
-4. Add CLI `harness refresh` command and output contract.
+4. Add CLI `cite refresh` command and output contract.
 5. Add tests proving no mixed pre/post-refresh visibility and rollback on refresh failure.
 
 **Acceptance checks:**

@@ -1,4 +1,4 @@
-# SDD Artifacts — AI Harness CLI
+# SDD Artifacts — AI Cite CLI
 
 This directory contains Specification-Driven Development (SDD) artifacts organized by phase.
 

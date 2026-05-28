@@ -51,4 +51,4 @@ It needs:
 | Build an agent context pack | As an agent integrator, I want stable JSON that can be safely added to an agent prompt or workflow. |
 | Verify sources | As a user, I want citations and trace data so I can check whether downstream answers are trustworthy. |
 | Manage corpus state | As a user, I want to know whether documents are ready, processing, or failed. |
-| Demo the harness | As a technical reviewer, I want to see a real grounded retrieval flow end to end. |
+| Demo the cite | As a technical reviewer, I want to see a real grounded retrieval flow end to end. |

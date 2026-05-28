@@ -37,7 +37,7 @@ Review target: under 400 lines.
 ### Slice 3 — CLI surface + end-to-end contract tests (~320 + tests)
 
 Scope:
-- Add `harness context`, `harness read`, `harness trace` commands.
+- Add `cite context`, `cite read`, `cite trace` commands.
 - JSON/human output contract wiring.
 - Selector validation and error-mapping checks.
 - Integration tests for command contract behavior.

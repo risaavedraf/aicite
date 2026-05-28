@@ -1,21 +1,22 @@
-# Agent Usage Guide — Harness CLI from an AI Agent Perspective
+# Agent Usage Guide — Cite CLI from an AI Agent Perspective
 
-This document describes the Harness CLI from the perspective of an AI agent consuming it as a tool. It covers what works well, what has trade-offs, and what could be improved.
+This document describes the Cite CLI from the perspective of an AI agent consuming it as a tool. It covers what works well, what has trade-offs, and what could be improved.
 
 ## How an agent uses the CLI
 
 ### Real-world invocation
 
-After building the project (`cargo build --release`) or installing a release binary:
+Use one of the canonical pathways depending on your environment:
 
 ```bash
-# Direct binary (if in PATH)
-cite context "what are the acceptance criteria?"
+# Dev run (no release build required)
+cargo run --bin cite -- context "what are the acceptance criteria?" --json
 
-# Or with full path
-./target/release/cite context "what are the acceptance criteria?"
+# Local built binary
+cargo build --release
+./target/release/cite context "what are the acceptance criteria?" --json
 
-# JSON output for machine parsing
+# Installed release binary in PATH
 cite context "what are the acceptance criteria?" --json
 ```
 
@@ -307,7 +308,7 @@ When chunks are large (800-1000+ chars), the vector similarity score tends to dr
 
 | Approach | Pros | Cons |
 |---|---|---|
-| **Harness CLI** | Grounded, cited, auditable, local | Per-query latency, token usage |
+| **Cite CLI** | Grounded, cited, auditable, local | Per-query latency, token usage |
 | **Direct file reading** | No latency, no API calls | Agent must read entire docs, context explosion |
 | **Grep/ripgrep** | Fast, no API calls | Not semantic, no ranking |
 | **ChatGPT/Claude with docs** | Conversational, easy | Hallucination risk, no citations, docs sent to cloud |

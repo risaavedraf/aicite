@@ -36,7 +36,7 @@
 **Files**:
 - `crates/common/src/lib.rs` — re-exports
 - `crates/common/src/types.rs` — Document, Chunk, Citation, DocumentStatus, FileType
-- `crates/common/src/error.rs` — HarnessError enum with code/exit_code/message methods
+- `crates/common/src/error.rs` — CiteError enum with code/exit_code/message methods
 - `crates/common/src/exit.rs` — ExitCode enum
 
 **Dependencies**: `serde`, `serde_json`, `thiserror`, `chrono`
@@ -101,8 +101,8 @@
 **Dependencies**: `clap`, `serde_json`
 
 **Acceptance**:
-- `harness health` shows human-readable output
-- `harness health --json` returns valid JSON
+- `cite health` shows human-readable output
+- `cite health --json` returns valid JSON
 - Exit codes match PRD table
 - `cargo test -p cli` passes
 
@@ -147,7 +147,7 @@
 - `tests/config.rs`
 
 **Acceptance**:
-- `harness health --json` returns valid JSON with expected fields
+- `cite health --json` returns valid JSON with expected fields
 - Config loading from env vars works
 - Config loading from file works
 - `cargo test` passes all integration tests

@@ -97,7 +97,7 @@ Implications:
 |---|---|
 | Start with one corpus | Reduces tenancy and auth complexity |
 | Keep citations first-class | Trust and verification are the product differentiator |
-| Expose context, not built-in answers | Keeps the MVP a harness for arbitrary agents instead of an app-hosted assistant |
+| Expose context, not built-in answers | Keeps the MVP a cite for arbitrary agents instead of an app-hosted assistant |
 | Abstract embedding providers | Keeps model choice flexible and cheaper to evolve |
 | Use a CLI from day one | Makes the product agent-friendly without a separate UI layer |
 | Defer native app | Keeps the MVP focused on the engine and contract |

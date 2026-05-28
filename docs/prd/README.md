@@ -1,6 +1,6 @@
-# Product Requirements — AI Harness CLI
+# Product Requirements — AI Cite CLI
 
-This PRD defines a CLI-first harness that helps AI agents and technical operators read, retrieve, and use information from private document corpora. The MVP is not a native app and does not embed an assistant as the product center; it exposes reliable document context through stable CLI commands and JSON schemas.
+This PRD defines a CLI-first cite that helps AI agents and technical operators read, retrieve, and use information from private document corpora. The MVP is not a native app and does not embed an assistant as the product center; it exposes reliable document context through stable CLI commands and JSON schemas.
 
 ## Document map
 
@@ -31,7 +31,7 @@ This PRD defines a CLI-first harness that helps AI agents and technical operator
 
 | Area | Decision |
 |---|---|
-| Product form | Local-first CLI harness for agents and operators |
+| Product form | Local-first CLI cite for agents and operators |
 | Core value | Agent-consumable document context with citations, source inspection, and traceability |
 | Main proof | Ingestion, vector-first retrieval, context packs, stable JSON, durable local state, and privacy/governance guardrails |
 | Explicit non-goal | Native app, chat UI, hosted assistant, and built-in answer generation as MVP scope |

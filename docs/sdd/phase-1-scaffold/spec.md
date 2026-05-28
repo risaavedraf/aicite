@@ -3,7 +3,7 @@
 ## 1. Workspace structure
 
 ```
-aiharness/
+aicite/
 ├── Cargo.toml              # Workspace root
 ├── crates/
 │   ├── cli/                # CLI binary, clap commands
@@ -81,8 +81,8 @@ aiharness/
 ### Precedence (highest to lowest)
 
 1. CLI flags (`--config`, `--data-dir`, `--cache-dir`, `--runtime-mode`, `--top-k`, `--json`)
-2. Environment variables (`HARNESS_CONFIG`, `HARNESS_DATA_DIR`, `HARNESS_CACHE_DIR`, `HARNESS_RUNTIME_MODE`, `HARNESS_EMBEDDING_PROVIDER`, `HARNESS_EMBEDDING_MODEL`)
-3. Config file (TOML at `$XDG_CONFIG_HOME/harness/config.toml` or `HARNESS_CONFIG`)
+2. Environment variables (`CITE_CONFIG`, `CITE_DATA_DIR`, `CITE_CACHE_DIR`, `CITE_RUNTIME_MODE`, `CITE_EMBEDDING_PROVIDER`, `CITE_EMBEDDING_MODEL`)
+3. Config file (TOML at `$XDG_CONFIG_HOME/cite/config.toml` or `CITE_CONFIG`)
 4. Runtime defaults
 
 ### Config file format (TOML)
@@ -114,13 +114,13 @@ window_seconds = 60
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `HARNESS_CONFIG` | Config file path | OS-appropriate |
-| `HARNESS_DATA_DIR` | Data directory (SQLite, indexes, locks) | OS-appropriate |
-| `HARNESS_CACHE_DIR` | Cache directory (temp extraction) | OS-appropriate |
-| `HARNESS_RUNTIME_MODE` | Runtime mode | `local_private_demo` |
-| `HARNESS_EMBEDDING_PROVIDER` | Embedding provider ID | `openai-compatible` |
-| `HARNESS_EMBEDDING_MODEL` | Embedding model ID | `text-embedding-3-small` |
-| `HARNESS_TOP_K` | Default retrieval top-k | `5` |
+| `CITE_CONFIG` | Config file path | OS-appropriate |
+| `CITE_DATA_DIR` | Data directory (SQLite, indexes, locks) | OS-appropriate |
+| `CITE_CACHE_DIR` | Cache directory (temp extraction) | OS-appropriate |
+| `CITE_RUNTIME_MODE` | Runtime mode | `local_private_demo` |
+| `CITE_EMBEDDING_PROVIDER` | Embedding provider ID | `openai-compatible` |
+| `CITE_EMBEDDING_MODEL` | Embedding model ID | `text-embedding-3-small` |
+| `CITE_TOP_K` | Default retrieval top-k | `5` |
 
 ## 4. Storage schema
 
@@ -198,7 +198,7 @@ CREATE INDEX IF NOT EXISTS idx_traces_created ON traces(created_at);
 
 ## 5. CLI contract
 
-### Command: `harness health`
+### Command: `cite health`
 
 **Purpose**: Verify CLI runtime and local state are usable.
 
@@ -206,10 +206,10 @@ CREATE INDEX IF NOT EXISTS idx_traces_created ON traces(created_at);
 
 **Human output**:
 ```
-✓ AI Harness CLI v0.1.0
+✓ AI Cite CLI v0.1.0
   Runtime mode: local_private_demo
-  Data dir: /home/user/.local/share/harness
-  Cache dir: /home/user/.cache/harness
+  Data dir: /home/user/.local/share/cite
+  Cache dir: /home/user/.cache/cite
   Database: ok
 ```
 
@@ -238,7 +238,7 @@ All errors follow this shape (from PRD):
 {
   "error": {
     "code": "config_error",
-    "message": "Missing required configuration: HARNESS_DATA_DIR",
+    "message": "Missing required configuration: CITE_DATA_DIR",
     "details": {}
   }
 }
@@ -295,7 +295,7 @@ pub enum FileType {
 ### Error
 
 ```rust
-pub enum HarnessError {
+pub enum CiteError {
     UnsupportedFileType { file_type: String },
     FileTooLarge { size_bytes: u64, max_bytes: u64 },
     FileNotFound { path: PathBuf },
@@ -307,7 +307,7 @@ pub enum HarnessError {
     // ... other error variants from PRD
 }
 
-impl HarnessError {
+impl CiteError {
     pub fn code(&self) -> &'static str;
     pub fn exit_code(&self) -> i32;
     pub fn message(&self) -> String;
@@ -340,7 +340,7 @@ pub enum ExitCode {
 
 ### Integration tests
 
-- `harness health --json` returns valid JSON
+- `cite health --json` returns valid JSON
 - SQLite migration runs on first startup
 - Config file loading from custom path
 

@@ -1,4 +1,4 @@
-use common::HarnessError;
+use common::CiteError;
 
 /// Input chunk before storage (no IDs yet)
 #[derive(Debug, Clone, PartialEq)]
@@ -28,14 +28,14 @@ pub fn chunk_text(
     chunk_size_chars: usize,
     chunk_overlap_chars: usize,
     min_chunk_size_chars: usize,
-) -> Result<Vec<ChunkInput>, HarnessError> {
+) -> Result<Vec<ChunkInput>, CiteError> {
     if chunk_size_chars == 0 {
-        return Err(HarnessError::InvalidParameter {
+        return Err(CiteError::InvalidParameter {
             message: "chunk_size_chars must be > 0".into(),
         });
     }
     if chunk_overlap_chars >= chunk_size_chars {
-        return Err(HarnessError::InvalidParameter {
+        return Err(CiteError::InvalidParameter {
             message: "chunk_overlap_chars must be < chunk_size_chars".into(),
         });
     }
@@ -185,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chunk_basic() -> Result<(), HarnessError> {
+    fn test_chunk_basic() -> Result<(), CiteError> {
         // 100 chars of text with 50-char chunks, no overlap
         let text = "A".repeat(100);
         let pages = [make_page(1, &text)];
@@ -201,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chunk_overlap() -> Result<(), HarnessError> {
+    fn test_chunk_overlap() -> Result<(), CiteError> {
         let text = "A".repeat(200);
         let pages = [make_page(1, &text)];
         let chunks = chunk_text(&pages, 100, 20, 10)?;
@@ -232,7 +232,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chunk_small_text() -> Result<(), HarnessError> {
+    fn test_chunk_small_text() -> Result<(), CiteError> {
         let text = "Hello world";
         let pages = [make_page(1, text)];
         let chunks = chunk_text(&pages, 1000, 200, 100)?;
@@ -245,7 +245,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chunk_empty() -> Result<(), HarnessError> {
+    fn test_chunk_empty() -> Result<(), CiteError> {
         let pages: Vec<PageText> = vec![];
         let chunks = chunk_text(&pages, 1000, 200, 100)?;
         assert!(chunks.is_empty());
@@ -253,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chunk_empty_page_text() -> Result<(), HarnessError> {
+    fn test_chunk_empty_page_text() -> Result<(), CiteError> {
         let pages = [make_page(1, "")];
         let chunks = chunk_text(&pages, 1000, 200, 100)?;
         assert!(chunks.is_empty());
@@ -261,7 +261,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chunk_page_tracking() -> Result<(), HarnessError> {
+    fn test_chunk_page_tracking() -> Result<(), CiteError> {
         let pages = [
             make_page(1, &"A".repeat(500)),
             make_page(2, &"B".repeat(500)),
@@ -300,7 +300,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chunk_sentence_boundary() -> Result<(), HarnessError> {
+    fn test_chunk_sentence_boundary() -> Result<(), CiteError> {
         // Text with clear sentence boundaries near the chunk limit
         let text = format!("{}. {}", "B".repeat(480), "C".repeat(100),);
         // chunk_size=500, overlap=50
@@ -327,7 +327,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chunk_min_size_filtering() -> Result<(), HarnessError> {
+    fn test_chunk_min_size_filtering() -> Result<(), CiteError> {
         // Create text where a small chunk would be produced without min_size filtering
         // Use a pattern that forces a small final chunk scenario
         let text = format!("{}\n\n{}", "A".repeat(280), "tiny",);
@@ -356,7 +356,7 @@ mod tests {
     }
 
     #[test]
-    fn test_chunk_utf8_handling() -> Result<(), HarnessError> {
+    fn test_chunk_utf8_handling() -> Result<(), CiteError> {
         // Multi-byte UTF-8 chars (emoji and accented chars)
         let text = "café résumé naïve 🎉🎊🎉🎊🎉🎊🎉🎊🎉🎊🎉🎊🎉🎊🎉🎊🎉🎊🎉🎊";
         let pages = [make_page(1, text)];

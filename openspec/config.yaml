@@ -1,8 +1,8 @@
-# SDD Configuration — AI Harness CLI
+# SDD Configuration — AI Cite CLI
 # This file configures the SDD flow for this project.
 
 project:
-  name: aiharness
+  name: aicite
   description: "CLI-first semantic document engine for AI agents — Rust + SQLite + vector search"
   language: rust
   repo_root: "."

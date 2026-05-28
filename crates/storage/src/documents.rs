@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use chrono::Utc;
 use common::types::{Document, DocumentStatus, ErrorInfo, FileType};
-use common::HarnessError;
+use common::CiteError;
 use rusqlite::{params, Row};
 
 use crate::util::{format_dt, parse_dt, storage_err};
@@ -21,13 +21,13 @@ fn status_to_str(s: &DocumentStatus) -> &'static str {
     }
 }
 
-fn parse_status(s: &str) -> Result<DocumentStatus, HarnessError> {
+fn parse_status(s: &str) -> Result<DocumentStatus, CiteError> {
     match s {
         "pending" => Ok(DocumentStatus::Pending),
         "processing" => Ok(DocumentStatus::Processing),
         "ready" => Ok(DocumentStatus::Ready),
         "failed" => Ok(DocumentStatus::Failed),
-        other => Err(HarnessError::StorageError {
+        other => Err(CiteError::StorageError {
             message: format!("Unknown document status: {other}"),
         }),
     }
@@ -41,12 +41,12 @@ fn file_type_to_str(ft: &FileType) -> &'static str {
     }
 }
 
-fn parse_file_type(s: &str) -> Result<FileType, HarnessError> {
+fn parse_file_type(s: &str) -> Result<FileType, CiteError> {
     match s {
         "pdf" => Ok(FileType::Pdf),
         "txt" => Ok(FileType::Txt),
         "md" => Ok(FileType::Md),
-        other => Err(HarnessError::StorageError {
+        other => Err(CiteError::StorageError {
             message: format!("Unknown file type: {other}"),
         }),
     }
@@ -56,7 +56,7 @@ fn parse_file_type(s: &str) -> Result<FileType, HarnessError> {
 // Row -> Document conversion
 // ---------------------------------------------------------------------------
 
-fn row_to_document(row: &Row<'_>) -> Result<Document, HarnessError> {
+fn row_to_document(row: &Row<'_>) -> Result<Document, CiteError> {
     let document_id: String = row.get("document_id").map_err(storage_err)?;
     let display_name: String = row.get("display_name").map_err(storage_err)?;
     let file_path_str: String = row.get("file_path").map_err(storage_err)?;
@@ -105,7 +105,7 @@ fn row_to_document(row: &Row<'_>) -> Result<Document, HarnessError> {
 
 impl Database {
     /// Insert a new document.
-    pub fn insert_document(&self, doc: &Document) -> Result<(), HarnessError> {
+    pub fn insert_document(&self, doc: &Document) -> Result<(), CiteError> {
         self.conn
             .execute(
                 "INSERT INTO documents (
@@ -136,7 +136,7 @@ impl Database {
     }
 
     /// Get a document by ID. Returns `None` when not found.
-    pub fn get_document(&self, id: &str) -> Result<Option<Document>, HarnessError> {
+    pub fn get_document(&self, id: &str) -> Result<Option<Document>, CiteError> {
         let mut stmt = self
             .conn
             .prepare("SELECT * FROM documents WHERE document_id = ?1")
@@ -151,7 +151,7 @@ impl Database {
     }
 
     /// List all documents ordered by creation time (newest first).
-    pub fn list_documents(&self) -> Result<Vec<Document>, HarnessError> {
+    pub fn list_documents(&self) -> Result<Vec<Document>, CiteError> {
         let mut stmt = self
             .conn
             .prepare("SELECT * FROM documents ORDER BY created_at DESC")
@@ -170,7 +170,7 @@ impl Database {
     pub fn list_documents_by_status(
         &self,
         status: DocumentStatus,
-    ) -> Result<Vec<Document>, HarnessError> {
+    ) -> Result<Vec<Document>, CiteError> {
         let mut stmt = self
             .conn
             .prepare("SELECT * FROM documents WHERE status = ?1 ORDER BY created_at ASC")
@@ -188,7 +188,7 @@ impl Database {
     }
 
     /// List all documents currently marked as processing.
-    pub fn list_processing_documents(&self) -> Result<Vec<Document>, HarnessError> {
+    pub fn list_processing_documents(&self) -> Result<Vec<Document>, CiteError> {
         let mut stmt = self
             .conn
             .prepare("SELECT * FROM documents WHERE status = 'processing' ORDER BY created_at ASC")
@@ -209,7 +209,7 @@ impl Database {
         id: &str,
         status: DocumentStatus,
         error: Option<ErrorInfo>,
-    ) -> Result<(), HarnessError> {
+    ) -> Result<(), CiteError> {
         let n = self
             .conn
             .execute(
@@ -226,7 +226,7 @@ impl Database {
             .map_err(storage_err)?;
 
         if n == 0 {
-            return Err(HarnessError::DocumentNotFound {
+            return Err(CiteError::DocumentNotFound {
                 document_id: id.to_string(),
             });
         }
@@ -234,7 +234,7 @@ impl Database {
     }
 
     /// Set the chunk count on a document.
-    pub fn update_document_chunk_count(&self, id: &str, count: u32) -> Result<(), HarnessError> {
+    pub fn update_document_chunk_count(&self, id: &str, count: u32) -> Result<(), CiteError> {
         let n = self
             .conn
             .execute(
@@ -244,7 +244,7 @@ impl Database {
             .map_err(storage_err)?;
 
         if n == 0 {
-            return Err(HarnessError::DocumentNotFound {
+            return Err(CiteError::DocumentNotFound {
                 document_id: id.to_string(),
             });
         }
@@ -252,7 +252,7 @@ impl Database {
     }
 
     /// Increment retry_count by 1.
-    pub fn increment_retry_count(&self, id: &str) -> Result<(), HarnessError> {
+    pub fn increment_retry_count(&self, id: &str) -> Result<(), CiteError> {
         let n = self
             .conn
             .execute(
@@ -262,7 +262,7 @@ impl Database {
             .map_err(storage_err)?;
 
         if n == 0 {
-            return Err(HarnessError::DocumentNotFound {
+            return Err(CiteError::DocumentNotFound {
                 document_id: id.to_string(),
             });
         }
@@ -270,7 +270,7 @@ impl Database {
     }
 
     /// Reset retry_count back to 0.
-    pub fn reset_retry_count(&self, id: &str) -> Result<(), HarnessError> {
+    pub fn reset_retry_count(&self, id: &str) -> Result<(), CiteError> {
         let n = self
             .conn
             .execute(
@@ -280,7 +280,7 @@ impl Database {
             .map_err(storage_err)?;
 
         if n == 0 {
-            return Err(HarnessError::DocumentNotFound {
+            return Err(CiteError::DocumentNotFound {
                 document_id: id.to_string(),
             });
         }
@@ -292,7 +292,7 @@ impl Database {
         &self,
         lock_name: &str,
         error: &ErrorInfo,
-    ) -> Result<u32, HarnessError> {
+    ) -> Result<u32, CiteError> {
         let n = self
             .conn
             .execute(
@@ -433,7 +433,7 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
-            HarnessError::DocumentNotFound { .. }
+            CiteError::DocumentNotFound { .. }
         ));
     }
 

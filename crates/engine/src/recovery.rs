@@ -1,5 +1,5 @@
 use common::types::ErrorInfo;
-use common::HarnessError;
+use common::CiteError;
 use storage::Database;
 
 pub const RECOVERY_ERROR_CODE: &str = "interrupted_processing_recovered";
@@ -11,7 +11,7 @@ const INGEST_LOCK_NAME: &str = "ingest_pipeline";
 ///
 /// Policy: every document currently in `processing` is deterministically moved to
 /// `failed` with a stable recovery error code/message.
-pub fn recover_interrupted_processing(db: &Database) -> Result<u32, HarnessError> {
+pub fn recover_interrupted_processing(db: &Database) -> Result<u32, CiteError> {
     db.recover_processing_documents_if_lock_free(
         INGEST_LOCK_NAME,
         &ErrorInfo {

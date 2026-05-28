@@ -1,6 +1,6 @@
 # Acceptance Criteria
 
-This checklist defines when the MVP is ready to be shown as a working CLI-first context harness for AI agents.
+This checklist defines when the MVP is ready to be shown as a working CLI-first context cite for AI agents.
 
 ## Product acceptance
 

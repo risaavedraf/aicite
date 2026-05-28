@@ -42,7 +42,7 @@ Add to engine startup (not CLI command):
 
 ```rust
 // In engine::lib or a new demo module
-pub fn ensure_demo_corpus(db: &Database, mode: RuntimeMode) -> Result<(), HarnessError> {
+pub fn ensure_demo_corpus(db: &Database, mode: RuntimeMode) -> Result<(), CiteError> {
     if mode != RuntimeMode::PublicPackagedDemo {
         return Ok(());
     }
@@ -116,18 +116,18 @@ The provider ID comes from `config.embedding.provider` (already available in Con
 ```markdown
 | Command | Description | Example |
 |---|---|---|
-| `health` | Check CLI runtime and local state health | `harness health --json` |
-| `ingest` | Ingest a document into the corpus | `harness ingest ./doc.txt` |
-| `list` | List documents in the corpus | `harness list` |
-| `get` | Get document metadata | `harness get <doc-id>` |
-| `retry` | Retry a failed document | `harness retry <doc-id>` |
-| `search` | Search the ready corpus using vector similarity | `harness search "query"` |
-| `retrieve` | Retrieve top-ranked chunks with full text | `harness retrieve "query"` |
-| `context` | Build an agent-consumable context pack | `harness context "query"` |
-| `read` | Read a citation or chunk by ID | `harness read <citation-id>` |
-| `trace` | Look up trace metadata | `harness trace <trace-id>` |
-| `refresh` | Refresh corpus with atomic snapshot swap | `harness refresh` |
-| `evaluate` | Run golden dataset evaluation | `harness evaluate --json` |
+| `health` | Check CLI runtime and local state health | `cite health --json` |
+| `ingest` | Ingest a document into the corpus | `cite ingest ./doc.txt` |
+| `list` | List documents in the corpus | `cite list` |
+| `get` | Get document metadata | `cite get <doc-id>` |
+| `retry` | Retry a failed document | `cite retry <doc-id>` |
+| `search` | Search the ready corpus using vector similarity | `cite search "query"` |
+| `retrieve` | Retrieve top-ranked chunks with full text | `cite retrieve "query"` |
+| `context` | Build an agent-consumable context pack | `cite context "query"` |
+| `read` | Read a citation or chunk by ID | `cite read <citation-id>` |
+| `trace` | Look up trace metadata | `cite trace <trace-id>` |
+| `refresh` | Refresh corpus with atomic snapshot swap | `cite refresh` |
+| `evaluate` | Run golden dataset evaluation | `cite evaluate --json` |
 ```
 
 ## 4. Demo script design
@@ -136,13 +136,13 @@ The provider ID comes from `config.embedding.provider` (already available in Con
 
 ```
 Step 1: Download → shows binary name, no Rust needed
-Step 2: harness health --json → shows healthy status
-Step 3: harness list → shows 3 preloaded sample docs
-Step 4: harness context "What does the API gateway do?"
+Step 2: cite health --json → shows healthy status
+Step 3: cite list → shows 3 preloaded sample docs
+Step 4: cite context "What does the API gateway do?"
         → shows context pack with citations
-Step 5: harness read <citation-id>
+Step 5: cite read <citation-id>
         → shows source snippet
-Step 6: harness context "What is quantum computing?"
+Step 6: cite context "What is quantum computing?"
         → shows no_results
 Step 7: Verify provider disclosure + disclaimer visible
 ```
@@ -152,16 +152,16 @@ Step 7: Verify provider disclosure + disclaimer visible
 ```
 Step 1: git clone + cargo build --release
 Step 2: cp .env.example .env → set API key
-Step 3: harness ingest demo/
+Step 3: cite ingest demo/
         → shows no-sensitive-data warning
         → shows 3 docs ingested
-Step 4: harness context "How are passwords validated?"
+Step 4: cite context "How are passwords validated?"
         → shows context with citations
-Step 5: harness read <citation-id>
+Step 5: cite read <citation-id>
         → shows source
-Step 6: harness context "What is quantum computing?"
+Step 6: cite context "What is quantum computing?"
         → shows no_results
-Step 7: harness evaluate
+Step 7: cite evaluate
         → shows 8/8 pass
 Step 8: Check README compliance section
 ```
@@ -187,13 +187,13 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             runner: ubuntu-latest
-            artifact: harness-linux-amd64
+            artifact: cite-linux-amd64
           - target: x86_64-pc-windows-msvc
             runner: windows-latest
-            artifact: harness-windows-amd64.exe
+            artifact: cite-windows-amd64.exe
           - target: aarch64-apple-darwin
             runner: macos-latest
-            artifact: harness-macos-arm64
+            artifact: cite-macos-arm64
 
     runs-on: ${{ matrix.runner }}
     steps:
@@ -204,11 +204,11 @@ jobs:
       - name: Rename binary
         run: ...  # platform-specific rename
       - name: Smoke test
-        run: ./harness health --json
+        run: ./cite health --json
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: target/release/harness*
+          path: target/release/cite*
 
   release:
     needs: build
@@ -217,15 +217,15 @@ jobs:
       - uses: actions/download-artifact@v4
       - uses: softprops/action-gh-release@v2
         with:
-          files: harness-*
+          files: cite-*
           generate_release_notes: true
 ```
 
 ### 5.2 Binary naming
 
-- Linux: `harness-linux-amd64`
-- Windows: `harness-windows-amd64.exe`
-- macOS: `harness-macos-arm64`
+- Linux: `cite-linux-amd64`
+- Windows: `cite-windows-amd64.exe`
+- macOS: `cite-macos-arm64`
 
 ## 6. File change summary
 

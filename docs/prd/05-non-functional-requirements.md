@@ -33,11 +33,11 @@ Configuration must be deterministic and safe for automation.
 | Area | Requirement |
 |---|---|
 | Precedence | CLI flags > environment variables > config file > runtime defaults. |
-| Config file | Support `HARNESS_CONFIG` override; otherwise use OS-appropriate config paths such as `$XDG_CONFIG_HOME/harness/config.toml`, `%APPDATA%\\harness\\config.toml`, or `~/Library/Application Support/harness/config.toml`. |
-| Data directory | Support `HARNESS_DATA_DIR`; otherwise use OS-appropriate local app data for documents, SQLite, minimal graph/source metadata, indexes, durable locks, backlog records, traces, and rate-limit state. |
-| Cache directory | Support `HARNESS_CACHE_DIR`; otherwise use OS-appropriate cache paths for temporary extraction data and provider caches only. Rate-limit state is durable local state, not disposable cache. |
-| Runtime mode | `HARNESS_RUNTIME_MODE` or config selects `public_packaged_demo`, `local_private_demo`, or `production`. |
-| Provider configuration | Embedding provider/model IDs and API keys use documented keys such as `HARNESS_EMBEDDING_PROVIDER`, `HARNESS_EMBEDDING_MODEL`, and provider-specific secret variables. |
+| Config file | Support `CITE_CONFIG` override; otherwise use OS-appropriate config paths such as `$XDG_CONFIG_HOME/cite/config.toml`, `%APPDATA%\\cite\\config.toml`, or `~/Library/Application Support/cite/config.toml`. |
+| Data directory | Support `CITE_DATA_DIR`; otherwise use OS-appropriate local app data for documents, SQLite, minimal graph/source metadata, indexes, durable locks, backlog records, traces, and rate-limit state. |
+| Cache directory | Support `CITE_CACHE_DIR`; otherwise use OS-appropriate cache paths for temporary extraction data and provider caches only. Rate-limit state is durable local state, not disposable cache. |
+| Runtime mode | `CITE_RUNTIME_MODE` or config selects `public_packaged_demo`, `local_private_demo`, or `production`. |
+| Provider configuration | Embedding provider/model IDs and API keys use documented keys such as `CITE_EMBEDDING_PROVIDER`, `CITE_EMBEDDING_MODEL`, and provider-specific secret variables. |
 | Agent-safe overrides | Flags can override config path, data/cache directories, runtime mode, corpus ID/path, `top_k`, JSON output, and tracing without interactive prompts. |
 | Secret handling | Secrets are never logged, echoed in errors, written into traces, or embedded in packaged demos. Diagnostics show redacted placeholders only. |
 

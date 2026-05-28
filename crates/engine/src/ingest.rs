@@ -1,6 +1,6 @@
 use chrono::Utc;
 use common::types::{Chunk, Document, DocumentStatus, ErrorInfo};
-use common::HarnessError;
+use common::CiteError;
 use config::IngestConfig;
 use ingest::chunker::{self};
 use ingest::extractor::{self};
@@ -45,7 +45,7 @@ pub fn ingest(
     path: &Path,
     display_name_override: Option<&str>,
     production_mode: bool,
-) -> Result<IngestResult, HarnessError> {
+) -> Result<IngestResult, CiteError> {
     ingest_internal(
         db,
         provider,
@@ -62,7 +62,7 @@ pub fn enqueue_ingest(
     config: &IngestConfig,
     path: &Path,
     display_name_override: Option<&str>,
-) -> Result<(), HarnessError> {
+) -> Result<(), CiteError> {
     let _ = validator::validate_file(path, config.max_file_size_bytes)?;
     db.upsert_ingest_backlog(path, display_name_override)
 }
@@ -72,7 +72,7 @@ pub fn ingest_next(
     provider: &dyn EmbeddingProvider,
     config: &IngestConfig,
     production_mode: bool,
-) -> Result<IngestNextResult, HarnessError> {
+) -> Result<IngestNextResult, CiteError> {
     let Some(item) = db.claim_next_ingest_backlog()? else {
         return Ok(IngestNextResult::Empty);
     };
@@ -91,13 +91,13 @@ pub fn ingest_next(
             db.mark_ingest_backlog_done(&item.queue_id)?;
             Ok(IngestNextResult::Ingested(result))
         }
-        Err(HarnessError::OperationInProgress {
+        Err(CiteError::OperationInProgress {
             message,
             retry_after_seconds,
             lock_name,
         }) => {
             db.requeue_ingest_backlog(&item.queue_id)?;
-            Err(HarnessError::OperationInProgress {
+            Err(CiteError::OperationInProgress {
                 message,
                 retry_after_seconds,
                 lock_name,
@@ -118,7 +118,7 @@ fn ingest_internal(
     display_name_override: Option<&str>,
     production_mode: bool,
     queue_on_lock_conflict: bool,
-) -> Result<IngestResult, HarnessError> {
+) -> Result<IngestResult, CiteError> {
     // 1. Validate
     let (file_type, file_size) = validator::validate_file(path, config.max_file_size_bytes)?;
 
@@ -128,7 +128,7 @@ fn ingest_internal(
             db.upsert_ingest_backlog(path, display_name_override)?;
         }
 
-        return Err(HarnessError::OperationInProgress {
+        return Err(CiteError::OperationInProgress {
             message: "Ingest pipeline is busy; request queued".to_string(),
             retry_after_seconds: INGEST_LOCK_RETRY_AFTER_SECONDS,
             lock_name: Some(INGEST_LOCK_NAME.to_string()),
@@ -210,7 +210,7 @@ fn run_pipeline(
     document_id: &str,
     path: &Path,
     file_type: &common::FileType,
-) -> Result<u32, HarnessError> {
+) -> Result<u32, CiteError> {
     // Extract text
     let extraction = extractor::extract_text(path, file_type)?;
 
@@ -284,7 +284,7 @@ fn run_pipeline(
 }
 
 /// Clean up partial data from a failed ingestion
-fn cleanup_partial(db: &Database, document_id: &str) -> Result<(), HarnessError> {
+fn cleanup_partial(db: &Database, document_id: &str) -> Result<(), CiteError> {
     // Delete embeddings first (FK dependency)
     let _ = db.delete_embeddings_for_document(document_id);
     // Delete chunks
@@ -293,15 +293,15 @@ fn cleanup_partial(db: &Database, document_id: &str) -> Result<(), HarnessError>
 }
 
 /// Retry a failed document: reset to pending, clear error, and reset retry_count to 0
-pub fn retry_document(db: &Database, document_id: &str) -> Result<Document, HarnessError> {
+pub fn retry_document(db: &Database, document_id: &str) -> Result<Document, CiteError> {
     let doc = db
         .get_document(document_id)?
-        .ok_or_else(|| HarnessError::DocumentNotFound {
+        .ok_or_else(|| CiteError::DocumentNotFound {
             document_id: document_id.to_string(),
         })?;
 
     if doc.status != DocumentStatus::Failed {
-        return Err(HarnessError::InvalidParameter {
+        return Err(CiteError::InvalidParameter {
             message: format!(
                 "Document {} is not failed (status: {})",
                 document_id, doc.status
@@ -311,7 +311,7 @@ pub fn retry_document(db: &Database, document_id: &str) -> Result<Document, Harn
 
     // Verify original file still exists
     if !doc.file_path.exists() {
-        return Err(HarnessError::FileNotFound {
+        return Err(CiteError::FileNotFound {
             path: doc.file_path,
         });
     }
@@ -327,7 +327,7 @@ pub fn retry_document(db: &Database, document_id: &str) -> Result<Document, Harn
     // Return updated document
     let updated = db
         .get_document(document_id)?
-        .ok_or_else(|| HarnessError::DocumentNotFound {
+        .ok_or_else(|| CiteError::DocumentNotFound {
             document_id: document_id.to_string(),
         })?;
 
@@ -335,14 +335,14 @@ pub fn retry_document(db: &Database, document_id: &str) -> Result<Document, Harn
 }
 
 /// List all documents
-pub fn list_documents(db: &Database) -> Result<Vec<Document>, HarnessError> {
+pub fn list_documents(db: &Database) -> Result<Vec<Document>, CiteError> {
     db.list_documents()
 }
 
 /// Get a single document by ID
-pub fn get_document(db: &Database, document_id: &str) -> Result<Document, HarnessError> {
+pub fn get_document(db: &Database, document_id: &str) -> Result<Document, CiteError> {
     db.get_document(document_id)?
-        .ok_or_else(|| HarnessError::DocumentNotFound {
+        .ok_or_else(|| CiteError::DocumentNotFound {
             document_id: document_id.to_string(),
         })
 }
@@ -357,7 +357,7 @@ mod tests {
     struct TestProvider;
 
     impl EmbeddingProvider for TestProvider {
-        fn embed(&self, _text: &str) -> Result<Vec<f32>, HarnessError> {
+        fn embed(&self, _text: &str) -> Result<Vec<f32>, CiteError> {
             Ok(vec![0.1, 0.2, 0.3])
         }
 
@@ -376,7 +376,7 @@ mod tests {
 
     fn temp_txt_file(prefix: &str) -> std::path::PathBuf {
         let path = std::env::temp_dir().join(format!(
-            "aiharness_ingest_{}_{}.txt",
+            "aicite_ingest_{}_{}.txt",
             prefix,
             Utc::now().timestamp_nanos_opt().unwrap_or_default()
         ));
@@ -388,7 +388,7 @@ mod tests {
     fn test_get_document_not_found() {
         let db = test_db();
         let result = get_document(&db, "doc_nonexistent");
-        assert!(matches!(result, Err(HarnessError::DocumentNotFound { .. })));
+        assert!(matches!(result, Err(CiteError::DocumentNotFound { .. })));
     }
 
     #[test]
@@ -421,14 +421,14 @@ mod tests {
 
         // Retry should fail because status is pending, not failed
         let result = retry_document(&db, "doc_test1");
-        assert!(matches!(result, Err(HarnessError::InvalidParameter { .. })));
+        assert!(matches!(result, Err(CiteError::InvalidParameter { .. })));
     }
 
     #[test]
     fn test_retry_document_not_found() {
         let db = test_db();
         let result = retry_document(&db, "doc_nonexistent");
-        assert!(matches!(result, Err(HarnessError::DocumentNotFound { .. })));
+        assert!(matches!(result, Err(CiteError::DocumentNotFound { .. })));
     }
 
     #[test]
@@ -442,7 +442,7 @@ mod tests {
         let config = IngestConfig::default();
 
         let err = ingest(&db, &provider, &config, &path, Some("queued-doc"), false).unwrap_err();
-        assert!(matches!(err, HarnessError::OperationInProgress { .. }));
+        assert!(matches!(err, CiteError::OperationInProgress { .. }));
 
         assert_eq!(db.ingest_backlog_count().unwrap(), 1);
         assert_eq!(

@@ -43,7 +43,7 @@ struct EvalResultOutput {
 struct EvalProvider;
 
 impl EmbeddingProvider for EvalProvider {
-    fn embed(&self, text: &str) -> Result<Vec<f32>, common::HarnessError> {
+    fn embed(&self, text: &str) -> Result<Vec<f32>, common::CiteError> {
         Ok(compute_vector(text))
     }
     fn model_id(&self) -> &str {

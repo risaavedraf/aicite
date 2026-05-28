@@ -1,4 +1,4 @@
-use common::{FileType, HarnessError};
+use common::{FileType, CiteError};
 use config::IngestConfig;
 use ingest::chunker;
 use ingest::extractor;
@@ -88,7 +88,7 @@ fn test_ingest_unsupported_file_type() {
     let result = validator::validate_file(path, 1024 * 1024);
     assert!(matches!(
         result,
-        Err(HarnessError::UnsupportedFileType { .. })
+        Err(CiteError::UnsupportedFileType { .. })
     ));
 
     // Cleanup
@@ -100,14 +100,14 @@ fn test_ingest_file_too_large() {
     let path = Path::new("tests/fixtures/sample.txt");
     // Use a very small max size
     let result = validator::validate_file(path, 10);
-    assert!(matches!(result, Err(HarnessError::FileTooLarge { .. })));
+    assert!(matches!(result, Err(CiteError::FileTooLarge { .. })));
 }
 
 #[test]
 fn test_ingest_missing_file() {
     let path = Path::new("tests/fixtures/nonexistent.txt");
     let result = validator::validate_file(path, 1024 * 1024);
-    assert!(matches!(result, Err(HarnessError::FileNotFound { .. })));
+    assert!(matches!(result, Err(CiteError::FileNotFound { .. })));
 }
 
 #[test]

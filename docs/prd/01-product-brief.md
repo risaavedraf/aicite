@@ -1,4 +1,4 @@
-# Product Brief — AI Harness CLI for Document Context
+# Product Brief — AI Cite CLI for Document Context
 
 Build a production-quality MVP that turns a private document corpus into a semantic context engine exposed through a CLI for agents and integrators.
 
@@ -12,7 +12,7 @@ The native app is not the MVP. It becomes a future V2 companion that wraps the s
 
 People and small teams keep useful knowledge in PDFs, notes, policies, reports, and project documents. Generic chatbots cannot safely use that private context without opaque prompt stuffing, and raw search still requires too much manual reading.
 
-What is needed is a private document-context harness that an AI agent can query, inspect, and verify without forcing the product to become another assistant or chat app.
+What is needed is a private document-context cite that an AI agent can query, inspect, and verify without forcing the product to become another assistant or chat app.
 
 ## Product goal
 

@@ -1,5 +1,5 @@
 use crate::EmbeddingProvider;
-use common::HarnessError;
+use common::CiteError;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 
@@ -22,9 +22,9 @@ impl OpenAICompatibleProvider {
     /// - `endpoint`: API URL (must be HTTPS)
     /// - `model`: model ID (e.g. `"text-embedding-3-small"`)
     /// - `api_key`: API key for bearer authentication
-    pub fn new(endpoint: &str, model: &str, api_key: &str) -> Result<Self, HarnessError> {
+    pub fn new(endpoint: &str, model: &str, api_key: &str) -> Result<Self, CiteError> {
         if !endpoint.starts_with("https://") {
-            return Err(HarnessError::ConfigError {
+            return Err(CiteError::ConfigError {
                 message: format!("Embedding endpoint must use HTTPS, got: {}", endpoint),
             });
         }
@@ -36,14 +36,14 @@ impl OpenAICompatibleProvider {
                 headers.insert(
                     reqwest::header::AUTHORIZATION,
                     reqwest::header::HeaderValue::from_str(&format!("Bearer {}", api_key))
-                        .map_err(|e| HarnessError::ConfigError {
+                        .map_err(|e| CiteError::ConfigError {
                             message: format!("Invalid API key header value: {}", e),
                         })?,
                 );
                 headers
             })
             .build()
-            .map_err(|e| HarnessError::ConfigError {
+            .map_err(|e| CiteError::ConfigError {
                 message: format!("Failed to build HTTP client: {}", e),
             })?;
 
@@ -73,7 +73,7 @@ struct EmbeddingData {
 }
 
 impl EmbeddingProvider for OpenAICompatibleProvider {
-    fn embed(&self, text: &str) -> Result<Vec<f32>, HarnessError> {
+    fn embed(&self, text: &str) -> Result<Vec<f32>, CiteError> {
         let request = EmbeddingRequest {
             input: text,
             model: &self.model,
@@ -86,11 +86,11 @@ impl EmbeddingProvider for OpenAICompatibleProvider {
             .send()
             .map_err(|e| {
                 if e.is_timeout() {
-                    HarnessError::EmbeddingProviderError {
+                    CiteError::EmbeddingProviderError {
                         message: format!("Request to embedding provider timed out: {}", e),
                     }
                 } else {
-                    HarnessError::EmbeddingProviderError {
+                    CiteError::EmbeddingProviderError {
                         message: format!("Embedding request failed: {}", e),
                     }
                 }
@@ -99,7 +99,7 @@ impl EmbeddingProvider for OpenAICompatibleProvider {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().unwrap_or_default();
-            return Err(HarnessError::EmbeddingProviderError {
+            return Err(CiteError::EmbeddingProviderError {
                 message: format!("Embedding provider returned HTTP {}: {}", status, body),
             });
         }
@@ -107,7 +107,7 @@ impl EmbeddingProvider for OpenAICompatibleProvider {
         let parsed: EmbeddingResponse =
             response
                 .json()
-                .map_err(|e| HarnessError::EmbeddingProviderError {
+                .map_err(|e| CiteError::EmbeddingProviderError {
                     message: format!("Failed to parse embedding response: {}", e),
                 })?;
 
@@ -116,7 +116,7 @@ impl EmbeddingProvider for OpenAICompatibleProvider {
             .into_iter()
             .next()
             .map(|d| d.embedding)
-            .ok_or_else(|| HarnessError::EmbeddingProviderError {
+            .ok_or_else(|| CiteError::EmbeddingProviderError {
                 message: "Embedding response contained no data".to_string(),
             })
     }
@@ -153,7 +153,7 @@ mod tests {
         );
         assert!(result.is_err());
         match result.unwrap_err() {
-            HarnessError::ConfigError { message } => {
+            CiteError::ConfigError { message } => {
                 assert!(message.contains("HTTPS"));
             }
             other => panic!("Expected ConfigError, got: {:?}", other),
@@ -195,7 +195,7 @@ mod tests {
         let result = provider.embed("hello world");
         assert!(result.is_err());
         match result.unwrap_err() {
-            HarnessError::EmbeddingProviderError { message } => {
+            CiteError::EmbeddingProviderError { message } => {
                 assert!(
                     message.contains("failed") || message.contains("timed out"),
                     "Unexpected message: {}",

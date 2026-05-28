@@ -23,7 +23,7 @@ The MVP must be designed with Chilean privacy compliance in mind from the beginn
 | Extracted text | Duplicates document content in another storage layer. |
 | Chunks, embeddings, and minimal graph/source metadata | May encode personal data or confidential information. |
 | Retrieval context/context packs | Exposes selected document content to the caller and may be sent by an external agent to another provider. |
-| Downstream AI answers | External agents may reveal or transform personal data using context returned by the harness. |
+| Downstream AI answers | External agents may reveal or transform personal data using context returned by the cite. |
 | Citations | Expose raw source snippets to the user or agent. |
 | Traces | Can include document IDs, citation IDs, provider/index metadata, and timing data. |
 | Logs | Can accidentally store filenames, query text, errors, or identifiers. |

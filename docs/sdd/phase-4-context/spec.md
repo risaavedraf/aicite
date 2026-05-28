@@ -4,7 +4,7 @@
 
 ### Input
 
-`harness context <query> [--top-k N]`
+`cite context <query> [--top-k N]`
 
 - `query` must be non-empty after trim.
 - `top-k` must remain within validated retrieval range (1..=10).
@@ -111,7 +111,7 @@ Invalid combinations (both modes, missing required scope, ambiguous resolution) 
 
 ## 5) Trace command contract
 
-`harness trace <trace_id> --json` returns:
+`cite trace <trace_id> --json` returns:
 - `trace_id`
 - `query_id`
 - `context_pack_id`

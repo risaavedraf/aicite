@@ -1,25 +1,30 @@
-# AI Harness CLI — Demo Guide
+# AI Cite CLI — Demo Guide
 
 This guide walks through two demo tracks: a packaged demo (no Rust required) and a local/private demo (with Rust toolchain). Each track takes under 5 minutes and validates the MVP acceptance criteria.
 
+Canonical command pathways used in this guide:
+- **Dev run**: `cargo run --bin cite -- ...`
+- **Local built binary**: `./target/release/cite ...`
+- **Installed release binary**: `cite ...` (or `cite.exe` on Windows)
+
 ## Track A: Packaged Demo (5 minutes)
 
-**Prerequisites**: Downloaded release binary for your OS.
+**Prerequisites**: Installed release binary for your OS available in `PATH`.
 
 ### Step 1: Health check
 
 ```bash
-./cite health --json
+cite health --json
 ```
 
-**Expected output**: JSON with `"status": "healthy"` and config summary.
+**Expected output**: JSON with `"status": "ok"` and config summary.
 
 ✅ *Validates: CLI can be launched, health returns healthy status.*
 
 ### Step 2: List sample documents
 
 ```bash
-./cite list
+cite list
 ```
 
 **Expected output**: 3 preloaded sample documents (architecture, API reference, security policy) with `ready` status.
@@ -29,7 +34,7 @@ This guide walks through two demo tracks: a packaged demo (no Rust required) and
 ### Step 3: Query for known information
 
 ```bash
-./cite context "What does the API gateway do?"
+cite context "What does the API gateway do?"
 ```
 
 **Expected output**: Context pack with `result_kind: "context"`, citations, and a verification disclaimer.
@@ -39,7 +44,7 @@ This guide walks through two demo tracks: a packaged demo (no Rust required) and
 ### Step 4: Inspect a citation
 
 ```bash
-./cite read <citation-id-from-step-3>
+cite read <citation-id-from-step-3>
 ```
 
 **Expected output**: Source text showing API gateway routing details.
@@ -49,7 +54,7 @@ This guide walks through two demo tracks: a packaged demo (no Rust required) and
 ### Step 5: Query for unknown information
 
 ```bash
-./cite context "What is quantum computing?"
+cite context "What is quantum computing?"
 ```
 
 **Expected output**: `result_kind: "no_results"` with no citations. No fabricated answers.
@@ -67,7 +72,7 @@ The output from Steps 3-5 should show:
 ### Step 7: Run evaluation (optional)
 
 ```bash
-./cite evaluate
+cite evaluate
 ```
 
 **Expected output**: 8/8 fixtures pass, hit rate ≥ 80%.
@@ -81,8 +86,8 @@ The output from Steps 3-5 should show:
 ### Step 1: Clone and build
 
 ```bash
-git clone https://github.com/your-org/aiharness.git
-cd aiharness
+git clone https://github.com/your-org/aicite.git
+cd aicite
 cargo build --release
 ```
 
@@ -91,8 +96,8 @@ cargo build --release
 ```bash
 cp .env.example .env
 # Edit .env and set:
-#   HARNESS_EMBEDDING_API_KEY=your-api-key
-#   HARNESS_EMBEDDING_PROVIDER=gemini (or openai-compatible)
+#   CITE_EMBEDDING_API_KEY=your-api-key
+#   CITE_EMBEDDING_PROVIDER=gemini (or openai-compatible)
 ```
 
 ### Step 3: Ingest demo documents

@@ -3,7 +3,7 @@
 //! Centralises the decision of which operations are allowed in each
 //! [`config::RuntimeMode`].
 
-use common::HarnessError;
+use common::CiteError;
 use config::RuntimeMode;
 
 /// Check whether the configured embedding provider is a "real" external provider
@@ -20,13 +20,13 @@ pub fn is_real_provider(provider_id: &str) -> bool {
 /// - `LocalPrivateDemo` — allowed.
 /// - `PublicPackagedDemo` — forbidden (read-only demo).
 /// - `Production` — forbidden (ingest handled through deployment pipeline).
-pub fn check_ingest_allowed(mode: &RuntimeMode) -> Result<(), HarnessError> {
+pub fn check_ingest_allowed(mode: &RuntimeMode) -> Result<(), CiteError> {
     match mode {
         RuntimeMode::LocalPrivateDemo => Ok(()),
-        RuntimeMode::PublicPackagedDemo => Err(HarnessError::RuntimeModeForbidden {
+        RuntimeMode::PublicPackagedDemo => Err(CiteError::RuntimeModeForbidden {
             message: "Ingest is not allowed in public_packaged_demo mode".to_string(),
         }),
-        RuntimeMode::Production => Err(HarnessError::RuntimeModeForbidden {
+        RuntimeMode::Production => Err(CiteError::RuntimeModeForbidden {
             message: "Ingest is not allowed in production mode".to_string(),
         }),
     }

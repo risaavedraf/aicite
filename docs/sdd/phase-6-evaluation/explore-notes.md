@@ -72,14 +72,14 @@ Current state:
 - CLI has 11 commands: health, ingest, list, get, retry, search, retrieve, context, read, trace, refresh
 
 Gap:
-- Need `harness evaluate` command that runs golden dataset against current corpus
+- Need `cite evaluate` command that runs golden dataset against current corpus
 - Should output pass/fail per fixture, overall hit rate, and summary
 
 ### 5) Runtime mode enforcement
 
 Current state:
 - `RuntimeMode` enum: `PublicPackagedDemo`, `LocalPrivateDemo`, `Production`
-- Config loads mode from `HARNESS_RUNTIME_MODE` env var
+- Config loads mode from `CITE_RUNTIME_MODE` env var
 - `engine::ingest` checks mode for upload restrictions
 - No tests verify mode-specific behavior
 
@@ -153,7 +153,7 @@ Target files:
 - `tests/golden/fixtures.json` (new)
 - `tests/golden/mod.rs` (new test module)
 - `tests/golden/provider.rs` (GoldenProvider)
-- `Cargo.toml` (add integration test harness)
+- `Cargo.toml` (add integration test cite)
 
 ### Slice 2 — Retrieval quality metrics + evaluation engine
 Scope:
@@ -171,7 +171,7 @@ Target files:
 
 ### Slice 3 — CLI `evaluate` command + runtime mode tests
 Scope:
-- `harness evaluate [--golden-dir <path>] [--json]` command
+- `cite evaluate [--golden-dir <path>] [--json]` command
 - Output: per-fixture pass/fail, overall hit rate, summary
 - Exit code 0 on all pass, 1 on any failure
 - Runtime mode enforcement tests (public demo blocks uploads, production blocks, local allows)

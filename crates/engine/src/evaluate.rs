@@ -111,14 +111,14 @@ mod tests {
     use super::*;
     use chrono::Utc;
     use common::types::{Chunk, Document, DocumentStatus, FileType};
-    use common::HarnessError;
+    use common::CiteError;
     use std::path::PathBuf;
 
     struct FakeProvider {
         vector: Vec<f32>,
     }
     impl EmbeddingProvider for FakeProvider {
-        fn embed(&self, _: &str) -> Result<Vec<f32>, HarnessError> {
+        fn embed(&self, _: &str) -> Result<Vec<f32>, CiteError> {
             Ok(self.vector.clone())
         }
         fn model_id(&self) -> &str {

@@ -27,7 +27,7 @@ pub fn execute(config: &Config, json: bool) -> i32 {
     if json {
         print_json(&output);
     } else {
-        println!("✓ AI Harness CLI v{}", output.version);
+        println!("✓ AI Cite CLI v{}", output.version);
         println!("  Runtime mode: {}", output.runtime_mode);
         println!(
             "  Data dir: {}",

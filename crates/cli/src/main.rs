@@ -7,7 +7,7 @@ use std::process;
 mod commands;
 mod output;
 
-/// AI Harness CLI — semantic document context engine for AI agents
+/// AI Cite CLI — semantic document context engine for AI agents
 #[derive(Parser)]
 #[command(name = "cite", version, about)]
 struct Cli {
@@ -115,9 +115,9 @@ fn should_run_startup_recovery(command: &Commands) -> bool {
     !matches!(command, Commands::Health)
 }
 
-fn run_startup_recovery(config: &Config, _json: bool) -> Result<(), common::HarnessError> {
+fn run_startup_recovery(config: &Config, _json: bool) -> Result<(), common::CiteError> {
     let data_dir = resolve_data_dir(config);
-    std::fs::create_dir_all(&data_dir).map_err(|e| common::HarnessError::StorageError {
+    std::fs::create_dir_all(&data_dir).map_err(|e| common::CiteError::StorageError {
         message: format!("Failed to create data directory: {e}"),
     })?;
 
@@ -130,7 +130,7 @@ fn resolve_data_dir(config: &Config) -> PathBuf {
     config.paths.data_dir.clone().unwrap_or_else(|| {
         dirs::data_dir()
             .unwrap_or_else(|| PathBuf::from("."))
-            .join("harness")
+            .join("cite")
     })
 }
 

@@ -168,7 +168,7 @@ fn evaluate_fixture(
             // For no_results fixtures, some errors are acceptable
             if fixture.expected.result_kind == "no_results" {
                 match &e {
-                    common::HarnessError::DocumentNotReady { .. } => {
+                    common::CiteError::DocumentNotReady { .. } => {
                         (true, "passed (no ready documents)".to_string())
                     }
                     _ => (false, format!("unexpected error: {}", e)),

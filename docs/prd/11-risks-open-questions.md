@@ -14,7 +14,7 @@ This document tracks product and implementation risks before coding starts.
 | MVP scope expands too much | Project does not ship | Keep auth, billing, native app, MCP, full hybrid search, and built-in answer generation out of MVP |
 | Public demo receives sensitive docs | Privacy issue | Public packaged demo disables uploads and uses sample documents only; local/private runs can import docs with warnings |
 | Personal data is sent to AI providers without review | Legal/compliance risk | Disclose provider usage, minimize context, and require production legal review |
-| AI output creates accountability gap | Ethical/legal risk | Make the harness provide evidence; require human/operator accountability for downstream answers |
+| AI output creates accountability gap | Ethical/legal risk | Make the cite provide evidence; require human/operator accountability for downstream answers |
 | Rust/CLI learning curve slows delivery | Schedule risk | Keep the engine/CLI boundary small and ship one narrow happy path first |
 | Output format drift between human and JSON modes | Integration bugs | Keep both modes backed by the same schema and test them together |
 | Frontend polish delays engine value | Slower delivery | Do not introduce a native app until the CLI/engine is stable |
@@ -23,7 +23,7 @@ This document tracks product and implementation risks before coding starts.
 
 | Decision | Trade-off |
 |---|---|
-| CLI-first harness | Better agent use, less immediate visual polish |
+| CLI-first cite | Better agent use, less immediate visual polish |
 | Context packs over built-in answers | Less demo flash, much stronger agent interoperability and scope control |
 | Rust engine | Strong performance and memory safety, higher initial implementation cost |
 | One default corpus | Faster MVP, less flexible than multi-corpus product |
@@ -42,7 +42,7 @@ This document tracks product and implementation risks before coding starts.
 | Should the packaged demo allow public uploads? | No. Sample documents only until auth, deletion, retention, privacy notice, and provider/legal review exist |
 | Which models are initially allowed? | Mock/local providers are required for tests and packaged demos; real local/private runs use configurable embedding provider/model IDs that meet documented capabilities |
 | Post-MVP: how much graph structure is needed beyond vector retrieval and MVP source links? | MVP stays at source -> section -> chunk hierarchy plus citation/source links for trace/read; expand only after vector-first retrieval is accepted and evaluation shows a clear benefit |
-| Who is responsible for downstream AI answers? | A named human/team operator, not the model or the harness itself |
+| Who is responsible for downstream AI answers? | A named human/team operator, not the model or the cite itself |
 | When should MCP be added? | After the CLI JSON contract is stable enough to wrap without changing core schemas |
 | When should full hybrid search be added? | After vector-first retrieval with minimal source metadata meets MVP acceptance |
 
@@ -75,7 +75,7 @@ Do not cut:
 | Date | Decision | Reason |
 |---|---|---|
 | 2026-05-26 | Build PRD before coding | User wants product clarity and production-quality MVP boundaries. |
-| 2026-05-26 | MVP focuses on a CLI-first grounded engine | The harness is the product value, not a desktop UI. |
+| 2026-05-26 | MVP focuses on a CLI-first grounded engine | The cite is the product value, not a desktop UI. |
 | 2026-05-26 | Start without auth | Reduces scope and keeps focus on engine behavior. |
 | 2026-05-26 | Packaged sample demo uses sample documents only | Avoids privacy risk while auth is out of scope. |
 | 2026-05-26 | MVP corpus is mode-scoped | Public packaged demo retrieves sample documents only; local/private demo retrieves imported documents only; no mixed corpus in MVP. |
@@ -84,7 +84,7 @@ Do not cut:
 | 2026-05-26 | Local/private MVP stores original files | CLI-managed local storage keeps original files together with extracted text, chunks, embeddings, indexes, minimal graph/source metadata, and metadata so citations and cleanup are stable. |
 | 2026-05-26 | Chile privacy laws are PRD requirements | Ley 19.628 and Ley 21.719 must be considered before production use. |
 | 2026-05-26 | Provider/model registry is required | The registry tracks configurable provider/model IDs and required capabilities; named commercial models are non-normative candidates until access, pricing, terms, and privacy review are verified. |
-| 2026-05-26 | CLI-first harness with Rust engine | The product is local-first and the CLI surface matches the new scope. |
+| 2026-05-26 | CLI-first cite with Rust engine | The product is local-first and the CLI surface matches the new scope. |
 | 2026-05-26 | Retrieval is vector-first with minimal graph/source metadata | Avoids overbuilding full hybrid ranking, graph expansion, or reranking before the core is reliable. |
 | 2026-05-26 | Runtime modes are explicit | Public packaged demo disables uploads, local/private demo enables uploads with warnings, and production stays blocked until compliance is complete. |
 | 2026-05-26 | Built-in answer generation is post-MVP | The MVP must help external agents retrieve and verify document context instead of becoming an app-hosted assistant. |

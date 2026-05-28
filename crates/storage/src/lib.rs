@@ -1,4 +1,4 @@
-use common::HarnessError;
+use common::CiteError;
 use rusqlite::Connection;
 use std::path::Path;
 
@@ -20,21 +20,21 @@ pub struct Database {
 
 impl Database {
     /// Open or create the database at the given path
-    pub fn open(data_dir: &Path) -> Result<Self, HarnessError> {
-        let db_path = data_dir.join("harness.db");
-        let conn = Connection::open(&db_path).map_err(|e| HarnessError::StorageError {
+    pub fn open(data_dir: &Path) -> Result<Self, CiteError> {
+        let db_path = data_dir.join("cite.db");
+        let conn = Connection::open(&db_path).map_err(|e| CiteError::StorageError {
             message: format!("Failed to open database: {e}"),
         })?;
 
         // Enable WAL mode for concurrent reads
         conn.pragma_update(None, "journal_mode", "WAL")
-            .map_err(|e| HarnessError::StorageError {
+            .map_err(|e| CiteError::StorageError {
                 message: format!("Failed to set WAL mode: {e}"),
             })?;
 
         // Set busy timeout to avoid immediate lock failures
         conn.pragma_update(None, "busy_timeout", 5000)
-            .map_err(|e| HarnessError::StorageError {
+            .map_err(|e| CiteError::StorageError {
                 message: format!("Failed to set busy timeout: {e}"),
             })?;
 
@@ -45,15 +45,15 @@ impl Database {
     }
 
     /// Run pending migrations
-    fn run_migrations(&mut self) -> Result<(), HarnessError> {
+    fn run_migrations(&mut self) -> Result<(), CiteError> {
         migrations::run(&self.conn)
     }
 
     /// Check database health
-    pub fn check_health(&self) -> Result<(), HarnessError> {
+    pub fn check_health(&self) -> Result<(), CiteError> {
         self.conn
             .execute_batch("SELECT 1")
-            .map_err(|e| HarnessError::StorageError {
+            .map_err(|e| CiteError::StorageError {
                 message: format!("Health check failed: {e}"),
             })
     }
@@ -64,8 +64,8 @@ impl Database {
     }
 
     /// Open an in-memory database for testing.
-    pub fn open_memory() -> Result<Self, HarnessError> {
-        let conn = Connection::open_in_memory().map_err(|e| HarnessError::StorageError {
+    pub fn open_memory() -> Result<Self, CiteError> {
+        let conn = Connection::open_in_memory().map_err(|e| CiteError::StorageError {
             message: format!("Failed to open in-memory database: {e}"),
         })?;
 

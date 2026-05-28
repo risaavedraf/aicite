@@ -73,7 +73,7 @@
 **File**: `crates/ingest/src/validator.rs`
 
 **Steps**:
-1. Implement `validate_file(path, config) -> Result<(FileType, u64), HarnessError>`
+1. Implement `validate_file(path, config) -> Result<(FileType, u64), CiteError>`
 2. Check path policy: resolve symlinks, reject traversal, network, device files
 3. Check file exists
 4. Check file extension → FileType
@@ -98,7 +98,7 @@
 **File**: `crates/ingest/src/extractor.rs`
 
 **Steps**:
-1. Implement `extract_text(path, file_type) -> Result<ExtractionResult, HarnessError>`
+1. Implement `extract_text(path, file_type) -> Result<ExtractionResult, CiteError>`
 2. TXT/MD: read as UTF-8
 3. PDF: use lopdf to extract per-page text
 4. Handle edge cases: empty files, encoding errors, corrupted PDFs
@@ -123,7 +123,7 @@
 **File**: `crates/ingest/src/chunker.rs`
 
 **Steps**:
-1. Implement `chunk_text(result, config) -> Result<Vec<ChunkInput>, HarnessError>`
+1. Implement `chunk_text(result, config) -> Result<Vec<ChunkInput>, CiteError>`
 2. Character-based splitting at `chunk_size_chars`
 3. Sentence-boundary awareness for split points
 4. Overlap handling
@@ -219,10 +219,10 @@
 8. Verify `cargo build` passes
 
 **Acceptance**:
-- `harness ingest <path>` works (human + JSON)
-- `harness list` works (human + JSON)
-- `harness get <id>` works (human + JSON)
-- `harness retry <id>` works (human + JSON)
+- `cite ingest <path>` works (human + JSON)
+- `cite list` works (human + JSON)
+- `cite get <id>` works (human + JSON)
+- `cite retry <id>` works (human + JSON)
 - `cargo build` passes
 - `cargo clippy` passes
 

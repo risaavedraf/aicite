@@ -1,4 +1,4 @@
--- Initial schema for AI Harness CLI
+-- Initial schema for AI Cite CLI
 
 CREATE TABLE IF NOT EXISTS documents (
     document_id TEXT PRIMARY KEY,

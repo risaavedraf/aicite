@@ -1,6 +1,6 @@
 # AI Ethics and Governance
 
-The product must make AI-adjacent behavior traceable, reviewable, and accountable. The MVP harness returns evidence and context for external agents; it is not itself the final authority or a built-in assistant.
+The product must make AI-adjacent behavior traceable, reviewable, and accountable. The MVP cite returns evidence and context for external agents; it is not itself the final authority or a built-in assistant.
 
 ## Governance principle
 
@@ -19,7 +19,7 @@ The product must make AI-adjacent behavior traceable, reviewable, and accountabl
 
 ## Human responsibility rule
 
-The CLI output and README must not imply that the model, the harness, or a downstream agent is the final authority. For any professional, legal, medical, financial, employment, or high-impact decision, the product must state that a human reviewer is responsible for validating downstream answers against cited sources.
+The CLI output and README must not imply that the model, the cite, or a downstream agent is the final authority. For any professional, legal, medical, financial, employment, or high-impact decision, the product must state that a human reviewer is responsible for validating downstream answers against cited sources.
 
 ## White-box provider/model registry
 

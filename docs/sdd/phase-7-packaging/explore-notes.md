@@ -24,7 +24,7 @@
 
 - All commands have `--help` via clap
 - All support `--json`, `--config`, `--data-dir`, `--runtime-mode`
-- Binary name: `harness` (user noted future rename, keep as-is for now)
+- Binary name: `cite` (user noted future rename, keep as-is for now)
 
 ### Sample/demo documents
 - Only test fixtures exist: `crates/ingest/tests/fixtures/sample.md`, `sample.txt`

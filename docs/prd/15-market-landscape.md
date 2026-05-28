@@ -49,7 +49,7 @@ That combination is the whitespace the market does not cover cleanly today.
 
 ## Strategic principles
 
-1. **Engine over UI** — the core value is the harness, not the surface.
+1. **Engine over UI** — the core value is the cite, not the surface.
 2. **Evidence over answers** — the MVP returns cited context; downstream agents may generate answers.
 3. **Vector-first before hybrid** — prove semantic retrieval with minimal source metadata before adding graph expansion, keyword/vector hybrid ranking, or reranking stacks.
 4. **Local/private by default** — privacy is part of the product, not a checkbox.
@@ -63,7 +63,7 @@ That combination is the whitespace the market does not cover cleanly today.
 | MCP access | No MVP contract exists yet; adding it now would blur the CLI-first scope | Wrap the stable CLI JSON schemas after `search`, `retrieve`, `context`, `read`, and `trace` are accepted |
 | Full hybrid search | Current retrieval design is vector-first with minimal source metadata | Add graph expansion, keyword/FTS ranking, and reranking after golden retrieval tests show where vector-first fails |
 | Built-in answer adapter | The pivot makes external agents the answer layer | Add an optional adapter over context packs without changing retrieval/source schemas |
-| Native app | Product moved from app to CLI harness | Build as V2 companion after the CLI/engine is stable |
+| Native app | Product moved from app to CLI cite | Build as V2 companion after the CLI/engine is stable |
 
 ## Open questions
 

@@ -1,4 +1,4 @@
-# SDD Explore Notes — AI Harness CLI
+# SDD Explore Notes — AI Cite CLI
 
 ## Project thesis
 

@@ -1,4 +1,4 @@
-# AI Harness CLI — MVP Roadmap
+# AI Cite CLI — MVP Roadmap
 
 ## Overview
 
@@ -15,7 +15,7 @@
 - Cargo workspace with 9 crates
 - Config crate with env/file/flag precedence
 - Storage crate with SQLite + WAL + migrations
-- CLI crate with `harness health --json`
+- CLI crate with `cite health --json`
 - Common crate with types, errors, exit codes
 - CI pipeline (GitHub Actions)
 - README + .env.example
@@ -35,8 +35,8 @@
 - Chunking with overlap (800-1200 tokens, 100-200 overlap)
 - Embedding generation via configurable provider
 - Document lifecycle management (pending → processing → ready → failed)
-- `harness ingest <path>` command
-- `harness list` and `harness get` commands
+- `cite ingest <path>` command
+- `cite list` and `cite get` commands
 - Retry/backoff for failed ingestion
 - Partial data cleanup on failure
 
@@ -55,8 +55,8 @@
 - Vector index storage and lookup
 - Cosine similarity scoring
 - Top-k retrieval with configurable k (1-10, default 5)
-- `harness search` command
-- `harness retrieve` command
+- `cite search` command
+- `cite retrieve` command
 - Source/section/chunk metadata attachment
 - Partial-corpus handling (use ready docs only)
 
@@ -76,9 +76,9 @@
 - Result-kind decision table (context, no_results, insufficient_context)
 - Evidence floor and confidence threshold logic
 - Citation model (citation_id, document_id, chunk_id, page, offset, text, score)
-- `harness context` command
-- `harness read` command (citation or chunk lookup)
-- `harness trace` command
+- `cite context` command
+- `cite read` command (citation or chunk lookup)
+- `cite trace` command
 - Agent instruction template
 - Verification disclaimer in output
 
@@ -96,11 +96,11 @@
 **Deliverables**:
 - Durable ingestion locks (sequential processing)
 - Backlog/upsert on lock conflict (`operation_in_progress`)
-- `harness ingest --next` / `--queued` for backlog processing
+- `cite ingest --next` / `--queued` for backlog processing
 - Rate limiting for retrieval/context (20 req/min per key)
 - Durable rate-limit counters (survive CLI restarts)
-- `harness retry` command for failed documents
-- `harness refresh` command with atomic snapshot swap
+- `cite retry` command for failed documents
+- `cite refresh` command with atomic snapshot swap
 - Recovery of interrupted `processing` documents on startup
 
 **Key crates**: `storage`, `engine`, `cli`

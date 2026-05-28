@@ -44,7 +44,7 @@ Current state:
 Gap:
 - Missing queue persistence and conflict path that returns `operation_in_progress` while upserting backlog item.
 
-## 3) `harness ingest --next` / `--queued`
+## 3) `cite ingest --next` / `--queued`
 
 Current state:
 - CLI ingest args currently only: `path`, optional `--display-name` (`crates/cli/src/commands/ingest.rs`).
@@ -67,7 +67,7 @@ Current state:
 Gap:
 - Missing durable counters, keying strategy, atomic check+increment, and enforcement hooks in engine entrypoints.
 
-## 5) `harness retry` behavior alignment for failed docs
+## 5) `cite retry` behavior alignment for failed docs
 
 Current state:
 - CLI retry command exists: `crates/cli/src/commands/retry.rs`.
@@ -84,7 +84,7 @@ Current state:
 Gap:
 - Clarify/align retry semantics for Phase 5 durability (manual retry vs queued retry metadata), and fix code/comment contract drift.
 
-## 6) `harness refresh` with atomic snapshot swap
+## 6) `cite refresh` with atomic snapshot swap
 
 Current state:
 - No `refresh` command in CLI:
@@ -145,7 +145,7 @@ Scope:
   - acquire/release ingest lock,
   - upsert backlog entry.
 - Engine ingest conflict path:
-  - when lock held, upsert backlog and return `HarnessError::OperationInProgress { retry_after_seconds, lock_name }`.
+  - when lock held, upsert backlog and return `CiteError::OperationInProgress { retry_after_seconds, lock_name }`.
 - CLI ingest surfaces stable error JSON/human output.
 Target files:
 - `crates/storage/src/migrations/003_*.sql`
@@ -196,7 +196,7 @@ Target files:
 - CLI bootstrap/helper wiring (likely `crates/cli/src/main.rs` + command helpers)
 - tests for interrupted processing transitions
 
-### Slice 5 — `harness refresh` + atomic snapshot swap
+### Slice 5 — `cite refresh` + atomic snapshot swap
 Scope:
 - Add refresh command and engine orchestration.
 - Add snapshot metadata/state tables.

@@ -1,4 +1,4 @@
-use common::HarnessError;
+use common::CiteError;
 use rusqlite::params;
 
 use crate::util::storage_err;
@@ -42,7 +42,7 @@ impl Database {
     pub fn insert_embeddings(
         &self,
         embeddings: &[(String, Vec<f32>, &str, &str)],
-    ) -> Result<(), HarnessError> {
+    ) -> Result<(), CiteError> {
         let tx = self.conn.unchecked_transaction().map_err(storage_err)?;
 
         for (chunk_id, vector, model_id, provider_id) in embeddings {
@@ -62,7 +62,7 @@ impl Database {
 
     /// Delete all embeddings whose chunk belongs to the given document.
     /// Returns the number of rows deleted.
-    pub fn delete_embeddings_for_document(&self, document_id: &str) -> Result<u64, HarnessError> {
+    pub fn delete_embeddings_for_document(&self, document_id: &str) -> Result<u64, CiteError> {
         let count = self
             .conn
             .execute(
@@ -77,7 +77,7 @@ impl Database {
     }
 
     /// List chunk embeddings for documents with status='ready'.
-    pub fn list_ready_chunk_embeddings(&self) -> Result<Vec<ChunkEmbeddingRecord>, HarnessError> {
+    pub fn list_ready_chunk_embeddings(&self) -> Result<Vec<ChunkEmbeddingRecord>, CiteError> {
         let mut stmt = self
             .conn
             .prepare(

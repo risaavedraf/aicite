@@ -2,7 +2,7 @@
 
 ## Architecture overview
 
-The ingest pipeline follows the single-shot durable process model. Each `harness ingest` invocation validates, extracts, chunks, embeds, and persists — then exits.
+The ingest pipeline follows the single-shot durable process model. Each `cite ingest` invocation validates, extracts, chunks, embeds, and persists — then exits.
 
 ```
 CLI (ingest command)
@@ -27,9 +27,9 @@ CLI (ingest command)
 
 **Public API**:
 ```rust
-pub fn validate_file(path: &Path, config: &IngestConfig) -> Result<(FileType, u64), HarnessError>;
-pub fn extract_text(path: &Path, file_type: &FileType) -> Result<ExtractionResult, HarnessError>;
-pub fn chunk_text(result: &ExtractionResult, config: &IngestConfig) -> Result<Vec<ChunkInput>, HarnessError>;
+pub fn validate_file(path: &Path, config: &IngestConfig) -> Result<(FileType, u64), CiteError>;
+pub fn extract_text(path: &Path, file_type: &FileType) -> Result<ExtractionResult, CiteError>;
+pub fn chunk_text(result: &ExtractionResult, config: &IngestConfig) -> Result<Vec<ChunkInput>, CiteError>;
 pub fn derive_display_name(path: &Path, override_name: Option<&str>, production_mode: bool) -> String;
 ```
 
@@ -43,7 +43,7 @@ pub fn derive_display_name(path: &Path, override_name: Option<&str>, production_
 ```rust
 pub struct OpenAICompatibleProvider { ... }
 impl OpenAICompatibleProvider {
-    pub fn new(config: &EmbeddingConfig) -> Result<Self, HarnessError>;
+    pub fn new(config: &EmbeddingConfig) -> Result<Self, CiteError>;
 }
 impl EmbeddingProvider for OpenAICompatibleProvider { ... }
 ```
@@ -58,19 +58,19 @@ impl EmbeddingProvider for OpenAICompatibleProvider { ... }
 **Public API additions to Database**:
 ```rust
 // Documents
-pub fn insert_document(&self, doc: &Document) -> Result<(), HarnessError>;
-pub fn get_document(&self, id: &str) -> Result<Option<Document>, HarnessError>;
-pub fn list_documents(&self) -> Result<Vec<Document>, HarnessError>;
-pub fn update_document_status(&self, id: &str, status: DocumentStatus, error: Option<ErrorInfo>) -> Result<(), HarnessError>;
-pub fn update_document_chunk_count(&self, id: &str, count: u32) -> Result<(), HarnessError>;
+pub fn insert_document(&self, doc: &Document) -> Result<(), CiteError>;
+pub fn get_document(&self, id: &str) -> Result<Option<Document>, CiteError>;
+pub fn list_documents(&self) -> Result<Vec<Document>, CiteError>;
+pub fn update_document_status(&self, id: &str, status: DocumentStatus, error: Option<ErrorInfo>) -> Result<(), CiteError>;
+pub fn update_document_chunk_count(&self, id: &str, count: u32) -> Result<(), CiteError>;
 
 // Chunks
-pub fn insert_chunks(&self, document_id: &str, chunks: &[Chunk]) -> Result<(), HarnessError>;
-pub fn delete_chunks_for_document(&self, document_id: &str) -> Result<u64, HarnessError>;
+pub fn insert_chunks(&self, document_id: &str, chunks: &[Chunk]) -> Result<(), CiteError>;
+pub fn delete_chunks_for_document(&self, document_id: &str) -> Result<u64, CiteError>;
 
 // Embeddings
-pub fn insert_embeddings(&self, embeddings: &[(String, Vec<f32>, &str, &str)]) -> Result<(), HarnessError>;
-pub fn delete_embeddings_for_document(&self, document_id: &str) -> Result<u64, HarnessError>;
+pub fn insert_embeddings(&self, embeddings: &[(String, Vec<f32>, &str, &str)]) -> Result<(), CiteError>;
+pub fn delete_embeddings_for_document(&self, document_id: &str) -> Result<u64, CiteError>;
 ```
 
 ### engine crate
@@ -84,32 +84,32 @@ impl Engine {
         config: &IngestConfig,
         path: &Path,
         display_name: Option<&str>,
-    ) -> Result<IngestResult, HarnessError>;
+    ) -> Result<IngestResult, CiteError>;
 
     pub fn retry_document(
         db: &Database,
         document_id: &str,
-    ) -> Result<Document, HarnessError>;
+    ) -> Result<Document, CiteError>;
 
-    pub fn list_documents(db: &Database) -> Result<Vec<Document>, HarnessError>;
+    pub fn list_documents(db: &Database) -> Result<Vec<Document>, CiteError>;
 
-    pub fn get_document(db: &Database, document_id: &str) -> Result<Document, HarnessError>;
+    pub fn get_document(db: &Database, document_id: &str) -> Result<Document, CiteError>;
 }
 ```
 
 ### cli crate
 
 **New commands**:
-- `commands/ingest.rs` — `harness ingest <path>`
-- `commands/list.rs` — `harness list`
-- `commands/get.rs` — `harness get <id>`
-- `commands/retry.rs` — `harness retry <id>`
+- `commands/ingest.rs` — `cite ingest <path>`
+- `commands/list.rs` — `cite list`
+- `commands/get.rs` — `cite get <id>`
+- `commands/retry.rs` — `cite retry <id>`
 
 ## Data flow diagram
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    harness ingest <path>                      │
+│                    cite ingest <path>                      │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌────────┐ │

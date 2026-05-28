@@ -1,5 +1,5 @@
 use crate::EmbeddingProvider;
-use common::HarnessError;
+use common::CiteError;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 
@@ -22,7 +22,7 @@ impl GeminiProvider {
     ///
     /// - `model`: model ID (e.g. `"gemini-embedding-001"`, `"gemini-embedding-2"`)
     /// - `api_key`: Google AI API key (get one free at https://aistudio.google.com/apikey)
-    pub fn new(model: &str, api_key: &str) -> Result<Self, HarnessError> {
+    pub fn new(model: &str, api_key: &str) -> Result<Self, CiteError> {
         let endpoint = format!(
             "https://generativelanguage.googleapis.com/v1beta/models/{}:embedContent",
             model
@@ -35,7 +35,7 @@ impl GeminiProvider {
                 headers.insert(
                     "x-goog-api-key",
                     reqwest::header::HeaderValue::from_str(api_key).map_err(|e| {
-                        HarnessError::ConfigError {
+                        CiteError::ConfigError {
                             message: format!("Invalid API key header value: {}", e),
                         }
                     })?,
@@ -43,7 +43,7 @@ impl GeminiProvider {
                 headers
             })
             .build()
-            .map_err(|e| HarnessError::ConfigError {
+            .map_err(|e| CiteError::ConfigError {
                 message: format!("Failed to build HTTP client: {}", e),
             })?;
 
@@ -84,7 +84,7 @@ struct GeminiEmbedding {
 }
 
 impl EmbeddingProvider for GeminiProvider {
-    fn embed(&self, text: &str) -> Result<Vec<f32>, HarnessError> {
+    fn embed(&self, text: &str) -> Result<Vec<f32>, CiteError> {
         let request = GeminiRequest {
             model: format!("models/{}", self.model),
             content: GeminiContent {
@@ -99,11 +99,11 @@ impl EmbeddingProvider for GeminiProvider {
             .send()
             .map_err(|e| {
                 if e.is_timeout() {
-                    HarnessError::EmbeddingProviderError {
+                    CiteError::EmbeddingProviderError {
                         message: format!("Gemini embedding request timed out: {}", e),
                     }
                 } else {
-                    HarnessError::EmbeddingProviderError {
+                    CiteError::EmbeddingProviderError {
                         message: format!("Gemini embedding request failed: {}", e),
                     }
                 }
@@ -112,7 +112,7 @@ impl EmbeddingProvider for GeminiProvider {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().unwrap_or_default();
-            return Err(HarnessError::EmbeddingProviderError {
+            return Err(CiteError::EmbeddingProviderError {
                 message: format!("Gemini API returned HTTP {}: {}", status, body),
             });
         }
@@ -120,7 +120,7 @@ impl EmbeddingProvider for GeminiProvider {
         let parsed: GeminiResponse =
             response
                 .json()
-                .map_err(|e| HarnessError::EmbeddingProviderError {
+                .map_err(|e| CiteError::EmbeddingProviderError {
                     message: format!("Failed to parse Gemini embedding response: {}", e),
                 })?;
 
@@ -166,7 +166,7 @@ mod tests {
         let result = provider.embed("hello world");
         assert!(result.is_err());
         match result.unwrap_err() {
-            HarnessError::EmbeddingProviderError { message } => {
+            CiteError::EmbeddingProviderError { message } => {
                 assert!(
                     message.contains("HTTP")
                         || message.contains("failed")

@@ -147,7 +147,7 @@ Split current `ingest(...)` into:
 3. release lock in `finally` path
 4. if lock not acquired:
    - `upsert_backlog_item(...)`
-   - return `HarnessError::OperationInProgress { retry_after_seconds, lock_name: Some("ingest_pipeline") }`
+   - return `CiteError::OperationInProgress { retry_after_seconds, lock_name: Some("ingest_pipeline") }`
 
 ## 3.2 Rate-limited retrieval/context
 
@@ -159,7 +159,7 @@ Call guard at entry of:
 - `retrieve::retrieve`
 - `context::build_context`
 
-If blocked, return `HarnessError::RateLimitExceeded { retry_after_seconds }` before embedding/ranking.
+If blocked, return `CiteError::RateLimitExceeded { retry_after_seconds }` before embedding/ranking.
 
 Keying decision for MVP:
 - `key = runtime_mode + ":" + provider_id` (stable across restarts and deterministic in single-user CLI mode).
@@ -199,14 +199,14 @@ Retrieval/context read paths resolve through active snapshot membership only.
 
 ## 4) CLI command changes
 
-### `harness ingest`
+### `cite ingest`
 - Extend args:
   - positional `path` remains for direct mode
   - `--queued <path>` enqueue-only mode
   - `--next` process next queued
 - Mutual exclusion validation in clap group.
 
-### `harness refresh`
+### `cite refresh`
 - New command module `crates/cli/src/commands/refresh.rs`
 - Add subcommand wiring in:
   - `crates/cli/src/main.rs`

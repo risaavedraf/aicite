@@ -4,10 +4,10 @@
 
 Phase 1 scaffold is complete. We have:
 - Cargo workspace with 9 crates
-- `common`: Document, Chunk, Citation types; HarnessError (19 variants); ExitCode enum
+- `common`: Document, Chunk, Citation types; CiteError (19 variants); ExitCode enum
 - `storage`: SQLite with WAL mode, migration system, initial schema (documents, chunks, embeddings, traces tables)
 - `config`: Config loading with env/file/flag precedence
-- `cli`: clap CLI skeleton with `harness health --json`
+- `cli`: clap CLI skeleton with `cite health --json`
 - `ingest`, `providers`, `engine`: stub crates
 
 ## What Phase 2 must deliver
@@ -19,11 +19,11 @@ From the roadmap and PRD:
 3. **Chunking** (FR-004): 800-1200 tokens, 100-200 overlap, with metadata
 4. **Embedding generation** (FR-005): configurable provider
 5. **Document lifecycle** (FR-006): pending → processing → ready → failed
-6. **CLI commands**: `harness ingest <path>`, `harness list`, `harness get`
+6. **CLI commands**: `cite ingest <path>`, `cite list`, `cite get`
 7. **Error info** (FR-007): human-readable reason + machine-readable code
 8. **Retry/backoff** (FR-013): bounded retries with exponential backoff
 9. **Partial cleanup** (FR-011): rollback on failure
-10. **Recovery path** (FR-014): `harness retry` for failed docs
+10. **Recovery path** (FR-014): `cite retry` for failed docs
 
 ## Crate dependency analysis
 
@@ -73,7 +73,7 @@ From the roadmap and PRD:
 ### 4. Embedding provider implementation
 - Trait already exists in `providers`
 - Need concrete `OpenAICompatibleProvider` using reqwest
-- API key from env var (HARNESS_EMBEDDING_API_KEY or provider-specific)
+- API key from env var (CITE_EMBEDDING_API_KEY or provider-specific)
 - HTTPS-only enforcement (architecture decision)
 
 ### 5. Ingest pipeline flow
@@ -99,7 +99,7 @@ ingest(path)
 ## Scope boundary — what's NOT in Phase 2
 
 - Durable locks + backlog (Phase 5)
-- `harness refresh` (Phase 5)
+- `cite refresh` (Phase 5)
 - Retrieval pipeline (Phase 3)
 - Context packs (Phase 4)
 - Golden dataset (Phase 6)

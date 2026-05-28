@@ -1,6 +1,6 @@
 use chrono::Utc;
 use common::types::ErrorInfo;
-use common::HarnessError;
+use common::CiteError;
 use rusqlite::{params, OptionalExtension};
 
 use crate::util::{format_dt, storage_err};
@@ -21,7 +21,7 @@ pub struct ActivateSnapshotResult {
 
 impl Database {
     /// Create a new snapshot in `building` state.
-    pub fn begin_snapshot_build(&self, snapshot_id: &str) -> Result<(), HarnessError> {
+    pub fn begin_snapshot_build(&self, snapshot_id: &str) -> Result<(), CiteError> {
         let now = format_dt(&Utc::now());
         self.conn
             .execute(
@@ -38,7 +38,7 @@ impl Database {
         &self,
         snapshot_id: &str,
         document_id: &str,
-    ) -> Result<(), HarnessError> {
+    ) -> Result<(), CiteError> {
         self.conn
             .execute(
                 "INSERT OR IGNORE INTO snapshot_members (snapshot_id, document_id)
@@ -55,7 +55,7 @@ impl Database {
     pub fn activate_snapshot(
         &self,
         snapshot_id: &str,
-    ) -> Result<ActivateSnapshotResult, HarnessError> {
+    ) -> Result<ActivateSnapshotResult, CiteError> {
         let now = format_dt(&Utc::now());
 
         let tx = self.conn.unchecked_transaction().map_err(storage_err)?;
@@ -67,12 +67,12 @@ impl Database {
                 params![snapshot_id],
                 |row| row.get(0),
             )
-            .map_err(|e| HarnessError::StorageError {
+            .map_err(|e| CiteError::StorageError {
                 message: format!("Snapshot not found: {e}"),
             })?;
 
         if state != STATE_BUILDING {
-            return Err(HarnessError::InvalidParameter {
+            return Err(CiteError::InvalidParameter {
                 message: format!(
                     "Cannot activate snapshot in state '{state}'; must be '{STATE_BUILDING}'"
                 ),
@@ -129,7 +129,7 @@ impl Database {
         &self,
         snapshot_id: &str,
         error: &ErrorInfo,
-    ) -> Result<(), HarnessError> {
+    ) -> Result<(), CiteError> {
         let n = self
             .conn
             .execute(
@@ -147,7 +147,7 @@ impl Database {
             .map_err(storage_err)?;
 
         if n == 0 {
-            return Err(HarnessError::StorageError {
+            return Err(CiteError::StorageError {
                 message: format!("Snapshot {snapshot_id} not found or not in building state"),
             });
         }
@@ -155,7 +155,7 @@ impl Database {
     }
 
     /// Get the currently active snapshot ID, if any.
-    pub fn get_active_snapshot_id(&self) -> Result<Option<String>, HarnessError> {
+    pub fn get_active_snapshot_id(&self) -> Result<Option<String>, CiteError> {
         self.conn
             .query_row(
                 "SELECT active_snapshot_id FROM snapshot_pointer WHERE id = 1",
@@ -169,7 +169,7 @@ impl Database {
     /// Get the document IDs belonging to the active snapshot.
     ///
     /// Returns `None` if no active snapshot exists (meaning all ready docs are visible).
-    pub fn get_active_snapshot_member_ids(&self) -> Result<Option<Vec<String>>, HarnessError> {
+    pub fn get_active_snapshot_member_ids(&self) -> Result<Option<Vec<String>>, CiteError> {
         let Some(active_id) = self.get_active_snapshot_id()? else {
             return Ok(None);
         };
@@ -245,7 +245,7 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(
             result.unwrap_err(),
-            HarnessError::InvalidParameter { .. }
+            CiteError::InvalidParameter { .. }
         ));
     }
 

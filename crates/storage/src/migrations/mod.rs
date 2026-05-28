@@ -1,4 +1,4 @@
-use common::HarnessError;
+use common::CiteError;
 use rusqlite::Connection;
 
 const INITIAL_SCHEMA: &str = include_str!("001_initial.sql");
@@ -8,7 +8,7 @@ const RATE_LIMITS_SCHEMA: &str = include_str!("004_rate_limits.sql");
 const SNAPSHOTS_SCHEMA: &str = include_str!("005_snapshots.sql");
 
 /// Run pending migrations
-pub fn run(conn: &Connection) -> Result<(), HarnessError> {
+pub fn run(conn: &Connection) -> Result<(), CiteError> {
     // Create migrations table if it doesn't exist
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS _migrations (
@@ -16,7 +16,7 @@ pub fn run(conn: &Connection) -> Result<(), HarnessError> {
             applied_at TEXT NOT NULL DEFAULT (datetime('now'))
         );",
     )
-    .map_err(|e| HarnessError::StorageError {
+    .map_err(|e| CiteError::StorageError {
         message: format!("Failed to create migrations table: {e}"),
     })?;
 
@@ -27,7 +27,7 @@ pub fn run(conn: &Connection) -> Result<(), HarnessError> {
             [],
             |row| row.get(0),
         )
-        .map_err(|e| HarnessError::StorageError {
+        .map_err(|e| CiteError::StorageError {
             message: format!("Failed to get migration version: {e}"),
         })?;
 
@@ -55,14 +55,14 @@ pub fn run(conn: &Connection) -> Result<(), HarnessError> {
     Ok(())
 }
 
-fn run_migration(conn: &Connection, version: i32, sql: &str) -> Result<(), HarnessError> {
+fn run_migration(conn: &Connection, version: i32, sql: &str) -> Result<(), CiteError> {
     conn.execute_batch(sql)
-        .map_err(|e| HarnessError::StorageError {
+        .map_err(|e| CiteError::StorageError {
             message: format!("Migration {version} failed: {e}"),
         })?;
 
     conn.execute("INSERT INTO _migrations (version) VALUES (?1)", [version])
-        .map_err(|e| HarnessError::StorageError {
+        .map_err(|e| CiteError::StorageError {
             message: format!("Failed to record migration {version}: {e}"),
         })?;
 

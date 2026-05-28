@@ -1,13 +1,43 @@
 # Installation Guide — CITE CLI
 
-This document describes how to install the CITE CLI on different platforms. Currently, only manual binary download is available. Automated installation methods are planned.
+This document defines the canonical run/install pathways for `cite` and then lists distribution methods by platform.
+
+## Canonical run/install pathways (Phase 9)
+
+| Pathway | Use when | Command style |
+|---|---|---|
+| Dev run | You are iterating locally and do not need a release build | `cargo run --bin cite -- <command> ...` |
+| Local built binary | You want to validate the local release artifact from source | `cargo build --release` then `./target/release/cite <command> ...` |
+| Installed release binary | You downloaded/installed a release and added it to PATH | `cite <command> ...` (or `cite.exe` on Windows) |
+
+### Path A — Dev run
+
+```bash
+cargo run --bin cite -- health --json
+cargo run --bin cite -- context "what are the acceptance criteria?"
+```
+
+### Path B — Local built binary
+
+```bash
+cargo build --release
+./target/release/cite health --json
+./target/release/cite context "what are the acceptance criteria?"
+```
+
+### Path C — Installed release binary
+
+```bash
+cite health --json
+cite context "what are the acceptance criteria?"
+```
 
 ## Current: Manual binary download
 
 ### Linux (x86_64)
 
 ```bash
-curl -sSfL https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-linux-amd64 -o cite
+curl -sSfL https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-linux-amd64 -o cite
 chmod +x cite
 sudo mv cite /usr/local/bin/
 cite health --json
@@ -16,7 +46,7 @@ cite health --json
 ### macOS (Apple Silicon)
 
 ```bash
-curl -sSfL https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-macos-arm64 -o cite
+curl -sSfL https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-macos-arm64 -o cite
 chmod +x cite
 sudo mv cite /usr/local/bin/
 cite health --json
@@ -25,7 +55,7 @@ cite health --json
 ### Windows (PowerShell)
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-windows-amd64.exe" -OutFile "cite.exe"
+Invoke-WebRequest -Uri "https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-windows-amd64.exe" -OutFile "cite.exe"
 # Move to a directory in PATH, e.g.:
 Move-Item cite.exe C:\Users\$env:USERNAME\AppData\Local\Microsoft\WinGet\Links\
 cite health --json
@@ -61,22 +91,22 @@ scoop update cite
 {
   "version": "0.1.0",
   "description": "CLI-first semantic document engine for AI agents",
-  "homepage": "https://github.com/risaavedraf/aiharness",
+  "homepage": "https://github.com/risaavedraf/aicite",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-windows-amd64.exe#/cite.exe",
+      "url": "https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-windows-amd64.exe#/cite.exe",
       "hash": "sha256:..."
     }
   },
   "bin": "cite.exe",
   "checkver": {
-    "github": "https://github.com/risaavedraf/aiharness"
+    "github": "https://github.com/risaavedraf/aicite"
   },
   "autoupdate": {
     "architecture": {
       "64bit": {
-        "url": "https://github.com/risaavedraf/aiharness/releases/download/v$version/cite-windows-amd64.exe#/cite.exe"
+        "url": "https://github.com/risaavedraf/aicite/releases/download/v$version/cite-windows-amd64.exe#/cite.exe"
       }
     }
   }
@@ -116,24 +146,24 @@ brew upgrade cite
 ```ruby
 class Cite < Formula
   desc "CLI-first semantic document engine for AI agents"
-  homepage "https://github.com/risaavedraf/aiharness"
+  homepage "https://github.com/risaavedraf/aicite"
   version "0.1.0"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-macos-arm64"
+      url "https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-macos-arm64"
       sha256 "..."
     end
     on_intel do
-      url "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-macos-amd64"
+      url "https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-macos-amd64"
       sha256 "..."
     end
   end
 
   on_linux do
     on_intel do
-      url "https://github.com/risaavedraf/aiharness/releases/download/v0.1.0/cite-linux-amd64"
+      url "https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-linux-amd64"
       sha256 "..."
     end
   end
@@ -162,7 +192,7 @@ If the user has a Rust toolchain, they can install directly from the repo:
 
 ```bash
 # From GitHub (once published)
-cargo install --git https://github.com/risaavedraf/aiharness --tag v0.1.0
+cargo install --git https://github.com/risaavedraf/aicite --tag v0.1.0
 
 # Or from crates.io (once published)
 cargo install cite
@@ -181,8 +211,8 @@ A universal install script that detects OS and architecture:
 # install.sh — Instala cite CLI
 set -e
 
-VERSION="${HARNESS_VERSION:-0.1.0}"
-REPO="risaavedraf/aiharness"
+VERSION="${CITE_VERSION:-0.1.0}"
+REPO="risaavedraf/aicite"
 BASE_URL="https://github.com/${REPO}/releases/download/v${VERSION}"
 
 detect_platform() {
@@ -229,13 +259,13 @@ main "$@"
 
 ```bash
 # Default install to /usr/local/bin
-curl -sSf https://raw.githubusercontent.com/risaavedraf/aiharness/main/install.sh | sh
+curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
 
 # Custom install directory
-INSTALL_DIR=~/.local/bin curl -sSf https://raw.githubusercontent.com/risaavedraf/aiharness/main/install.sh | sh
+INSTALL_DIR=~/.local/bin curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
 
 # Specific version
-HARNESS_VERSION=0.2.0 curl -sSf https://raw.githubusercontent.com/risaavedraf/aiharness/main/install.sh | sh
+CITE_VERSION=0.2.0 curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
 ```
 
 ---
@@ -280,8 +310,8 @@ For Debian-based systems, a `.deb` package:
 
 ```bash
 # Add the repository
-curl -sSf https://packages.harness.dev/gpg.key | sudo apt-key add -
-echo "deb https://packages.harness.dev stable main" | sudo tee /etc/apt/sources.list.d/cite.list
+curl -sSf https://packages.cite.dev/gpg.key | sudo apt-key add -
+echo "deb https://packages.cite.dev stable main" | sudo tee /etc/apt/sources.list.d/cite.list
 
 # Install
 sudo apt update
@@ -313,9 +343,13 @@ cargo deb --release
 
 ## Post-install setup
 
-> Phase 8 note: runtime configuration names remain `HARNESS_*` for now. The migration to `CITE_*` and data/db path renaming is deferred to Phase 9.
+> Phase 9 runtime policy:
+> - Canonical runtime namespace is `CITE_*`.
+> - Canonical local storage naming is data dir `.../cite/` with SQLite file `cite.db`.
+> - Legacy `HARNESS_*` runtime variables and legacy `harness` path names are not auto-mapped by runtime code; migrate manually.
+> - Provider key fallbacks `GEMINI_API_KEY` / `OPENAI_API_KEY` are accepted for embedding commands, but `CITE_EMBEDDING_API_KEY` is the canonical default.
 >
-> See `docs/sdd/phase-8-rename-cite/migration-checklist.md` for the local migration checklist.
+> See `docs/sdd/phase-9-installation-experience/migration-checklist.md` for migration/rollback steps.
 
 After installing, configure the embedding provider:
 
@@ -324,11 +358,11 @@ After installing, configure the embedding provider:
 cp .env.example .env
 
 # Edit with your API key
-# HARNESS_EMBEDDING_API_KEY=your-key-here
+# CITE_EMBEDDING_API_KEY=your-key-here
 
 # Or set environment variables directly
-export HARNESS_EMBEDDING_API_KEY=your-key-here
-export HARNESS_EMBEDDING_PROVIDER=gemini
+export CITE_EMBEDDING_API_KEY=your-key-here
+export CITE_EMBEDDING_PROVIDER=gemini
 
 # Verify
 cite health --json
@@ -340,7 +374,7 @@ cite health --json
 
 ```bash
 sudo rm /usr/local/bin/cite
-rm -rf $HARNESS_DATA_DIR
+rm -rf $CITE_DATA_DIR
 ```
 
 ### Scoop

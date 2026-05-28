@@ -134,11 +134,11 @@ pub fn run_evaluation(
 
 ## FR-605: CLI `evaluate` command
 
-**What**: A `harness evaluate` command that runs the evaluation suite.
+**What**: A `cite evaluate` command that runs the evaluation suite.
 
 **Usage**:
 ```
-harness evaluate [--json]
+cite evaluate [--json]
 ```
 
 **Behavior**:

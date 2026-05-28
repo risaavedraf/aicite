@@ -67,6 +67,6 @@ fn resolve_data_dir(config: &Config) -> std::path::PathBuf {
     config.paths.data_dir.clone().unwrap_or_else(|| {
         dirs::data_dir()
             .unwrap_or_else(|| std::path::PathBuf::from("."))
-            .join("harness")
+            .join("cite")
     })
 }

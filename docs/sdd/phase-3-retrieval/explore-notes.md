@@ -14,8 +14,8 @@ From roadmap:
 1. Vector index storage and lookup (on top of existing `embeddings` table)
 2. Cosine similarity scoring
 3. Top-k retrieval (`k` in 1..10, default 5)
-4. `harness search` command
-5. `harness retrieve` command
+4. `cite search` command
+5. `cite retrieve` command
 6. Source/section/chunk metadata attachment
 7. Partial-corpus handling (only `ready` documents)
 
@@ -25,8 +25,8 @@ From roadmap:
 - **Similarity**: cosine similarity with zero-norm and dimension-mismatch protection.
 - **Readiness filter**: SQL join constrained to `documents.status = 'ready'`.
 - **Commands**:
-  - `harness search <query> [--k N]`: concise ranked hits.
-  - `harness retrieve <query> [--k N]`: richer hit payload (text + offsets + page + metadata).
+  - `cite search <query> [--k N]`: concise ranked hits.
+  - `cite retrieve <query> [--k N]`: richer hit payload (text + offsets + page + metadata).
 - **Provider**: reuse configured embedding provider to embed the query text.
 
 ## Risks

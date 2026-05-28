@@ -2,7 +2,7 @@
 //!
 //! Returns 8-dimensional vectors where dimensions map to semantic topics.
 
-use common::HarnessError;
+use common::CiteError;
 use providers::EmbeddingProvider;
 use std::collections::HashMap;
 
@@ -10,7 +10,7 @@ const DIM: usize = 8;
 
 /// Deterministic embedding provider that maps text to topic-based vectors.
 ///
-/// Used by the golden-dataset evaluation and the `harness evaluate` CLI command.
+/// Used by the golden-dataset evaluation and the `cite evaluate` CLI command.
 pub struct GoldenProvider {
     cache: HashMap<String, Vec<f32>>,
 }
@@ -162,7 +162,7 @@ impl Default for GoldenProvider {
 }
 
 impl EmbeddingProvider for GoldenProvider {
-    fn embed(&self, text: &str) -> Result<Vec<f32>, HarnessError> {
+    fn embed(&self, text: &str) -> Result<Vec<f32>, CiteError> {
         let key = normalize_key(text);
         if let Some(cached) = self.cache.get(&key) {
             return Ok(cached.clone());

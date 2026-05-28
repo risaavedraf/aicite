@@ -1,4 +1,4 @@
-use common::{FileType, CiteError};
+use common::{CiteError, FileType};
 use config::IngestConfig;
 use ingest::chunker;
 use ingest::extractor;
@@ -86,10 +86,7 @@ fn test_ingest_unsupported_file_type() {
     std::fs::write(path, "a,b,c").unwrap();
 
     let result = validator::validate_file(path, 1024 * 1024);
-    assert!(matches!(
-        result,
-        Err(CiteError::UnsupportedFileType { .. })
-    ));
+    assert!(matches!(result, Err(CiteError::UnsupportedFileType { .. })));
 
     // Cleanup
     let _ = std::fs::remove_file(path);

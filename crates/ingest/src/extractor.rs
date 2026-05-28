@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use common::{FileType, CiteError};
+use common::{CiteError, FileType};
 use lopdf::Document;
 
 /// Text from a single page.

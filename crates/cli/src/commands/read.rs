@@ -1,5 +1,5 @@
 use clap::Args;
-use common::{ExitCode, CiteError, ReadSelector};
+use common::{CiteError, ExitCode, ReadSelector};
 use config::Config;
 use engine::context;
 use std::path::PathBuf;
@@ -121,12 +121,12 @@ fn build_selector(args: &ReadArgs) -> Result<ReadSelector, CiteError> {
         })
     } else {
         let chunk_id = args.chunk_id.clone().unwrap();
-        let document_id =
-            args.document_id
-                .clone()
-                .ok_or_else(|| CiteError::InvalidParameter {
-                    message: "--document-id is required when using --chunk-id".into(),
-                })?;
+        let document_id = args
+            .document_id
+            .clone()
+            .ok_or_else(|| CiteError::InvalidParameter {
+                message: "--document-id is required when using --chunk-id".into(),
+            })?;
         Ok(ReadSelector::Chunk {
             document_id,
             chunk_id,

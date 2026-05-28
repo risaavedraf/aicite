@@ -1,14 +1,11 @@
-use common::FileType;
 use common::CiteError;
+use common::FileType;
 use std::path::Path;
 
 /// Validate a file for ingestion: path safety, existence, type, and size.
 ///
 /// Returns `(FileType, file_size_bytes)` on success.
-pub fn validate_file(
-    path: &Path,
-    max_file_size_bytes: u64,
-) -> Result<(FileType, u64), CiteError> {
+pub fn validate_file(path: &Path, max_file_size_bytes: u64) -> Result<(FileType, u64), CiteError> {
     // Path policy checks before any filesystem access
     is_path_safe(path)?;
 

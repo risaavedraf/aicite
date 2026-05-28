@@ -190,14 +190,14 @@ struct EnvOverrides {
 impl EnvOverrides {
     fn load() -> Self {
         Self {
-            runtime_mode: std::env::var("CITE_RUNTIME_MODE").ok().and_then(|v| {
-                match v.as_str() {
+            runtime_mode: std::env::var("CITE_RUNTIME_MODE")
+                .ok()
+                .and_then(|v| match v.as_str() {
                     "public_packaged_demo" => Some(RuntimeMode::PublicPackagedDemo),
                     "local_private_demo" => Some(RuntimeMode::LocalPrivateDemo),
                     "production" => Some(RuntimeMode::Production),
                     _ => None,
-                }
-            }),
+                }),
             data_dir: std::env::var("CITE_DATA_DIR").ok().map(PathBuf::from),
             cache_dir: std::env::var("CITE_CACHE_DIR").ok().map(PathBuf::from),
             embedding_provider: std::env::var("CITE_EMBEDDING_PROVIDER").ok(),

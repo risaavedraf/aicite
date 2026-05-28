@@ -507,10 +507,7 @@ mod tests {
         let not_ready_err = db
             .get_ready_chunk_by_document("doc-processing", "chunk-processing")
             .unwrap_err();
-        assert!(matches!(
-            not_ready_err,
-            CiteError::DocumentNotReady { .. }
-        ));
+        assert!(matches!(not_ready_err, CiteError::DocumentNotReady { .. }));
     }
 
     #[test]
@@ -527,10 +524,7 @@ mod tests {
         let citation_err = db
             .get_citation_by_trace("trace-existing", "citation-missing")
             .unwrap_err();
-        assert!(matches!(
-            citation_err,
-            CiteError::CitationNotFound { .. }
-        ));
+        assert!(matches!(citation_err, CiteError::CitationNotFound { .. }));
 
         let chunk_err = db
             .get_ready_chunk_by_document("doc-ready", "chunk-missing")

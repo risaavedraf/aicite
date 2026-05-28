@@ -75,7 +75,7 @@ struct GeminiPart<'a> {
 
 #[derive(Deserialize)]
 struct GeminiResponse {
-    embeddings: Vec<GeminiEmbedding>,
+    embedding: GeminiEmbedding,
 }
 
 #[derive(Deserialize)]
@@ -124,14 +124,7 @@ impl EmbeddingProvider for GeminiProvider {
                     message: format!("Failed to parse Gemini embedding response: {}", e),
                 })?;
 
-        parsed
-            .embeddings
-            .into_iter()
-            .next()
-            .map(|e| e.values)
-            .ok_or_else(|| HarnessError::EmbeddingProviderError {
-                message: "Gemini embedding response contained no embeddings".to_string(),
-            })
+        Ok(parsed.embedding.values)
     }
 
     fn model_id(&self) -> &str {

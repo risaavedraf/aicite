@@ -13,8 +13,8 @@ use config::{IngestConfig, RateLimitConfig, RetrievalConfig};
 use engine::context::build_context;
 use engine::ingest;
 use fixtures::{load_fixtures, GoldenFixture};
-use providers::EmbeddingProvider;
 use provider::GoldenProvider;
+use providers::EmbeddingProvider;
 use std::path::PathBuf;
 use storage::Database;
 
@@ -55,7 +55,11 @@ fn setup_corpus() -> (Database, GoldenProvider) {
     let config = ingest_config();
     let dir = corpus_dir();
 
-    let files = vec!["architecture.txt", "api-reference.md", "security-policy.txt"];
+    let files = vec![
+        "architecture.txt",
+        "api-reference.md",
+        "security-policy.txt",
+    ];
 
     for filename in &files {
         let path = dir.join(filename);
@@ -135,10 +139,7 @@ fn evaluate_fixture(
                 if !citations_contain_text(&response.citations, expected_text) {
                     return (
                         false,
-                        format!(
-                            "no citation contains expected text: '{}'",
-                            expected_text
-                        ),
+                        format!("no citation contains expected text: '{}'", expected_text),
                     );
                 }
             }

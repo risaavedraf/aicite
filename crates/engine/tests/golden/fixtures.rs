@@ -14,6 +14,7 @@ pub struct GoldenFixture {
     pub query: &'static str,
     pub category: &'static str,
     pub expected: FixtureExpected,
+    #[allow(dead_code)]
     pub description: &'static str,
 }
 
@@ -102,7 +103,8 @@ pub fn load_fixtures() -> Vec<GoldenFixture> {
                 must_contain_chunk_texts: &[],
                 confidence_label_required: false,
             },
-            description: "Multi-chunk: requires citations about both authentication and rate limiting",
+            description:
+                "Multi-chunk: requires citations about both authentication and rate limiting",
         },
         GoldenFixture {
             fixture_id: "pi-001",
@@ -114,7 +116,8 @@ pub fn load_fixtures() -> Vec<GoldenFixture> {
                 must_contain_chunk_texts: &[],
                 confidence_label_required: false,
             },
-            description: "Prompt injection: document text about injection attacks treated as source material",
+            description:
+                "Prompt injection: document text about injection attacks treated as source material",
         },
     ]
 }

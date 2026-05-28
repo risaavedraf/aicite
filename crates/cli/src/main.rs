@@ -27,6 +27,10 @@ struct Cli {
     #[arg(long, global = true)]
     runtime_mode: Option<String>,
 
+    /// Suppress provider disclosure banner
+    #[arg(long, global = true)]
+    no_banner: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -72,6 +76,11 @@ fn main() {
             process::exit(ExitCode::Validation as i32);
         }
     };
+
+    // Show provider disclosure banner for real (non-eval) providers
+    if !cli.no_banner && !cli.json && is_retrieval_command(&cli.command) {
+        show_provider_disclosure(&config);
+    }
 
     if should_run_startup_recovery(&cli.command) {
         if let Err(e) = run_startup_recovery(&config, cli.json) {
@@ -123,4 +132,27 @@ fn resolve_data_dir(config: &Config) -> PathBuf {
             .unwrap_or_else(|| PathBuf::from("."))
             .join("harness")
     })
+}
+
+/// Check if the command is a retrieval/context command that may send data to providers.
+fn is_retrieval_command(command: &Commands) -> bool {
+    matches!(
+        command,
+        Commands::Search(_)
+            | Commands::Retrieve(_)
+            | Commands::Context(_)
+            | Commands::Read(_)
+            | Commands::Trace(_)
+    )
+}
+
+/// Show provider disclosure banner to stderr when using a real external provider.
+fn show_provider_disclosure(config: &Config) {
+    let provider_id = &config.embedding.provider;
+    if engine::runtime_guard::is_real_provider(provider_id) {
+        eprintln!(
+            "⚠ Provider disclosure: Document snippets, query text, or embeddings may be sent\n  to your configured AI provider ({provider_id} / {}).\n  See README for privacy details.\n",
+            config.embedding.model
+        );
+    }
 }

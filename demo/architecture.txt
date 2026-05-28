@@ -1,0 +1,19 @@
+System Architecture Overview
+
+This document describes the high-level architecture of the platform, including the API gateway, data layer, authentication system, and observability infrastructure.
+
+## API Gateway
+
+The API gateway is the single entry point for all external requests. It routes incoming traffic to the appropriate internal microservices based on path matching and request metadata. The gateway handles TLS termination, request validation, and cross-cutting concerns like rate limiting before forwarding to backend services. All microservices communicate with the gateway through a service mesh with automatic discovery.
+
+## Data Layer
+
+The system uses PostgreSQL as its primary database, configured with read replicas for high availability. The primary instance handles all writes, while two read replicas serve read-heavy workloads like listing and search operations. Automatic failover is configured with a 30-second recovery window. Connection pooling is managed at the application level with a maximum of 50 connections per service.
+
+## Authentication
+
+Authentication uses JWT tokens issued after successful credential validation. Access tokens have a 15-minute expiry to limit the window of exposure if a token is compromised. Refresh tokens are valid for 7 days and are rotated on each use. All tokens are signed with RS256 and validated at the gateway level before requests reach internal services.
+
+## Logging and Observability
+
+All services emit structured JSON logs with a consistent schema including timestamp, service name, request ID, user ID (when authenticated), and operation details. Logs are shipped to a centralized ELK stack (Elasticsearch, Logstash, Kibana) for search and analysis. Metrics are collected via Prometheus and visualized in Grafana dashboards. Alerting is configured for error rate spikes, latency degradation, and resource exhaustion.

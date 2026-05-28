@@ -6,6 +6,15 @@
 use common::HarnessError;
 use config::RuntimeMode;
 
+/// Check whether the configured embedding provider is a "real" external provider
+/// (as opposed to eval/golden/mock test providers).
+///
+/// Returns `true` for providers that send data to external services
+/// (e.g., `openai-compatible`, `gemini`).
+pub fn is_real_provider(provider_id: &str) -> bool {
+    !matches!(provider_id, "eval" | "golden" | "mock" | "test")
+}
+
 /// Check whether **ingest** is allowed in the given runtime mode.
 ///
 /// - `LocalPrivateDemo` — allowed.

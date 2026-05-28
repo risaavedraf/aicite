@@ -132,20 +132,20 @@
 
 ---
 
-### Phase 7: Packaging + Docs 🔲
-**Status**: Pending
+### Phase 7: Packaging + Docs ✅
+**Status**: Complete
 
 **What**: Release packaging, documentation, and demo preparation
 
 **Deliverables**:
-- Reproducible CLI binary builds
-- Packaged demo with sample documents
-- Complete README with all commands, config, storage paths
+- Reproducible CLI binary builds (cross-platform release workflow)
+- Demo corpus (3 documents: architecture, API reference, security policy)
+- Complete README with all 12 commands, config, storage paths
 - `.env.example` with all provider configs
 - Chile privacy law compliance notes
-- Provider disclosure in CLI output
-- Demo acceptance flow (5-minute review)
-- CI/CD pipeline for releases
+- Provider disclosure in CLI output (`--no-banner` flag)
+- Demo acceptance flow (5-minute review) in `docs/demo.md`
+- CI/CD pipeline for releases (GitHub Actions)
 
 **Key crates**: all
 

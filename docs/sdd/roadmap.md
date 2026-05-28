@@ -88,8 +88,8 @@
 
 ---
 
-### Phase 5: Durability 🔲
-**Status**: Pending
+### Phase 5: Durability ✅
+**Status**: Complete (commits 682a98c..a100b44)
 
 **What**: Durable locks, rate limits, and backlog management
 
@@ -109,8 +109,8 @@
 
 ---
 
-### Phase 6: Evaluation 🔲
-**Status**: Pending
+### Phase 6: Evaluation ✅
+**Status**: Complete (commits 83e44d1..ddb3630)
 
 **What**: Golden dataset and sample corpus for acceptance testing
 

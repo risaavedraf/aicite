@@ -1,7 +1,7 @@
-use common::ExitCode;
 use common::types::ResultKind;
+use common::ExitCode;
 use config::{Config, RateLimitConfig, RetrievalConfig};
-use engine::evaluate::{FixtureExpected, GoldenFixture, run_evaluation};
+use engine::evaluate::{run_evaluation, FixtureExpected, GoldenFixture};
 use providers::EmbeddingProvider;
 use serde::Serialize;
 use storage::Database;
@@ -69,25 +69,100 @@ fn compute_vector(text: &str) -> Vec<f32> {
     let lower = text.to_lowercase();
     let mut vec = vec![0.0f32; 8];
 
-    if contains_any(&lower, &["api gateway", "routes", "external requests", "microservices", "endpoint", "architecture", "system design"]) {
+    if contains_any(
+        &lower,
+        &[
+            "api gateway",
+            "routes",
+            "external requests",
+            "microservices",
+            "endpoint",
+            "architecture",
+            "system design",
+        ],
+    ) {
         vec[0] = 0.9;
     }
-    if contains_any(&lower, &["postgresql", "database", "read replicas", "storage", "data layer"]) {
+    if contains_any(
+        &lower,
+        &[
+            "postgresql",
+            "database",
+            "read replicas",
+            "storage",
+            "data layer",
+        ],
+    ) {
         vec[1] = 0.9;
     }
-    if contains_any(&lower, &["jwt", "authentication", "password", "token", "encrypt", "aes-256", "tls", "security", "secure", "credential"]) {
+    if contains_any(
+        &lower,
+        &[
+            "jwt",
+            "authentication",
+            "password",
+            "token",
+            "encrypt",
+            "aes-256",
+            "tls",
+            "security",
+            "secure",
+            "credential",
+        ],
+    ) {
         vec[2] = 0.9;
     }
-    if contains_any(&lower, &["logging", "audit", "monitor", "structured json logs", "elk", "retained"]) {
+    if contains_any(
+        &lower,
+        &[
+            "logging",
+            "audit",
+            "monitor",
+            "structured json logs",
+            "elk",
+            "retained",
+        ],
+    ) {
         vec[3] = 0.9;
     }
-    if contains_any(&lower, &["users", "get /users", "post /users", "create user", "paginated list"]) {
+    if contains_any(
+        &lower,
+        &[
+            "users",
+            "get /users",
+            "post /users",
+            "create user",
+            "paginated list",
+        ],
+    ) {
         vec[4] = 0.9;
     }
-    if contains_any(&lower, &["rate limit", "429", "retry-after", "error code", "too many requests"]) {
+    if contains_any(
+        &lower,
+        &[
+            "rate limit",
+            "429",
+            "retry-after",
+            "error code",
+            "too many requests",
+        ],
+    ) {
         vec[5] = 0.9;
     }
-    if contains_any(&lower, &["policy", "compliance", "security policy", "data classification", "incident", "ignore", "instructions", "prompt", "injection"]) {
+    if contains_any(
+        &lower,
+        &[
+            "policy",
+            "compliance",
+            "security policy",
+            "data classification",
+            "incident",
+            "ignore",
+            "instructions",
+            "prompt",
+            "injection",
+        ],
+    ) {
         vec[6] = 0.85;
     }
 
@@ -511,7 +586,9 @@ mod tests {
         seed_eval_corpus(&db);
         let docs = db.list_documents().unwrap();
         assert_eq!(docs.len(), 3);
-        assert!(docs.iter().all(|d| d.status == common::types::DocumentStatus::Ready));
+        assert!(docs
+            .iter()
+            .all(|d| d.status == common::types::DocumentStatus::Ready));
     }
 
     #[test]
@@ -545,6 +622,10 @@ mod tests {
         };
         let fixtures = build_fixtures();
         let report = run_evaluation(&db, &provider, &config, &rate_limit, &fixtures, 0.80);
-        assert!(report.overall_pass, "Evaluation should pass with >=80% hit rate, got {:.1}%", report.hit_rate * 100.0);
+        assert!(
+            report.overall_pass,
+            "Evaluation should pass with >=80% hit rate, got {:.1}%",
+            report.hit_rate * 100.0
+        );
     }
 }

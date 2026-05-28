@@ -1,4 +1,5 @@
 pub mod context;
+pub mod evaluate;
 pub mod ingest;
 pub mod recovery;
 pub mod refresh;

@@ -276,3 +276,26 @@ pub struct TraceEnvelope {
     pub citations: Vec<TraceCitationRecord>,
     pub context_metadata: ContextMetadataScaffold,
 }
+
+/// Result of running a single golden fixture evaluation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FixtureResult {
+    pub fixture_id: String,
+    pub category: String,
+    pub passed: bool,
+    pub actual_result_kind: ResultKind,
+    pub actual_citation_count: usize,
+    pub failure_reason: Option<String>,
+}
+
+/// Report from running the full golden dataset evaluation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EvalReport {
+    pub total: u32,
+    pub passed: u32,
+    pub failed: u32,
+    pub hit_rate: f64,
+    pub threshold: f64,
+    pub overall_pass: bool,
+    pub results: Vec<FixtureResult>,
+}

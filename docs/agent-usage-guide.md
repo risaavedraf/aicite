@@ -182,6 +182,101 @@ A `--doc` flag to search within specific documents:
 harness context "query" --doc architecture.txt --doc api-reference.md
 ```
 
+### 8. Compact mode for agents (`--compact`)
+
+The current JSON contract returns all metadata fields, most of which an agent doesn't need for every query. A `--compact` mode would return only the essential fields.
+
+**Current output** (~1000 tokens):
+```json
+{
+  "context_pack_id": "ctx_xxx",
+  "result_kind": "context",
+  "query_id": "qry_xxx",
+  "trace_id": "trace_xxx",
+  "instructions": "Use only the cited context...",
+  "citations": [
+    {
+      "citation_id": "c1",
+      "document_id": "doc_xxx",
+      "display_name": "arch.txt",
+      "chunk_id": "chunk_xxx",
+      "page": 1,
+      "offset": { "start": 0, "end": 1000 },
+      "text": "Full 500-1000 char chunk...",
+      "score": 0.72,
+      "confidence_label": null
+    }
+  ],
+  "metadata": { /* 15+ fields */ }
+}
+```
+
+**Compact output** (~400 tokens, 60% reduction):
+```json
+{
+  "result_kind": "context",
+  "citations": [
+    {
+      "id": "c1",
+      "source": "arch.txt",
+      "snippet": "Most relevant 200 chars...",
+      "score": 0.72
+    }
+  ],
+  "trace_id": "trace_xxx"
+}
+```
+
+**Usage**:
+```bash
+# Compact mode (default for agents)
+harness context "query"
+
+# Full mode (when you need all metadata)
+harness context "query" --full
+```
+
+**Fields comparison**:
+
+| Field | Compact | Full | Agent needs |
+|---|---|---|---|
+| `result_kind` | ✅ | ✅ | Always — decides response strategy |
+| `citations[].id` | ✅ | ✅ | Always — for citing sources |
+| `citations[].source` | ✅ | ✅ | Always — context |
+| `citations[].snippet` | ✅ | ✅ | Always — the actual content |
+| `citations[].score` | ✅ | ✅ | Usually — for filtering |
+| `trace_id` | ✅ | ✅ | Sometimes — for `read` follow-up |
+| `context_pack_id` | ❌ | ✅ | Rarely |
+| `query_id` | ❌ | ✅ | Rarely |
+| `instructions` | ❌ | ✅ | Once per session |
+| `citations[].document_id` | ❌ | ✅ | Rarely |
+| `citations[].chunk_id` | ❌ | ✅ | Rarely |
+| `citations[].page` | ❌ | ✅ | Rarely |
+| `citations[].offset` | ❌ | ✅ | Rarely |
+| `citations[].confidence_label` | ❌ | ✅ | Rarely |
+| `metadata.*` | ❌ | ✅ | Debugging only |
+
+### 9. Snippet length control (`--max-snippet-chars`)
+
+Limit the text returned per citation:
+
+```bash
+# Return only 200 chars per citation instead of full chunk
+harness context "query" --max-snippet-chars 200
+```
+
+**Impact**: Reduces token usage by 50-70% while keeping the most relevant content.
+
+### 10. Field selection (`--fields`)
+
+Let the agent specify exactly which fields it needs:
+
+```bash
+harness context "query" --fields result_kind,citations.id,citations.snippet,citations.score
+```
+
+This is the most flexible approach but adds CLI complexity.
+
 ## Known issue: `insufficient_context` with large chunks
 
 When chunks are large (800-1000+ chars), the vector similarity score tends to drop because the query only matches a small portion of the chunk text. This can cause `result_kind: "insufficient_context"` even when the relevant information is present.

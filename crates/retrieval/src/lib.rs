@@ -12,6 +12,14 @@ pub struct ScoredChunk {
     pub offset_start: Option<u32>,
     pub offset_end: Option<u32>,
     pub score: f32,
+    /// Topic ID from hierarchy (Phase 11)
+    pub topic_id: Option<String>,
+    /// Topic name from hierarchy (Phase 11)
+    pub topic_name: Option<String>,
+    /// Concept ID from hierarchy (Phase 11)
+    pub concept_id: Option<String>,
+    /// Concept name from hierarchy (Phase 11)
+    pub concept_name: Option<String>,
 }
 
 /// Cosine similarity in [-1, 1].
@@ -62,6 +70,10 @@ pub fn rank_by_similarity(
                 offset_start: candidate.offset_start,
                 offset_end: candidate.offset_end,
                 score,
+                topic_id: None,
+                topic_name: None,
+                concept_id: None,
+                concept_name: None,
             })
         })
         .collect();

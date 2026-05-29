@@ -7,7 +7,7 @@ use providers::openai::OpenAICompatibleProvider;
 use providers::EmbeddingProvider;
 use std::path::PathBuf;
 
-use crate::output::print_json;
+use crate::output::{print_json, to_compact_context};
 
 #[derive(Args)]
 pub struct ContextArgs {
@@ -17,9 +17,35 @@ pub struct ContextArgs {
     /// Number of results (1..10)
     #[arg(long)]
     pub k: Option<u32>,
+
+    /// Use flat retrieval (v0.1.0 behavior, no hierarchy)
+    #[arg(long)]
+    pub flat: bool,
+
+    /// Filter results to a specific topic by name or ID
+    #[arg(long)]
+    pub topic: Option<String>,
+
+    /// Filter results to a specific concept by name or ID
+    #[arg(long)]
+    pub concept: Option<String>,
+
+    /// Return full JSON response (default: compact when --json is used)
+    #[arg(long)]
+    pub full: bool,
 }
 
 pub fn execute(args: &ContextArgs, config: &Config, json: bool) -> i32 {
+    // Validate flag combinations
+    if args.flat && (args.topic.is_some() || args.concept.is_some()) {
+        eprintln!("Error: --flat cannot be combined with --topic or --concept.");
+        return common::ExitCode::Validation as i32;
+    }
+    if args.topic.is_some() && args.concept.is_some() {
+        eprintln!("Error: --topic and --concept cannot be used together.");
+        return common::ExitCode::Validation as i32;
+    }
+
     let data_dir = resolve_data_dir(config);
     let db = match storage::Database::open(&data_dir) {
         Ok(db) => db,
@@ -45,17 +71,31 @@ pub fn execute(args: &ContextArgs, config: &Config, json: bool) -> i32 {
         }
     };
 
+    let mut retrieval_config = config.retrieval.clone();
+    if args.flat {
+        retrieval_config.use_hierarchy = false;
+    }
+
+    let topic_filter = args.topic.as_deref();
+    let concept_filter = args.concept.as_deref();
+
     match context::build_context(
         &db,
         provider.as_ref(),
-        &config.retrieval,
+        &retrieval_config,
         &config.rate_limit,
         &args.query,
         args.k,
+        topic_filter,
+        concept_filter,
     ) {
         Ok(response) => {
             if json {
-                print_json(&response);
+                if args.full {
+                    print_json(&response);
+                } else {
+                    print_json(&to_compact_context(&response));
+                }
             } else {
                 println!("Context pack ({}):", response.result_kind);
                 println!("  Citations: {}", response.citations.len());

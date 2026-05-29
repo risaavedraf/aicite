@@ -18,6 +18,16 @@ pub struct ChunkEmbeddingRecord {
     pub vector: Vec<f32>,
 }
 
+/// Chunk embedding enriched with hierarchy metadata (topic/concept).
+#[derive(Debug, Clone)]
+pub struct HierarchicalChunkEmbedding {
+    pub chunk: ChunkEmbeddingRecord,
+    pub topic_id: Option<String>,
+    pub topic_name: Option<String>,
+    pub concept_id: Option<String>,
+    pub concept_name: Option<String>,
+}
+
 fn decode_vector_blob(blob: &[u8]) -> Option<Vec<f32>> {
     if !blob.len().is_multiple_of(4) {
         return None;
@@ -74,6 +84,101 @@ impl Database {
             .map_err(storage_err)?;
 
         Ok(count as u64)
+    }
+
+    /// Check whether any chunk in the database has hierarchy data (non-NULL topic_id).
+    pub fn has_hierarchy_data(&self) -> Result<bool, CiteError> {
+        let has: bool = self
+            .conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM chunks WHERE topic_id IS NOT NULL LIMIT 1)",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(storage_err)?;
+        Ok(has)
+    }
+
+    /// List chunk embeddings enriched with topic/concept hierarchy metadata.
+    ///
+    /// When `topic_filter` or `concept_filter` is provided, results are
+    /// restricted to chunks belonging to that topic or concept respectively.
+    /// Chunks with NULL topic_id/concept_id are included when no filter is
+    /// specified, so the caller still gets flat-only documents in mixed corpora.
+    pub fn list_chunk_embeddings_hierarchical(
+        &self,
+        topic_filter: Option<&str>,
+        concept_filter: Option<&str>,
+    ) -> Result<Vec<HierarchicalChunkEmbedding>, CiteError> {
+        let sql = "
+            SELECT
+                c.chunk_id,
+                c.document_id,
+                d.display_name,
+                c.section_id,
+                c.chunk_index,
+                c.text,
+                c.page,
+                c.offset_start,
+                c.offset_end,
+                e.vector,
+                c.topic_id,
+                t.name,
+                c.concept_id,
+                cp.name
+            FROM embeddings e
+            INNER JOIN chunks c ON c.chunk_id = e.chunk_id
+            INNER JOIN documents d ON d.document_id = c.document_id
+            LEFT JOIN topics t ON t.topic_id = c.topic_id
+            LEFT JOIN concepts cp ON cp.concept_id = c.concept_id
+            WHERE d.status = 'ready'
+              AND (?1 IS NULL OR c.topic_id = ?1)
+              AND (?2 IS NULL OR c.concept_id = ?2)
+            ORDER BY d.created_at DESC, c.chunk_index ASC
+        ";
+
+        let mut stmt = self.conn.prepare(sql).map_err(storage_err)?;
+        let mut rows = stmt
+            .query(rusqlite::params![topic_filter, concept_filter])
+            .map_err(storage_err)?;
+        let mut out = Vec::new();
+
+        while let Some(row) = rows.next().map_err(storage_err)? {
+            let blob: Vec<u8> = row.get(9).map_err(storage_err)?;
+            let Some(vector) = decode_vector_blob(&blob) else {
+                continue;
+            };
+
+            out.push(HierarchicalChunkEmbedding {
+                chunk: ChunkEmbeddingRecord {
+                    chunk_id: row.get(0).map_err(storage_err)?,
+                    document_id: row.get(1).map_err(storage_err)?,
+                    display_name: row.get(2).map_err(storage_err)?,
+                    section_id: row.get(3).map_err(storage_err)?,
+                    chunk_index: row.get::<_, i64>(4).map_err(storage_err)? as u32,
+                    text: row.get(5).map_err(storage_err)?,
+                    page: row
+                        .get::<_, Option<i64>>(6)
+                        .map_err(storage_err)?
+                        .map(|v| v as u32),
+                    offset_start: row
+                        .get::<_, Option<i64>>(7)
+                        .map_err(storage_err)?
+                        .map(|v| v as u32),
+                    offset_end: row
+                        .get::<_, Option<i64>>(8)
+                        .map_err(storage_err)?
+                        .map(|v| v as u32),
+                    vector,
+                },
+                topic_id: row.get(10).map_err(storage_err)?,
+                topic_name: row.get(11).map_err(storage_err)?,
+                concept_id: row.get(12).map_err(storage_err)?,
+                concept_name: row.get(13).map_err(storage_err)?,
+            });
+        }
+
+        Ok(out)
     }
 
     /// List chunk embeddings for documents with status='ready'.
@@ -347,5 +452,115 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].vector, vec![1.5, 2.5, 3.5]);
         assert_eq!(rows[0].display_name, "doc-ready.txt");
+    }
+
+    // -----------------------------------------------------------------------
+    // Hierarchical query tests
+    // -----------------------------------------------------------------------
+
+    fn setup_hierarchy(db: &Database) {
+        // doc with hierarchy
+        insert_parent_doc(db, "doc-hier");
+        db.update_document_status("doc-hier", DocumentStatus::Ready, None)
+            .unwrap();
+        insert_chunks_for_doc(db, "doc-hier", 3);
+
+        // insert topic and concept
+        db.insert_topic("t1", "doc-hier", "Authentication", None)
+            .unwrap();
+        db.insert_concept("c1", "t1", "JWT Tokens", None).unwrap();
+
+        // assign chunks: c0 and c1 to topic+concept, c2 to topic only
+        db.set_chunk_hierarchy("doc-hier-c0", "t1", Some("c1"))
+            .unwrap();
+        db.set_chunk_hierarchy("doc-hier-c1", "t1", Some("c1"))
+            .unwrap();
+        db.set_chunk_hierarchy("doc-hier-c2", "t1", None).unwrap();
+
+        // insert embeddings
+        db.insert_embeddings(&[
+            ("doc-hier-c0".to_string(), vec![1.0, 0.0], "m", "p"),
+            ("doc-hier-c1".to_string(), vec![0.9, 0.1], "m", "p"),
+            ("doc-hier-c2".to_string(), vec![0.0, 1.0], "m", "p"),
+        ])
+        .unwrap();
+    }
+
+    #[test]
+    fn test_has_hierarchy_data_returns_false_when_none() {
+        let db = Database::open_memory().unwrap();
+        insert_parent_doc(&db, "doc-flat");
+        db.update_document_status("doc-flat", DocumentStatus::Ready, None)
+            .unwrap();
+        insert_chunks_for_doc(&db, "doc-flat", 1);
+        db.insert_embeddings(&[("doc-flat-c0".to_string(), vec![1.0], "m", "p")])
+            .unwrap();
+
+        assert!(!db.has_hierarchy_data().unwrap());
+    }
+
+    #[test]
+    fn test_has_hierarchy_data_returns_true_when_present() {
+        let db = Database::open_memory().unwrap();
+        setup_hierarchy(&db);
+
+        assert!(db.has_hierarchy_data().unwrap());
+    }
+
+    #[test]
+    fn test_list_chunk_embeddings_hierarchical_no_filter() {
+        let db = Database::open_memory().unwrap();
+        setup_hierarchy(&db);
+
+        let rows = db.list_chunk_embeddings_hierarchical(None, None).unwrap();
+        assert_eq!(rows.len(), 3);
+
+        // rows are ordered by chunk_index ASC (same doc)
+        let r0 = &rows[0];
+        assert_eq!(r0.chunk.chunk_id, "doc-hier-c0");
+        assert_eq!(r0.topic_id.as_deref(), Some("t1"));
+        assert_eq!(r0.topic_name.as_deref(), Some("Authentication"));
+        assert_eq!(r0.concept_id.as_deref(), Some("c1"));
+        assert_eq!(r0.concept_name.as_deref(), Some("JWT Tokens"));
+
+        let r2 = &rows[2];
+        assert_eq!(r2.chunk.chunk_id, "doc-hier-c2");
+        assert_eq!(r2.topic_id.as_deref(), Some("t1"));
+        assert_eq!(r2.concept_id, None);
+        assert_eq!(r2.concept_name, None);
+    }
+
+    #[test]
+    fn test_list_chunk_embeddings_hierarchical_topic_filter() {
+        let db = Database::open_memory().unwrap();
+        setup_hierarchy(&db);
+
+        let rows = db
+            .list_chunk_embeddings_hierarchical(Some("t1"), None)
+            .unwrap();
+        assert_eq!(rows.len(), 3); // all 3 belong to t1
+    }
+
+    #[test]
+    fn test_list_chunk_embeddings_hierarchical_concept_filter() {
+        let db = Database::open_memory().unwrap();
+        setup_hierarchy(&db);
+
+        let rows = db
+            .list_chunk_embeddings_hierarchical(None, Some("c1"))
+            .unwrap();
+        assert_eq!(rows.len(), 2); // only c0 and c1 belong to concept c1
+        assert!(rows.iter().all(|r| r.concept_id.as_deref() == Some("c1")));
+    }
+
+    #[test]
+    fn test_list_chunk_embeddings_hierarchical_no_match() {
+        let db = Database::open_memory().unwrap();
+        setup_hierarchy(&db);
+
+        let rows = db
+            .list_chunk_embeddings_hierarchical(Some("nonexistent"), None)
+            .unwrap();
+        assert!(rows.is_empty());
     }
 }

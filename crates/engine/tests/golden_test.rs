@@ -2,9 +2,6 @@
 //!
 //! Tests retrieval quality against a curated corpus with known facts.
 
-#[path = "golden/provider.rs"]
-mod provider;
-
 #[path = "golden/fixtures.rs"]
 mod fixtures;
 
@@ -13,7 +10,7 @@ use config::{IngestConfig, RateLimitConfig, RetrievalConfig};
 use engine::context::build_context;
 use engine::ingest;
 use fixtures::{load_fixtures, GoldenFixture};
-use provider::GoldenProvider;
+use providers::eval::EvalProvider;
 use providers::EmbeddingProvider;
 use std::path::PathBuf;
 use storage::Database;
@@ -34,6 +31,7 @@ fn retrieval_config() -> RetrievalConfig {
         top_k: 5,
         evidence_floor: 0.30,
         confidence_threshold: 0.50,
+        use_hierarchy: true,
     }
 }
 
@@ -49,9 +47,9 @@ fn ingest_config() -> IngestConfig {
 }
 
 /// Ingest all golden corpus documents and return the DB with chunks + embeddings.
-fn setup_corpus() -> (Database, GoldenProvider) {
+fn setup_corpus() -> (Database, EvalProvider) {
     let db = test_db();
-    let provider = GoldenProvider::new();
+    let provider = EvalProvider;
     let config = ingest_config();
     let dir = corpus_dir();
 
@@ -95,12 +93,21 @@ fn citations_contain_text(citations: &[common::types::Citation], expected: &str)
 /// Run a single fixture and return pass/fail with reason.
 fn evaluate_fixture(
     db: &Database,
-    provider: &GoldenProvider,
+    provider: &EvalProvider,
     config: &RetrievalConfig,
     rl_config: &RateLimitConfig,
     fixture: &GoldenFixture,
 ) -> (bool, String) {
-    let result = build_context(db, provider, config, rl_config, fixture.query, None);
+    let result = build_context(
+        db,
+        provider,
+        config,
+        rl_config,
+        fixture.query,
+        None,
+        None,
+        None,
+    );
 
     match result {
         Ok(response) => {
@@ -187,7 +194,7 @@ fn test_golden_dataset_all_fixtures() {
     let rl_config = rate_limit_config();
     let fixtures = load_fixtures();
 
-    assert_eq!(fixtures.len(), 8, "Expected 8 golden fixtures");
+    assert_eq!(fixtures.len(), 10, "Expected 10 golden fixtures");
 
     let mut results = Vec::new();
     let mut passed = 0;
@@ -260,12 +267,12 @@ fn test_golden_corpus_ingestion() {
 
 #[test]
 fn test_golden_provider_determinism() {
-    let provider = GoldenProvider::new();
+    let provider = EvalProvider;
     let query = "What is the API gateway?";
 
     let v1 = provider.embed(query).unwrap();
     let v2 = provider.embed(query).unwrap();
 
-    assert_eq!(v1, v2, "GoldenProvider should be deterministic");
+    assert_eq!(v1, v2, "EvalProvider should be deterministic");
     assert_eq!(v1.len(), 8, "Vectors should be 8-dimensional");
 }

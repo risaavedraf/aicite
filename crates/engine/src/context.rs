@@ -10,7 +10,7 @@ use retrieval::rank_by_similarity;
 use storage::Database;
 use uuid::Uuid;
 
-use crate::retrieve::{resolve_k, validate_query};
+use crate::retrieve::{build_breadcrumb, fetch_candidates, resolve_k, validate_query};
 
 const SCHEMA_VERSION: &str = "context-v1";
 const DISCLAIMER: &str =
@@ -94,6 +94,7 @@ fn confidence_label_for(top_score: f32, threshold: f32) -> Option<String> {
 // ---------------------------------------------------------------------------
 
 /// Build a context pack from a retrieval query.
+#[allow(clippy::too_many_arguments)]
 pub fn build_context(
     db: &Database,
     provider: &dyn EmbeddingProvider,
@@ -101,6 +102,8 @@ pub fn build_context(
     rate_limit: &RateLimitConfig,
     query: &str,
     k_override: Option<u32>,
+    topic_filter: Option<&str>,
+    concept_filter: Option<&str>,
 ) -> Result<ContextResponse, CiteError> {
     let start = std::time::Instant::now();
     let k = resolve_k(config, k_override)?;
@@ -123,8 +126,13 @@ pub fn build_context(
 
     // Embed query and rank
     let query_vector = provider.embed(query)?;
-    let candidates = db.list_ready_chunk_embeddings()?;
+    let (candidates, hierarchy_meta) = fetch_candidates(db, config, topic_filter, concept_filter)?;
     let ranked = rank_by_similarity(&query_vector, &candidates, k as usize);
+    let ranked = if let Some(ref meta) = hierarchy_meta {
+        crate::retrieve::enrich_with_hierarchy(ranked, meta)
+    } else {
+        ranked
+    };
 
     let trace_id = format!("trace_{}", Uuid::new_v4());
     let query_id = format!("qry_{}", Uuid::new_v4());
@@ -172,6 +180,17 @@ pub fn build_context(
                     text: hit.text.clone(),
                     score: Some(hit.score as f64),
                     confidence_label: label,
+                    topic_name: hit.topic_name.clone(),
+                    concept_name: hit.concept_name.clone(),
+                    breadcrumb: if hit.topic_name.is_some() || hit.concept_name.is_some() {
+                        Some(build_breadcrumb(
+                            &hit.display_name,
+                            hit.topic_name.as_deref(),
+                            hit.concept_name.as_deref(),
+                        ))
+                    } else {
+                        None
+                    },
                 }
             })
             .collect()
@@ -465,6 +484,7 @@ mod tests {
             top_k: 5,
             evidence_floor: 0.3,
             confidence_threshold: 0.5,
+            use_hierarchy: true,
         }
     }
 
@@ -485,7 +505,8 @@ mod tests {
             vector: vec![1.0, 0.0],
         };
 
-        let result = build_context(&db, &provider, &cfg(), &rl_cfg(), "hello", None).unwrap();
+        let result =
+            build_context(&db, &provider, &cfg(), &rl_cfg(), "hello", None, None, None).unwrap();
         assert_eq!(result.result_kind, ResultKind::Context);
         assert!(!result.citations.is_empty());
         assert!(result.metadata.insufficient_context_reason.is_none());
@@ -505,9 +526,20 @@ mod tests {
             top_k: 5,
             evidence_floor: 0.99,
             confidence_threshold: 0.5,
+            use_hierarchy: true,
         };
 
-        let result = build_context(&db, &provider, &config, &rl_cfg(), "hello", None).unwrap();
+        let result = build_context(
+            &db,
+            &provider,
+            &config,
+            &rl_cfg(),
+            "hello",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(result.result_kind, ResultKind::NoResults);
         assert!(result.citations.is_empty());
     }
@@ -526,9 +558,20 @@ mod tests {
             top_k: 5,
             evidence_floor: 0.3,
             confidence_threshold: 0.99,
+            use_hierarchy: true,
         };
 
-        let result = build_context(&db, &provider, &config, &rl_cfg(), "hello", None).unwrap();
+        let result = build_context(
+            &db,
+            &provider,
+            &config,
+            &rl_cfg(),
+            "hello",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(result.result_kind, ResultKind::InsufficientContext);
         assert!(!result.citations.is_empty());
         assert!(result.metadata.caution.is_some());
@@ -557,7 +600,8 @@ mod tests {
             vector: vec![1.0, 0.0],
         };
 
-        let result = build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None).unwrap();
+        let result =
+            build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None, None, None).unwrap();
         assert_eq!(result.metadata.excluded_non_ready_document_count, 1);
         assert!(result
             .metadata
@@ -573,7 +617,8 @@ mod tests {
         let provider = FakeProvider {
             vector: vec![1.0, 0.0],
         };
-        let err = build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None).unwrap_err();
+        let err = build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None, None, None)
+            .unwrap_err();
         assert!(matches!(err, CiteError::DocumentNotReady { .. }));
     }
 
@@ -591,8 +636,9 @@ mod tests {
             window_seconds: 60,
         };
 
-        assert!(build_context(&db, &provider, &cfg(), &rl, "query", None).is_ok());
-        let err = build_context(&db, &provider, &cfg(), &rl, "query", None).unwrap_err();
+        assert!(build_context(&db, &provider, &cfg(), &rl, "query", None, None, None).is_ok());
+        let err =
+            build_context(&db, &provider, &cfg(), &rl, "query", None, None, None).unwrap_err();
         assert!(matches!(
             err,
             CiteError::RateLimitExceeded {
@@ -610,7 +656,8 @@ mod tests {
         let provider = FakeProvider {
             vector: vec![1.0, 0.0],
         };
-        let result = build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None).unwrap();
+        let result =
+            build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None, None, None).unwrap();
 
         // Should be fetchable via trace
         let envelope = db.get_trace_envelope(&result.trace_id).unwrap();
@@ -627,7 +674,8 @@ mod tests {
         let provider = FakeProvider {
             vector: vec![1.0, 0.0],
         };
-        let ctx = build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None).unwrap();
+        let ctx =
+            build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None, None, None).unwrap();
 
         let read = read_context(
             &db,
@@ -723,7 +771,8 @@ mod tests {
         let provider = FakeProvider {
             vector: vec![1.0, 0.0],
         };
-        let ctx = build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None).unwrap();
+        let ctx =
+            build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None, None, None).unwrap();
         let trace = get_trace(&db, &provider, &ctx.trace_id).unwrap();
 
         assert_eq!(trace.schema_version, "context-v1");
@@ -741,5 +790,109 @@ mod tests {
         };
         let err = get_trace(&db, &provider, "missing-trace").unwrap_err();
         assert!(matches!(err, CiteError::TraceNotFound { .. }));
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase 11 — Hierarchical context tests
+    // -----------------------------------------------------------------------
+
+    fn setup_hierarchy(db: &Database) {
+        insert_doc(db, "d-hier", DocumentStatus::Ready);
+        insert_chunk(
+            db,
+            "d-hier",
+            "c-hier-0",
+            "JWT tokens with 15-min expiry",
+            vec![1.0, 0.0],
+        );
+        insert_chunk(
+            db,
+            "d-hier",
+            "c-hier-1",
+            "Unrelated logging info",
+            vec![0.0, 1.0],
+        );
+
+        db.insert_topic("t-auth", "d-hier", "Authentication", None)
+            .unwrap();
+        db.insert_concept("c-jwt", "t-auth", "JWT Tokens", None)
+            .unwrap();
+
+        db.set_chunk_hierarchy("c-hier-0", "t-auth", Some("c-jwt"))
+            .unwrap();
+        db.set_chunk_hierarchy("c-hier-1", "t-auth", None).unwrap();
+    }
+
+    #[test]
+    fn test_context_hierarchical_breadcrumb_in_citations() {
+        let db = test_db();
+        setup_hierarchy(&db);
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+
+        let result = build_context(
+            &db,
+            &provider,
+            &cfg(),
+            &rl_cfg(),
+            "JWT expiry",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(result.result_kind, ResultKind::Context);
+        assert!(!result.citations.is_empty());
+
+        // First citation should have hierarchy fields
+        let c = &result.citations[0];
+        assert_eq!(c.topic_name.as_deref(), Some("Authentication"));
+        assert_eq!(c.concept_name.as_deref(), Some("JWT Tokens"));
+        assert!(c.breadcrumb.is_some());
+        let bc = c.breadcrumb.as_ref().unwrap();
+        assert!(bc.contains("Authentication"));
+        assert!(bc.contains("JWT Tokens"));
+    }
+
+    #[test]
+    fn test_context_flat_no_breadcrumb() {
+        let db = test_db();
+        setup_hierarchy(&db);
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let config = RetrievalConfig {
+            top_k: 5,
+            evidence_floor: 0.3,
+            confidence_threshold: 0.5,
+            use_hierarchy: false,
+        };
+
+        let result = build_context(
+            &db,
+            &provider,
+            &config,
+            &rl_cfg(),
+            "JWT expiry",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        assert_eq!(result.result_kind, ResultKind::Context);
+        assert!(!result.citations.is_empty());
+
+        // Citations should NOT have breadcrumb when use_hierarchy=false
+        for c in &result.citations {
+            assert!(
+                c.breadcrumb.is_none(),
+                "breadcrumb should be None in flat mode"
+            );
+            assert!(c.topic_name.is_none());
+            assert!(c.concept_name.is_none());
+        }
     }
 }

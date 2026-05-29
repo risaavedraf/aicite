@@ -64,7 +64,16 @@ fn evaluate_fixture(
     rate_limit: &RateLimitConfig,
     fixture: &GoldenFixture,
 ) -> FixtureResult {
-    let ctx = build_context(db, provider, config, rate_limit, &fixture.query, None);
+    let ctx = build_context(
+        db,
+        provider,
+        config,
+        rate_limit,
+        &fixture.query,
+        None,
+        None,
+        None,
+    );
 
     match ctx {
         Ok(response) => {
@@ -137,6 +146,7 @@ mod tests {
             top_k: 5,
             evidence_floor: 0.3,
             confidence_threshold: 0.5,
+            use_hierarchy: true,
         }
     }
     fn rl() -> RateLimitConfig {

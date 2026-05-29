@@ -2,6 +2,7 @@ use common::CiteError;
 use config::{RateLimitConfig, RetrievalConfig};
 use providers::EmbeddingProvider;
 use retrieval::rank_by_similarity;
+use std::collections::HashMap;
 use storage::Database;
 
 const MAX_QUERY_CHARS: usize = 4000;
@@ -23,6 +24,12 @@ pub struct SearchHit {
     pub offset_end: Option<u32>,
     pub score: f32,
     pub preview: String,
+    /// Topic name from hierarchy (Phase 11)
+    pub topic_name: Option<String>,
+    /// Concept name from hierarchy (Phase 11)
+    pub concept_name: Option<String>,
+    /// Breadcrumb path: "display_name > topic > concept" (Phase 11)
+    pub breadcrumb: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -37,8 +44,108 @@ pub struct RetrieveHit {
     pub offset_end: Option<u32>,
     pub score: f32,
     pub text: String,
+    /// Topic name from hierarchy (Phase 11)
+    pub topic_name: Option<String>,
+    /// Concept name from hierarchy (Phase 11)
+    pub concept_name: Option<String>,
+    /// Breadcrumb path: "display_name > topic > concept" (Phase 11)
+    pub breadcrumb: Option<String>,
 }
 
+/// Build a breadcrumb path from display name and hierarchy metadata.
+pub(crate) fn build_breadcrumb(
+    display_name: &str,
+    topic_name: Option<&str>,
+    concept_name: Option<&str>,
+) -> String {
+    match (topic_name, concept_name) {
+        (Some(t), Some(c)) => format!("{} > {} > {}", display_name, t, c),
+        (Some(t), None) => format!("{} > {}", display_name, t),
+        _ => display_name.to_string(),
+    }
+}
+
+/// Enrich ranked `ScoredChunk` results with hierarchy metadata from a lookup map.
+#[allow(clippy::type_complexity)]
+pub(crate) fn enrich_with_hierarchy(
+    ranked: Vec<retrieval::ScoredChunk>,
+    meta: &HashMap<
+        String,
+        (
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+        ),
+    >,
+) -> Vec<retrieval::ScoredChunk> {
+    ranked
+        .into_iter()
+        .map(|mut item| {
+            if let Some((tid, tname, cid, cname)) = meta.get(&item.chunk_id) {
+                item.topic_id = tid.clone();
+                item.topic_name = tname.clone();
+                item.concept_id = cid.clone();
+                item.concept_name = cname.clone();
+            }
+            item
+        })
+        .collect()
+}
+
+/// Type alias for the hierarchy metadata lookup: chunk_id → (topic_id, topic_name, concept_id, concept_name).
+type HierarchyMeta = HashMap<
+    String,
+    (
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    ),
+>;
+
+/// Fetch candidates using hierarchical path if available, flat path otherwise.
+/// Returns (flat_candidates, optional_hierarchy_metadata).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn fetch_candidates(
+    db: &Database,
+    config: &RetrievalConfig,
+    topic_filter: Option<&str>,
+    concept_filter: Option<&str>,
+) -> Result<
+    (
+        Vec<storage::embeddings::ChunkEmbeddingRecord>,
+        Option<HierarchyMeta>,
+    ),
+    CiteError,
+> {
+    let use_hierarchy = config.use_hierarchy && db.has_hierarchy_data().unwrap_or(false);
+
+    if use_hierarchy {
+        let hier = db.list_chunk_embeddings_hierarchical(topic_filter, concept_filter)?;
+        let meta: HierarchyMeta = hier
+            .iter()
+            .map(|h| {
+                (
+                    h.chunk.chunk_id.clone(),
+                    (
+                        h.topic_id.clone(),
+                        h.topic_name.clone(),
+                        h.concept_id.clone(),
+                        h.concept_name.clone(),
+                    ),
+                )
+            })
+            .collect();
+        let flat: Vec<storage::embeddings::ChunkEmbeddingRecord> =
+            hier.into_iter().map(|h| h.chunk).collect();
+        Ok((flat, Some(meta)))
+    } else {
+        Ok((db.list_ready_chunk_embeddings()?, None))
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 pub fn search(
     db: &Database,
     provider: &dyn EmbeddingProvider,
@@ -46,32 +153,54 @@ pub fn search(
     rate_limit: &RateLimitConfig,
     query: &str,
     k_override: Option<u32>,
+    topic_filter: Option<&str>,
+    concept_filter: Option<&str>,
 ) -> Result<Vec<SearchHit>, CiteError> {
     let k = resolve_k(config, k_override)?;
     validate_query(query)?;
     enforce_rate_limit(db, provider, rate_limit, SEARCH_ROUTE)?;
 
     let query_vector = provider.embed(query)?;
-    let candidates = db.list_ready_chunk_embeddings()?;
+    let (candidates, hierarchy_meta) = fetch_candidates(db, config, topic_filter, concept_filter)?;
     let ranked = rank_by_similarity(&query_vector, &candidates, k as usize);
+    let ranked = if let Some(ref meta) = hierarchy_meta {
+        enrich_with_hierarchy(ranked, meta)
+    } else {
+        ranked
+    };
 
     Ok(ranked
         .into_iter()
-        .map(|item| SearchHit {
-            chunk_id: item.chunk_id,
-            document_id: item.document_id,
-            display_name: item.display_name,
-            section_id: item.section_id,
-            chunk_index: item.chunk_index,
-            page: item.page,
-            offset_start: item.offset_start,
-            offset_end: item.offset_end,
-            score: item.score,
-            preview: make_preview(&item.text),
+        .map(|item| {
+            let breadcrumb = if item.topic_name.is_some() || item.concept_name.is_some() {
+                Some(build_breadcrumb(
+                    &item.display_name,
+                    item.topic_name.as_deref(),
+                    item.concept_name.as_deref(),
+                ))
+            } else {
+                None
+            };
+            SearchHit {
+                chunk_id: item.chunk_id,
+                document_id: item.document_id,
+                display_name: item.display_name,
+                section_id: item.section_id,
+                chunk_index: item.chunk_index,
+                page: item.page,
+                offset_start: item.offset_start,
+                offset_end: item.offset_end,
+                score: item.score,
+                preview: make_preview(&item.text),
+                topic_name: item.topic_name,
+                concept_name: item.concept_name,
+                breadcrumb,
+            }
         })
         .collect())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn retrieve(
     db: &Database,
     provider: &dyn EmbeddingProvider,
@@ -79,28 +208,49 @@ pub fn retrieve(
     rate_limit: &RateLimitConfig,
     query: &str,
     k_override: Option<u32>,
+    topic_filter: Option<&str>,
+    concept_filter: Option<&str>,
 ) -> Result<Vec<RetrieveHit>, CiteError> {
     let k = resolve_k(config, k_override)?;
     validate_query(query)?;
     enforce_rate_limit(db, provider, rate_limit, RETRIEVE_ROUTE)?;
 
     let query_vector = provider.embed(query)?;
-    let candidates = db.list_ready_chunk_embeddings()?;
+    let (candidates, hierarchy_meta) = fetch_candidates(db, config, topic_filter, concept_filter)?;
     let ranked = rank_by_similarity(&query_vector, &candidates, k as usize);
+    let ranked = if let Some(ref meta) = hierarchy_meta {
+        enrich_with_hierarchy(ranked, meta)
+    } else {
+        ranked
+    };
 
     Ok(ranked
         .into_iter()
-        .map(|item| RetrieveHit {
-            chunk_id: item.chunk_id,
-            document_id: item.document_id,
-            display_name: item.display_name,
-            section_id: item.section_id,
-            chunk_index: item.chunk_index,
-            page: item.page,
-            offset_start: item.offset_start,
-            offset_end: item.offset_end,
-            score: item.score,
-            text: item.text,
+        .map(|item| {
+            let breadcrumb = if item.topic_name.is_some() || item.concept_name.is_some() {
+                Some(build_breadcrumb(
+                    &item.display_name,
+                    item.topic_name.as_deref(),
+                    item.concept_name.as_deref(),
+                ))
+            } else {
+                None
+            };
+            RetrieveHit {
+                chunk_id: item.chunk_id,
+                document_id: item.document_id,
+                display_name: item.display_name,
+                section_id: item.section_id,
+                chunk_index: item.chunk_index,
+                page: item.page,
+                offset_start: item.offset_start,
+                offset_end: item.offset_end,
+                score: item.score,
+                text: item.text,
+                topic_name: item.topic_name,
+                concept_name: item.concept_name,
+                breadcrumb,
+            }
         })
         .collect())
 }
@@ -263,9 +413,10 @@ mod tests {
             top_k: 5,
             evidence_floor: 0.5,
             confidence_threshold: 0.7,
+            use_hierarchy: true,
         };
 
-        let err = search(&db, &provider, &cfg, &rl_cfg(), "   ", None).unwrap_err();
+        let err = search(&db, &provider, &cfg, &rl_cfg(), "   ", None, None, None).unwrap_err();
         assert!(matches!(err, CiteError::InvalidParameter { .. }));
     }
 
@@ -279,9 +430,10 @@ mod tests {
             top_k: 0,
             evidence_floor: 0.5,
             confidence_threshold: 0.7,
+            use_hierarchy: true,
         };
 
-        let err = search(&db, &provider, &cfg, &rl_cfg(), "hello", None).unwrap_err();
+        let err = search(&db, &provider, &cfg, &rl_cfg(), "hello", None, None, None).unwrap_err();
         assert!(matches!(err, CiteError::InvalidParameter { .. }));
     }
 
@@ -313,9 +465,10 @@ mod tests {
             top_k: 5,
             evidence_floor: 0.5,
             confidence_threshold: 0.7,
+            use_hierarchy: true,
         };
 
-        let results = search(&db, &provider, &cfg, &rl_cfg(), "query", None).unwrap();
+        let results = search(&db, &provider, &cfg, &rl_cfg(), "query", None, None, None).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].document_id, "doc-ready");
         assert!(results[0].preview.contains("ready text"));
@@ -340,9 +493,20 @@ mod tests {
             top_k: 5,
             evidence_floor: 0.5,
             confidence_threshold: 0.7,
+            use_hierarchy: true,
         };
 
-        let results = retrieve(&db, &provider, &cfg, &rl_cfg(), "query", Some(1)).unwrap();
+        let results = retrieve(
+            &db,
+            &provider,
+            &cfg,
+            &rl_cfg(),
+            "query",
+            Some(1),
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].text, "this is the full chunk text");
         assert_eq!(results[0].chunk_id, "chunk-ready");
@@ -358,9 +522,10 @@ mod tests {
             top_k: 5,
             evidence_floor: 0.5,
             confidence_threshold: 0.7,
+            use_hierarchy: true,
         };
 
-        let results = search(&db, &provider, &cfg, &rl_cfg(), "query", None).unwrap();
+        let results = search(&db, &provider, &cfg, &rl_cfg(), "query", None, None, None).unwrap();
         assert!(results.is_empty());
     }
 
@@ -374,10 +539,11 @@ mod tests {
             top_k: 5,
             evidence_floor: 0.5,
             confidence_threshold: 0.7,
+            use_hierarchy: true,
         };
 
         let query = "a".repeat(4001);
-        let err = search(&db, &provider, &cfg, &rl_cfg(), &query, None).unwrap_err();
+        let err = search(&db, &provider, &cfg, &rl_cfg(), &query, None, None, None).unwrap_err();
         assert!(matches!(err, CiteError::QueryTooLong { .. }));
     }
 
@@ -400,14 +566,15 @@ mod tests {
             top_k: 5,
             evidence_floor: 0.5,
             confidence_threshold: 0.7,
+            use_hierarchy: true,
         };
         let rl = RateLimitConfig {
             max_requests: 1,
             window_seconds: 60,
         };
 
-        assert!(search(&db, &provider, &cfg, &rl, "query", None).is_ok());
-        let err = search(&db, &provider, &cfg, &rl, "query", None).unwrap_err();
+        assert!(search(&db, &provider, &cfg, &rl, "query", None, None, None).is_ok());
+        let err = search(&db, &provider, &cfg, &rl, "query", None, None, None).unwrap_err();
         assert!(matches!(
             err,
             CiteError::RateLimitExceeded {
@@ -435,19 +602,293 @@ mod tests {
             top_k: 5,
             evidence_floor: 0.5,
             confidence_threshold: 0.7,
+            use_hierarchy: true,
         };
         let rl = RateLimitConfig {
             max_requests: 1,
             window_seconds: 60,
         };
 
-        assert!(retrieve(&db, &provider, &cfg, &rl, "query", None).is_ok());
-        let err = retrieve(&db, &provider, &cfg, &rl, "query", None).unwrap_err();
+        assert!(retrieve(&db, &provider, &cfg, &rl, "query", None, None, None).is_ok());
+        let err = retrieve(&db, &provider, &cfg, &rl, "query", None, None, None).unwrap_err();
         assert!(matches!(
             err,
             CiteError::RateLimitExceeded {
                 retry_after_seconds: _
             }
         ));
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase 11 — Hierarchical retrieval tests
+    // -----------------------------------------------------------------------
+
+    /// Helper: set up a doc with hierarchy (topic + concept) and chunks with embeddings.
+    fn setup_hierarchy(db: &Database) {
+        insert_doc(db, "doc-hier", DocumentStatus::Ready);
+        insert_chunk_with_embedding(
+            db,
+            "doc-hier",
+            "c-hier-0",
+            "JWT tokens with 15-min expiry",
+            vec![1.0, 0.0],
+        );
+        insert_chunk_with_embedding(
+            db,
+            "doc-hier",
+            "c-hier-1",
+            "Refresh tokens valid for 7 days",
+            vec![0.9, 0.1],
+        );
+        insert_chunk_with_embedding(
+            db,
+            "doc-hier",
+            "c-hier-2",
+            "Unrelated chunk about logging",
+            vec![0.0, 1.0],
+        );
+
+        db.insert_topic("t-auth", "doc-hier", "Authentication", None)
+            .unwrap();
+        db.insert_concept("c-jwt", "t-auth", "JWT Tokens", None)
+            .unwrap();
+
+        db.set_chunk_hierarchy("c-hier-0", "t-auth", Some("c-jwt"))
+            .unwrap();
+        db.set_chunk_hierarchy("c-hier-1", "t-auth", Some("c-jwt"))
+            .unwrap();
+        db.set_chunk_hierarchy("c-hier-2", "t-auth", None).unwrap();
+    }
+
+    #[test]
+    fn test_search_hierarchical_with_breadcrumb() {
+        let db = test_db();
+        setup_hierarchy(&db);
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let cfg = RetrievalConfig {
+            top_k: 5,
+            evidence_floor: 0.3,
+            confidence_threshold: 0.5,
+            use_hierarchy: true,
+        };
+
+        let results = search(
+            &db,
+            &provider,
+            &cfg,
+            &rl_cfg(),
+            "JWT expiry",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        assert!(!results.is_empty());
+
+        // First result should have hierarchy fields populated
+        let first = &results[0];
+        assert_eq!(first.topic_name.as_deref(), Some("Authentication"));
+        assert_eq!(first.concept_name.as_deref(), Some("JWT Tokens"));
+        assert!(first.breadcrumb.is_some());
+        let bc = first.breadcrumb.as_ref().unwrap();
+        assert!(bc.contains("Authentication"));
+        assert!(bc.contains("JWT Tokens"));
+    }
+
+    #[test]
+    fn test_search_flat_fallback_no_hierarchy() {
+        let db = test_db();
+        insert_doc(&db, "doc-flat", DocumentStatus::Ready);
+        insert_chunk_with_embedding(&db, "doc-flat", "c-flat-0", "some text", vec![1.0, 0.0]);
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let cfg = RetrievalConfig {
+            top_k: 5,
+            evidence_floor: 0.3,
+            confidence_threshold: 0.5,
+            use_hierarchy: true,
+        };
+
+        let results = search(&db, &provider, &cfg, &rl_cfg(), "query", None, None, None).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].topic_name.is_none());
+        assert!(results[0].concept_name.is_none());
+        assert!(results[0].breadcrumb.is_none());
+    }
+
+    #[test]
+    fn test_search_flat_flag_returns_no_breadcrumb() {
+        let db = test_db();
+        setup_hierarchy(&db);
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let cfg = RetrievalConfig {
+            top_k: 5,
+            evidence_floor: 0.3,
+            confidence_threshold: 0.5,
+            use_hierarchy: false,
+        };
+
+        let results = search(
+            &db,
+            &provider,
+            &cfg,
+            &rl_cfg(),
+            "JWT expiry",
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        assert!(!results.is_empty());
+        // Even though hierarchy data exists, use_hierarchy=false forces flat path
+        assert!(results[0].breadcrumb.is_none());
+        assert!(results[0].topic_name.is_none());
+        assert!(results[0].concept_name.is_none());
+    }
+
+    #[test]
+    fn test_search_hierarchical_auto_fallback() {
+        let db = test_db();
+        // No hierarchy data inserted — just a plain doc
+        insert_doc(&db, "doc-plain", DocumentStatus::Ready);
+        insert_chunk_with_embedding(&db, "doc-plain", "c-plain-0", "plain text", vec![1.0, 0.0]);
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let cfg = RetrievalConfig {
+            top_k: 5,
+            evidence_floor: 0.3,
+            confidence_threshold: 0.5,
+            use_hierarchy: true, // wants hierarchy, but no data exists
+        };
+
+        // Should auto-fallback to flat and still return results
+        let results = search(&db, &provider, &cfg, &rl_cfg(), "query", None, None, None).unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(results[0].breadcrumb.is_none());
+    }
+
+    #[test]
+    fn test_search_with_topic_filter() {
+        let db = test_db();
+
+        // Doc with two topics
+        insert_doc(&db, "doc-multi", DocumentStatus::Ready);
+        insert_chunk_with_embedding(
+            &db,
+            "doc-multi",
+            "c-auth-0",
+            "JWT token expiry",
+            vec![1.0, 0.0],
+        );
+        insert_chunk_with_embedding(
+            &db,
+            "doc-multi",
+            "c-log-0",
+            "Logging with ELK",
+            vec![0.0, 1.0],
+        );
+
+        db.insert_topic("t-auth", "doc-multi", "Authentication", None)
+            .unwrap();
+        db.insert_topic("t-log", "doc-multi", "Logging", None)
+            .unwrap();
+
+        db.set_chunk_hierarchy("c-auth-0", "t-auth", None).unwrap();
+        db.set_chunk_hierarchy("c-log-0", "t-log", None).unwrap();
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let cfg = RetrievalConfig {
+            top_k: 5,
+            evidence_floor: 0.3,
+            confidence_threshold: 0.5,
+            use_hierarchy: true,
+        };
+
+        // Filter by topic t-auth — should only return the auth chunk
+        let results = search(
+            &db,
+            &provider,
+            &cfg,
+            &rl_cfg(),
+            "JWT",
+            None,
+            Some("t-auth"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].chunk_id, "c-auth-0");
+        assert_eq!(results[0].topic_name.as_deref(), Some("Authentication"));
+    }
+
+    #[test]
+    fn test_search_with_concept_filter() {
+        let db = test_db();
+
+        insert_doc(&db, "doc-concepts", DocumentStatus::Ready);
+        insert_chunk_with_embedding(
+            &db,
+            "doc-concepts",
+            "c-jwt-0",
+            "JWT expiry 15 min",
+            vec![1.0, 0.0],
+        );
+        insert_chunk_with_embedding(
+            &db,
+            "doc-concepts",
+            "c-pw-0",
+            "Password min 12 chars",
+            vec![0.8, 0.2],
+        );
+
+        db.insert_topic("t-auth", "doc-concepts", "Authentication", None)
+            .unwrap();
+        db.insert_concept("c-jwt", "t-auth", "JWT Tokens", None)
+            .unwrap();
+        db.insert_concept("c-pw", "t-auth", "Password Policy", None)
+            .unwrap();
+
+        db.set_chunk_hierarchy("c-jwt-0", "t-auth", Some("c-jwt"))
+            .unwrap();
+        db.set_chunk_hierarchy("c-pw-0", "t-auth", Some("c-pw"))
+            .unwrap();
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let cfg = RetrievalConfig {
+            top_k: 5,
+            evidence_floor: 0.3,
+            confidence_threshold: 0.5,
+            use_hierarchy: true,
+        };
+
+        // Filter by concept c-jwt — should only return the JWT chunk
+        let results = search(
+            &db,
+            &provider,
+            &cfg,
+            &rl_cfg(),
+            "token",
+            None,
+            None,
+            Some("c-jwt"),
+        )
+        .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].chunk_id, "c-jwt-0");
+        assert_eq!(results[0].concept_name.as_deref(), Some("JWT Tokens"));
     }
 }

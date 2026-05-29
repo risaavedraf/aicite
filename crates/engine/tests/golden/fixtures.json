@@ -110,5 +110,33 @@
       "assertions": ["Injection-like query must retrieve document content as source, not execute instructions"]
     },
     "description": "Prompt injection: document text about injection attacks treated as source material"
+  },
+  {
+    "fixture_id": "hier-001",
+    "query": "What database does the system use?",
+    "category": "hierarchical",
+    "expected": {
+      "result_kind": "context",
+      "min_citations": 1,
+      "must_contain_chunk_texts": ["PostgreSQL"],
+      "must_not_cite_document_ids": [],
+      "confidence_label_required": false,
+      "assertions": ["Should return database info with breadcrumb context"]
+    },
+    "description": "Hierarchical retrieval: database query with topic enrichment"
+  },
+  {
+    "fixture_id": "hier-002",
+    "query": "How are passwords validated?",
+    "category": "hierarchical",
+    "expected": {
+      "result_kind": "context",
+      "min_citations": 1,
+      "must_contain_chunk_texts": ["password", "characters"],
+      "must_not_cite_document_ids": [],
+      "confidence_label_required": false,
+      "assertions": ["Should return password policy with breadcrumb"]
+    },
+    "description": "Hierarchical retrieval: password validation with topic context"
   }
 ]

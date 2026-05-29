@@ -1,5 +1,6 @@
 use common::CiteError;
 
+pub mod eval;
 pub mod gemini;
 pub mod openai;
 

@@ -104,6 +104,12 @@ pub struct Citation {
     pub text: String,
     pub score: Option<f64>,
     pub confidence_label: Option<String>,
+    /// Topic name from hierarchy (Phase 11)
+    pub topic_name: Option<String>,
+    /// Concept name from hierarchy (Phase 11)
+    pub concept_name: Option<String>,
+    /// Breadcrumb path: "display_name > topic > concept" (Phase 11)
+    pub breadcrumb: Option<String>,
 }
 
 /// Offset range in source document

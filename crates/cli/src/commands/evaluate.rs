@@ -2,6 +2,7 @@ use common::types::ResultKind;
 use common::ExitCode;
 use config::{Config, RateLimitConfig, RetrievalConfig};
 use engine::evaluate::{run_evaluation, FixtureExpected, GoldenFixture};
+use providers::eval::EvalProvider;
 use providers::EmbeddingProvider;
 use serde::Serialize;
 use storage::Database;
@@ -37,154 +38,6 @@ struct EvalResultOutput {
     actual_result_kind: String,
     actual_citation_count: usize,
     failure_reason: Option<String>,
-}
-
-/// Topic-based mock embedding provider for evaluation.
-struct EvalProvider;
-
-impl EmbeddingProvider for EvalProvider {
-    fn embed(&self, text: &str) -> Result<Vec<f32>, common::CiteError> {
-        Ok(compute_vector(text))
-    }
-    fn model_id(&self) -> &str {
-        "eval-v1"
-    }
-    fn provider_id(&self) -> &str {
-        "eval"
-    }
-}
-
-/// Compute topic-based 8-dimensional vector from text content.
-///
-/// Dimensions:
-/// - 0: API/gateway/architecture
-/// - 1: database/storage
-/// - 2: auth/security/passwords
-/// - 3: logging/monitoring
-/// - 4: users/CRUD
-/// - 5: error handling/rate limiting
-/// - 6: compliance/policy/injection
-/// - 7: noise/general
-fn compute_vector(text: &str) -> Vec<f32> {
-    let lower = text.to_lowercase();
-    let mut vec = vec![0.0f32; 8];
-
-    if contains_any(
-        &lower,
-        &[
-            "api gateway",
-            "routes",
-            "external requests",
-            "microservices",
-            "endpoint",
-            "architecture",
-            "system design",
-        ],
-    ) {
-        vec[0] = 0.9;
-    }
-    if contains_any(
-        &lower,
-        &[
-            "postgresql",
-            "database",
-            "read replicas",
-            "storage",
-            "data layer",
-        ],
-    ) {
-        vec[1] = 0.9;
-    }
-    if contains_any(
-        &lower,
-        &[
-            "jwt",
-            "authentication",
-            "password",
-            "token",
-            "encrypt",
-            "aes-256",
-            "tls",
-            "security",
-            "secure",
-            "credential",
-        ],
-    ) {
-        vec[2] = 0.9;
-    }
-    if contains_any(
-        &lower,
-        &[
-            "logging",
-            "audit",
-            "monitor",
-            "structured json logs",
-            "elk",
-            "retained",
-        ],
-    ) {
-        vec[3] = 0.9;
-    }
-    if contains_any(
-        &lower,
-        &[
-            "users",
-            "get /users",
-            "post /users",
-            "create user",
-            "paginated list",
-        ],
-    ) {
-        vec[4] = 0.9;
-    }
-    if contains_any(
-        &lower,
-        &[
-            "rate limit",
-            "429",
-            "retry-after",
-            "error code",
-            "too many requests",
-        ],
-    ) {
-        vec[5] = 0.9;
-    }
-    if contains_any(
-        &lower,
-        &[
-            "policy",
-            "compliance",
-            "security policy",
-            "data classification",
-            "incident",
-            "ignore",
-            "instructions",
-            "prompt",
-            "injection",
-        ],
-    ) {
-        vec[6] = 0.85;
-    }
-
-    // Add small noise to non-zero dimensions
-    for v in vec.iter_mut() {
-        if *v > 0.0 {
-            *v += 0.05;
-        }
-    }
-
-    // Normalize
-    let norm: f32 = vec.iter().map(|x| x * x).sum::<f32>().sqrt();
-    if norm > 0.0 {
-        for v in &mut vec {
-            *v /= norm;
-        }
-    }
-    vec
-}
-
-fn contains_any(text: &str, keywords: &[&str]) -> bool {
-    keywords.iter().any(|kw| text.contains(kw))
 }
 
 /// Seed the database with evaluation corpus documents and chunks.
@@ -481,6 +334,25 @@ fn build_fixtures() -> Vec<GoldenFixture> {
                 min_citations: 1,
             },
         },
+        // --- Hierarchical retrieval fixtures (Phase 12) ---
+        GoldenFixture {
+            fixture_id: "hier-001".into(),
+            category: "hierarchical".into(),
+            query: "What database does the system use?".into(),
+            expected: FixtureExpected {
+                result_kind: ResultKind::Context,
+                min_citations: 1,
+            },
+        },
+        GoldenFixture {
+            fixture_id: "hier-002".into(),
+            category: "hierarchical".into(),
+            query: "How are passwords validated?".into(),
+            expected: FixtureExpected {
+                result_kind: ResultKind::Context,
+                min_citations: 1,
+            },
+        },
     ]
 }
 
@@ -495,6 +367,7 @@ pub fn execute(_args: &EvaluateArgs, _config: &Config, json: bool) -> i32 {
         top_k: 5,
         evidence_floor: 0.30,
         confidence_threshold: 0.50,
+        use_hierarchy: true,
     };
     let rate_limit = RateLimitConfig {
         max_requests: 1000,
@@ -594,7 +467,7 @@ mod tests {
     #[test]
     fn test_build_fixtures_count() {
         let fixtures = build_fixtures();
-        assert_eq!(fixtures.len(), 8);
+        assert_eq!(fixtures.len(), 10);
     }
 
     #[test]
@@ -615,6 +488,7 @@ mod tests {
             top_k: 5,
             evidence_floor: 0.30,
             confidence_threshold: 0.50,
+            use_hierarchy: true,
         };
         let rate_limit = RateLimitConfig {
             max_requests: 1000,

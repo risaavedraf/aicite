@@ -18,7 +18,7 @@ pub struct GoldenFixture {
     pub description: &'static str,
 }
 
-/// Load golden fixtures (8 total: 3 direct_fact, 2 no_results, 1 ambiguous, 1 multi_chunk, 1 prompt_injection).
+/// Load golden fixtures (10 total: 3 direct_fact, 2 no_results, 1 ambiguous, 1 multi_chunk, 1 prompt_injection, 2 hierarchical).
 pub fn load_fixtures() -> Vec<GoldenFixture> {
     vec![
         GoldenFixture {
@@ -118,6 +118,31 @@ pub fn load_fixtures() -> Vec<GoldenFixture> {
             },
             description:
                 "Prompt injection: document text about injection attacks treated as source material",
+        },
+        // --- Hierarchical retrieval fixtures (Phase 12) ---
+        GoldenFixture {
+            fixture_id: "hier-001",
+            query: "What database does the system use?",
+            category: "hierarchical",
+            expected: FixtureExpected {
+                result_kind: "context",
+                min_citations: 1,
+                must_contain_chunk_texts: &["PostgreSQL"],
+                confidence_label_required: false,
+            },
+            description: "Hierarchical retrieval: database query with topic enrichment",
+        },
+        GoldenFixture {
+            fixture_id: "hier-002",
+            query: "How are passwords validated?",
+            category: "hierarchical",
+            expected: FixtureExpected {
+                result_kind: "context",
+                min_citations: 1,
+                must_contain_chunk_texts: &["password", "characters"],
+                confidence_label_required: false,
+            },
+            description: "Hierarchical retrieval: password validation with topic context",
         },
     ]
 }

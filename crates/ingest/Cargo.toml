@@ -5,9 +5,9 @@ edition.workspace = true
 
 [dependencies]
 common = { workspace = true }
+config = { workspace = true }
+graph = { workspace = true }
 storage = { workspace = true }
 lopdf = { workspace = true }
 uuid = { workspace = true }
-
-[dev-dependencies]
-config = { workspace = true }
+chrono = { workspace = true }

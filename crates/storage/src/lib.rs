@@ -4,12 +4,15 @@ use std::path::Path;
 
 pub mod backlog;
 pub mod chunks;
+pub mod concepts;
 pub mod documents;
 pub mod embeddings;
 pub mod locks;
 mod migrations;
 pub mod rate_limits;
+pub mod semantic_links;
 pub mod snapshots;
+pub mod topics;
 pub mod traces;
 mod util;
 

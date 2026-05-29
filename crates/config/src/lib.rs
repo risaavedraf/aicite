@@ -54,6 +54,10 @@ pub struct RetrievalConfig {
     pub top_k: u32,
     pub evidence_floor: f64,
     pub confidence_threshold: f64,
+    /// Whether to use hierarchical retrieval when hierarchy data exists.
+    /// Default: true. When false, forces flat (v0.1.0) retrieval.
+    #[serde(default = "default_use_hierarchy")]
+    pub use_hierarchy: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +83,30 @@ pub struct IngestConfig {
     pub embedding_timeout_secs: u64,
     /// Custom embedding endpoint URL (default: provider-specific)
     pub embedding_endpoint: Option<String>,
+    /// Enable sentence-based chunking instead of fixed-size (default: false)
+    #[serde(default)]
+    pub sentence_chunking: bool,
+    /// Minimum chunk length in chars before merge (default: 30)
+    #[serde(default = "default_min_chunk_chars")]
+    pub min_chunk_chars: usize,
+    /// Maximum chunk length in chars (default: 200)
+    #[serde(default = "default_max_chunk_chars")]
+    pub max_chunk_chars: usize,
+    /// Extract topics/concepts hierarchy during ingest (default: false)
+    #[serde(default)]
+    pub build_hierarchy: bool,
+}
+
+fn default_min_chunk_chars() -> usize {
+    30
+}
+
+fn default_max_chunk_chars() -> usize {
+    200
+}
+
+fn default_use_hierarchy() -> bool {
+    true
 }
 
 impl Default for IngestConfig {
@@ -91,6 +119,10 @@ impl Default for IngestConfig {
             max_retry_count: 3,
             embedding_timeout_secs: 30,
             embedding_endpoint: None,
+            sentence_chunking: false,
+            min_chunk_chars: 30,
+            max_chunk_chars: 200,
+            build_hierarchy: false,
         }
     }
 }
@@ -122,6 +154,7 @@ impl Config {
                 top_k: 5,
                 evidence_floor: 0.50,
                 confidence_threshold: 0.70,
+                use_hierarchy: true,
             },
             rate_limit: RateLimitConfig {
                 max_requests: 20,
@@ -167,6 +200,18 @@ impl Config {
         if let Some(val) = env.embedding_endpoint {
             config.ingest.embedding_endpoint = Some(val);
         }
+        if let Some(val) = env.sentence_chunking {
+            config.ingest.sentence_chunking = val;
+        }
+        if let Some(val) = env.min_chunk_chars {
+            config.ingest.min_chunk_chars = val;
+        }
+        if let Some(val) = env.max_chunk_chars {
+            config.ingest.max_chunk_chars = val;
+        }
+        if let Some(val) = env.build_hierarchy {
+            config.ingest.build_hierarchy = val;
+        }
 
         config
     }
@@ -185,6 +230,10 @@ struct EnvOverrides {
     chunk_overlap_chars: Option<usize>,
     embedding_timeout_secs: Option<u64>,
     embedding_endpoint: Option<String>,
+    sentence_chunking: Option<bool>,
+    min_chunk_chars: Option<usize>,
+    max_chunk_chars: Option<usize>,
+    build_hierarchy: Option<bool>,
 }
 
 impl EnvOverrides {
@@ -218,6 +267,26 @@ impl EnvOverrides {
                 .ok()
                 .and_then(|v| v.parse().ok()),
             embedding_endpoint: std::env::var("CITE_EMBEDDING_ENDPOINT").ok(),
+            sentence_chunking: std::env::var("CITE_SENTENCE_CHUNKING").ok().and_then(|v| {
+                match v.as_str() {
+                    "true" | "1" | "yes" => Some(true),
+                    "false" | "0" | "no" => Some(false),
+                    _ => None,
+                }
+            }),
+            min_chunk_chars: std::env::var("CITE_MIN_CHUNK_CHARS")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+            max_chunk_chars: std::env::var("CITE_MAX_CHUNK_CHARS")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+            build_hierarchy: std::env::var("CITE_BUILD_HIERARCHY").ok().and_then(|v| {
+                match v.as_str() {
+                    "true" | "1" | "yes" => Some(true),
+                    "false" | "0" | "no" => Some(false),
+                    _ => None,
+                }
+            }),
         }
     }
 }
@@ -241,9 +310,14 @@ mod tests {
         let config = Config::defaults();
         assert_eq!(config.runtime.mode, RuntimeMode::LocalPrivateDemo);
         assert_eq!(config.retrieval.top_k, 5);
+        assert!(config.retrieval.use_hierarchy);
         assert_eq!(config.rate_limit.max_requests, 20);
         assert_eq!(config.ingest.max_file_size_bytes, 50 * 1024 * 1024);
         assert_eq!(config.ingest.chunk_size_chars, 1000);
         assert_eq!(config.ingest.chunk_overlap_chars, 200);
+        assert!(!config.ingest.sentence_chunking);
+        assert_eq!(config.ingest.min_chunk_chars, 30);
+        assert_eq!(config.ingest.max_chunk_chars, 200);
+        assert!(!config.ingest.build_hierarchy);
     }
 }

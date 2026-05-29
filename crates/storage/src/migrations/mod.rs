@@ -6,6 +6,7 @@ const TRACE_CITATIONS_SCHEMA: &str = include_str!("002_trace_citations.sql");
 const DURABLE_INGEST_SCHEMA: &str = include_str!("003_durable_ingest.sql");
 const RATE_LIMITS_SCHEMA: &str = include_str!("004_rate_limits.sql");
 const SNAPSHOTS_SCHEMA: &str = include_str!("005_snapshots.sql");
+const HIERARCHY_SCHEMA: &str = include_str!("006_hierarchy.sql");
 
 /// Run pending migrations
 pub fn run(conn: &Connection) -> Result<(), CiteError> {
@@ -50,6 +51,10 @@ pub fn run(conn: &Connection) -> Result<(), CiteError> {
 
     if current_version < 5 {
         run_migration(conn, 5, SNAPSHOTS_SCHEMA)?;
+    }
+
+    if current_version < 6 {
+        run_migration(conn, 6, HIERARCHY_SCHEMA)?;
     }
 
     Ok(())

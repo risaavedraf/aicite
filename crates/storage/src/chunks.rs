@@ -77,6 +77,22 @@ impl Database {
         Ok(())
     }
 
+    /// Set the hierarchy (topic and optional concept) on an existing chunk.
+    pub fn set_chunk_hierarchy(
+        &self,
+        chunk_id: &str,
+        topic_id: &str,
+        concept_id: Option<&str>,
+    ) -> Result<(), CiteError> {
+        self.conn
+            .execute(
+                "UPDATE chunks SET topic_id = ?1, concept_id = ?2 WHERE chunk_id = ?3",
+                params![topic_id, concept_id, chunk_id],
+            )
+            .map_err(storage_err)?;
+        Ok(())
+    }
+
     /// Delete all chunks belonging to a document. Returns the number deleted.
     pub fn delete_chunks_for_document(&self, document_id: &str) -> Result<u64, CiteError> {
         let count = self

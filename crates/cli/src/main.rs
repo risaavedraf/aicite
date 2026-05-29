@@ -100,9 +100,7 @@ fn main() {
             let cfg_path = cli.config.as_deref().map(std::path::Path::new);
             commands::health::execute(&config, cli.json, cfg_path)
         }
-        Commands::Setup(args) => {
-            commands::setup::execute(&args, &config, cli.json)
-        }
+        Commands::Setup(args) => commands::setup::execute(&args, &config, cli.json),
         Commands::Ingest(args) => commands::ingest::execute(&args, &config, cli.json),
         Commands::List => commands::list::execute(&config, cli.json),
         Commands::Get(args) => commands::get::execute(&args, &config, cli.json),

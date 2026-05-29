@@ -21,7 +21,7 @@ CLI-first semantic document engine for AI agents. Ingest private documents, retr
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/aicite.git
+git clone https://github.com/risaavedraf/aicite.git
 cd aicite
 
 # Run directly from source

@@ -93,6 +93,16 @@ cargo build --release
 
 ### Step 2: Configure embedding provider
 
+**Option A — Interactive setup (recommended)**:
+
+```bash
+cite setup
+```
+
+The wizard asks for provider, API key, tests the connection, and saves config to `~/.config/cite/config.toml`.
+
+**Option B — Manual config**:
+
 ```bash
 cp .env.example .env
 # Edit .env and set:

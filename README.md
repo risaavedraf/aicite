@@ -41,10 +41,16 @@ cargo build --release
 ./target/release/cite context "how does authentication work"
 ```
 
-### Path C — Installed release binary
+### Path C — Installed release binary (one-command install)
 
 ```bash
-# After installing/downloading and adding to PATH
+# Install with one command (Linux/macOS)
+curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
+
+# Then configure
+cite setup
+
+# Or after manual install/download and adding to PATH
 cite health --json
 cite search "what is the security policy"
 cite context "how does authentication work"
@@ -57,6 +63,7 @@ All commands accept `--json` for structured output suitable for agent pipelines.
 | Command | Description | Example |
 |---|---|---|
 | `health` | Check CLI runtime and local state health | `cite health --json` |
+| `setup` | Interactive setup wizard for first-time configuration | `cite setup` |
 | `ingest` | Ingest a document into the corpus | `cite ingest ./doc.txt` |
 | `list` | List documents in the corpus | `cite list` |
 | `get` | Get document metadata | `cite get <doc-id>` |

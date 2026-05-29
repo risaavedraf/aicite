@@ -37,7 +37,7 @@ cite context "what are the acceptance criteria?"
 ### Linux (x86_64)
 
 ```bash
-curl -sSfL https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-linux-amd64 -o cite
+curl -sSfL https://github.com/risaavedraf/aicite/releases/download/v0.2.0/cite-linux-amd64 -o cite
 chmod +x cite
 sudo mv cite /usr/local/bin/
 cite health --json
@@ -46,7 +46,7 @@ cite health --json
 ### macOS (Apple Silicon)
 
 ```bash
-curl -sSfL https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-macos-arm64 -o cite
+curl -sSfL https://github.com/risaavedraf/aicite/releases/download/v0.2.0/cite-macos-arm64 -o cite
 chmod +x cite
 sudo mv cite /usr/local/bin/
 cite health --json
@@ -55,7 +55,7 @@ cite health --json
 ### Windows (PowerShell)
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-windows-amd64.exe" -OutFile "cite.exe"
+Invoke-WebRequest -Uri "https://github.com/risaavedraf/aicite/releases/download/v0.2.0/cite-windows-amd64.exe" -OutFile "cite.exe"
 # Move to a directory in PATH, e.g.:
 Move-Item cite.exe C:\Users\$env:USERNAME\AppData\Local\Microsoft\WinGet\Links\
 cite health --json
@@ -63,7 +63,28 @@ cite health --json
 
 ---
 
-## Planned: Automated installation
+## Available: One-command install (v0.2.0+)
+
+### Install script (Linux/macOS)
+
+```bash
+curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
+```
+
+The script detects OS/arch, downloads the correct binary, and offers to run `cite setup` interactively.
+
+Custom options:
+```bash
+# Custom install directory
+INSTALL_DIR=~/.local/bin curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
+
+# Specific version
+CITE_VERSION=0.2.0 curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
+```
+
+---
+
+## Planned: Package managers
 
 ### Scoop (Windows)
 
@@ -89,13 +110,13 @@ scoop update cite
 
 ```json
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CLI-first semantic document engine for AI agents",
   "homepage": "https://github.com/risaavedraf/aicite",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-windows-amd64.exe#/cite.exe",
+      "url": "https://github.com/risaavedraf/aicite/releases/download/v0.2.0/cite-windows-amd64.exe#/cite.exe",
       "hash": "sha256:..."
     }
   },
@@ -147,23 +168,23 @@ brew upgrade cite
 class Cite < Formula
   desc "CLI-first semantic document engine for AI agents"
   homepage "https://github.com/risaavedraf/aicite"
-  version "0.1.0"
+  version "0.2.0"
   license "MIT"
 
   on_macos do
     on_arm do
-      url "https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-macos-arm64"
+      url "https://github.com/risaavedraf/aicite/releases/download/v0.2.0/cite-macos-arm64"
       sha256 "..."
     end
     on_intel do
-      url "https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-macos-amd64"
+      url "https://github.com/risaavedraf/aicite/releases/download/v0.2.0/cite-macos-amd64"
       sha256 "..."
     end
   end
 
   on_linux do
     on_intel do
-      url "https://github.com/risaavedraf/aicite/releases/download/v0.1.0/cite-linux-amd64"
+      url "https://github.com/risaavedraf/aicite/releases/download/v0.2.0/cite-linux-amd64"
       sha256 "..."
     end
   end
@@ -192,7 +213,7 @@ If the user has a Rust toolchain, they can install directly from the repo:
 
 ```bash
 # From GitHub (once published)
-cargo install --git https://github.com/risaavedraf/aicite --tag v0.1.0
+cargo install --git https://github.com/risaavedraf/aicite --tag v0.2.0
 
 # Or from crates.io (once published)
 cargo install cite
@@ -211,7 +232,7 @@ A universal install script that detects OS and architecture:
 # install.sh — Instala cite CLI
 set -e
 
-VERSION="${CITE_VERSION:-0.1.0}"
+VERSION="${CITE_VERSION:-0.2.0}"
 REPO="risaavedraf/aicite"
 BASE_URL="https://github.com/${REPO}/releases/download/v${VERSION}"
 
@@ -334,10 +355,10 @@ cargo deb --release
 | Method | Platform | Auto-update | Prerequisites | Status |
 |---|---|---|---|---|
 | Manual download | All | No | curl/wget | ✅ Available |
+| Install script | Linux/macOS | No | curl | ✅ Available (v0.2.0+) |
 | Scoop | Windows | Yes | Scoop | 📋 Planned |
 | Homebrew | macOS/Linux | Yes | Homebrew | 📋 Planned |
 | Cargo install | All | No | Rust toolchain | 📋 Planned |
-| Install script | Linux/macOS | No | curl | 📋 Planned |
 | Docker | All | Pull latest | Docker | 📋 Planned |
 | apt | Debian/Ubuntu | Yes | apt | 📋 Planned |
 

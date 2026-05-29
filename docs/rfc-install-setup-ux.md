@@ -1,6 +1,14 @@
 # RFC: Installation & Setup UX
 
-## Status: Draft — conversation only, not implemented
+## Status: Implemented in v0.2.0
+
+> All features described in this RFC were implemented and released in v0.2.0:
+> - `install.sh` one-command install script
+> - `cite setup` interactive wizard
+> - TOML config file support with XDG paths
+> - Enhanced `cite health` diagnostics
+>
+> See [CHANGELOG.md](../CHANGELOG.md) for release details.
 
 ## Problem
 

@@ -21,3 +21,4 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 dirs = { workspace = true }
 dotenvy = { workspace = true }
+dialoguer = { workspace = true }

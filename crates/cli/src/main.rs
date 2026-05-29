@@ -1,7 +1,6 @@
 use clap::{Parser, Subcommand};
 use common::ExitCode;
 use config::Config;
-use std::path::PathBuf;
 use std::process;
 
 mod commands;
@@ -39,6 +38,8 @@ struct Cli {
 enum Commands {
     /// Check CLI runtime and local state health
     Health,
+    /// Configure API keys and provider settings
+    Setup(commands::setup::SetupArgs),
     /// Ingest a document into the corpus
     Ingest(commands::ingest::IngestArgs),
     /// List documents in the corpus
@@ -69,7 +70,8 @@ fn main() {
 
     let cli = Cli::parse();
 
-    let config = match Config::load() {
+    let config_path = cli.config.as_deref().map(std::path::Path::new);
+    let config = match Config::load_from(config_path) {
         Ok(config) => config,
         Err(e) => {
             eprintln!("Configuration error: {e}");
@@ -94,7 +96,13 @@ fn main() {
     }
 
     let exit_code = match cli.command {
-        Commands::Health => commands::health::execute(&config, cli.json),
+        Commands::Health => {
+            let cfg_path = cli.config.as_deref().map(std::path::Path::new);
+            commands::health::execute(&config, cli.json, cfg_path)
+        }
+        Commands::Setup(args) => {
+            commands::setup::execute(&args, &config, cli.json)
+        }
         Commands::Ingest(args) => commands::ingest::execute(&args, &config, cli.json),
         Commands::List => commands::list::execute(&config, cli.json),
         Commands::Get(args) => commands::get::execute(&args, &config, cli.json),
@@ -112,11 +120,11 @@ fn main() {
 }
 
 fn should_run_startup_recovery(command: &Commands) -> bool {
-    !matches!(command, Commands::Health)
+    !matches!(command, Commands::Health | Commands::Setup(_))
 }
 
 fn run_startup_recovery(config: &Config, _json: bool) -> Result<(), common::CiteError> {
-    let data_dir = resolve_data_dir(config);
+    let data_dir = commands::resolve_data_dir(config);
     std::fs::create_dir_all(&data_dir).map_err(|e| common::CiteError::StorageError {
         message: format!("Failed to create data directory: {e}"),
     })?;
@@ -124,14 +132,6 @@ fn run_startup_recovery(config: &Config, _json: bool) -> Result<(), common::Cite
     let db = storage::Database::open(&data_dir)?;
     let _ = engine::recovery::recover_interrupted_processing(&db)?;
     Ok(())
-}
-
-fn resolve_data_dir(config: &Config) -> PathBuf {
-    config.paths.data_dir.clone().unwrap_or_else(|| {
-        dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("cite")
-    })
 }
 
 /// Check if the command is a retrieval/context command that may send data to providers.

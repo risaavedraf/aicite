@@ -2,12 +2,10 @@ use clap::{ArgGroup, Args};
 use common::ExitCode;
 use config::Config;
 use engine::ingest;
-use providers::gemini::GeminiProvider;
-use providers::openai::OpenAICompatibleProvider;
 use providers::EmbeddingProvider;
 use serde::Serialize;
-use std::path::PathBuf;
 
+use super::{create_provider, resolve_data_dir};
 use crate::output::print_json;
 
 #[derive(Args)]
@@ -214,43 +212,4 @@ pub fn execute(args: &IngestArgs, config: &Config, json: bool) -> i32 {
             e.exit_code() as i32
         }
     }
-}
-
-/// Create an embedding provider based on config.
-///
-/// Supported providers:
-/// - `gemini`: Google Gemini API (free tier available)
-/// - `openai-compatible` (default): Any OpenAI-compatible API
-fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, common::CiteError> {
-    let api_key = std::env::var("CITE_EMBEDDING_API_KEY")
-        .or_else(|_| std::env::var("GEMINI_API_KEY"))
-        .or_else(|_| std::env::var("OPENAI_API_KEY"))
-        .unwrap_or_default();
-
-    match config.embedding.provider.as_str() {
-        "gemini" => {
-            let provider = GeminiProvider::new(&config.embedding.model, &api_key)?;
-            Ok(Box::new(provider))
-        }
-        _ => {
-            // Default: OpenAI-compatible
-            let endpoint = config
-                .ingest
-                .embedding_endpoint
-                .as_deref()
-                .unwrap_or("https://api.openai.com/v1/embeddings");
-
-            let provider =
-                OpenAICompatibleProvider::new(endpoint, &config.embedding.model, &api_key)?;
-            Ok(Box::new(provider))
-        }
-    }
-}
-
-fn resolve_data_dir(config: &Config) -> PathBuf {
-    config.paths.data_dir.clone().unwrap_or_else(|| {
-        dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("cite")
-    })
 }

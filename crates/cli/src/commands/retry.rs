@@ -3,8 +3,8 @@ use common::ExitCode;
 use config::Config;
 use engine::ingest;
 use serde::Serialize;
-use std::path::PathBuf;
 
+use super::resolve_data_dir;
 use crate::output::print_json;
 
 #[derive(Args)]
@@ -65,12 +65,4 @@ pub fn execute(args: &RetryArgs, config: &Config, json: bool) -> i32 {
             e.exit_code() as i32
         }
     }
-}
-
-fn resolve_data_dir(config: &Config) -> PathBuf {
-    config.paths.data_dir.clone().unwrap_or_else(|| {
-        dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("cite")
-    })
 }

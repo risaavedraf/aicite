@@ -2,8 +2,8 @@ use clap::Args;
 use common::{CiteError, ExitCode, ReadSelector};
 use config::Config;
 use engine::context;
-use std::path::PathBuf;
 
+use super::resolve_data_dir;
 use crate::output::print_json;
 
 #[derive(Args)]
@@ -132,12 +132,4 @@ fn build_selector(args: &ReadArgs) -> Result<ReadSelector, CiteError> {
             chunk_id,
         })
     }
-}
-
-fn resolve_data_dir(config: &Config) -> PathBuf {
-    config.paths.data_dir.clone().unwrap_or_else(|| {
-        dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("cite")
-    })
 }

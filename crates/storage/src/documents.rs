@@ -1,3 +1,9 @@
+//! Document CRUD operations for the SQLite-backed document store.
+//!
+//! Provides insert, query, update, and recovery methods for [`Document`]
+//! records. All methods operate on the [`Database`] handle
+//! and return [`Result<T, CiteError>`].
+
 use std::path::PathBuf;
 
 use chrono::Utc;
@@ -104,7 +110,44 @@ fn row_to_document(row: &Row<'_>) -> Result<Document, CiteError> {
 // ---------------------------------------------------------------------------
 
 impl Database {
-    /// Insert a new document.
+    /// Insert a new document into the store.
+    ///
+    /// Fails with a SQLite constraint error if a document with the same
+    /// `document_id` already exists.
+    ///
+    /// # Arguments
+    ///
+    /// * `doc` - The document metadata to persist.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` on success, or [`CiteError::StorageError`] on failure.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// // Requires an open Database instance
+    /// use common::types::{Document, DocumentStatus, FileType};
+    /// use chrono::Utc;
+    /// use std::path::PathBuf;
+    ///
+    /// let doc = Document {
+    ///     document_id: "doc-1".to_string(),
+    ///     display_name: "test.txt".to_string(),
+    ///     file_path: PathBuf::from("/test.txt"),
+    ///     file_type: FileType::Txt,
+    ///     file_size_bytes: 100,
+    ///     status: DocumentStatus::Pending,
+    ///     chunk_count: 0,
+    ///     retry_count: 0,
+    ///     max_retry_count: 3,
+    ///     next_retry_at: None,
+    ///     error: None,
+    ///     created_at: Utc::now(),
+    ///     updated_at: Utc::now(),
+    /// };
+    /// db.insert_document(&doc).unwrap();
+    /// ```
     pub fn insert_document(&self, doc: &Document) -> Result<(), CiteError> {
         self.conn
             .execute(
@@ -135,7 +178,23 @@ impl Database {
         Ok(())
     }
 
-    /// Get a document by ID. Returns `None` when not found.
+    /// Retrieve a single document by its identifier.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - The document identifier to look up.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(Some(doc))` if found, `Ok(None)` if no document matches, or
+    /// [`CiteError::StorageError`] on database failure.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let doc = db.get_document("doc-1").unwrap();
+    /// assert!(doc.is_some());
+    /// ```
     pub fn get_document(&self, id: &str) -> Result<Option<Document>, CiteError> {
         let mut stmt = self
             .conn
@@ -151,6 +210,18 @@ impl Database {
     }
 
     /// List all documents ordered by creation time (newest first).
+    ///
+    /// # Returns
+    ///
+    /// `Ok(docs)` with all documents, or [`CiteError::StorageError`] on
+    /// database failure. The returned `Vec` may be empty.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let all = db.list_documents().unwrap();
+    /// println!("{} documents stored", all.len());
+    /// ```
     pub fn list_documents(&self) -> Result<Vec<Document>, CiteError> {
         let mut stmt = self
             .conn
@@ -166,7 +237,26 @@ impl Database {
         Ok(documents)
     }
 
-    /// List documents filtered by status.
+    /// List documents filtered by their pipeline status.
+    ///
+    /// Results are ordered by creation time ascending (oldest first),
+    /// which is useful for FIFO processing of pending work.
+    ///
+    /// # Arguments
+    ///
+    /// * `status` - The [`DocumentStatus`] to filter on.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(docs)` matching the status, or [`CiteError::StorageError`].
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use common::types::DocumentStatus;
+    ///
+    /// let pending = db.list_documents_by_status(DocumentStatus::Pending).unwrap();
+    /// ```
     pub fn list_documents_by_status(
         &self,
         status: DocumentStatus,
@@ -187,7 +277,21 @@ impl Database {
         Ok(documents)
     }
 
-    /// List all documents currently marked as processing.
+    /// List all documents currently marked as `Processing`.
+    ///
+    /// Convenience shorthand equivalent to
+    /// `list_documents_by_status(DocumentStatus::Processing)`.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(docs)` with in-flight documents, or [`CiteError::StorageError`].
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// let in_flight = db.list_processing_documents().unwrap();
+    /// assert!(in_flight.iter().all(|d| d.status == DocumentStatus::Processing));
+    /// ```
     pub fn list_processing_documents(&self) -> Result<Vec<Document>, CiteError> {
         let mut stmt = self
             .conn
@@ -203,7 +307,37 @@ impl Database {
         Ok(documents)
     }
 
-    /// Update the status (and optional error info) of a document.
+    /// Update the status and optional error information of a document.
+    ///
+    /// Also refreshes the `updated_at` timestamp to the current time.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Document identifier to update.
+    /// * `status` - New [`DocumentStatus`].
+    /// * `error` - Optional [`ErrorInfo`] to persist alongside a `Failed` status.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())` on success, or [`CiteError::DocumentNotFound`] if the
+    /// document does not exist.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use common::types::{DocumentStatus, ErrorInfo};
+    ///
+    /// db.update_document_status("doc-1", DocumentStatus::Ready, None).unwrap();
+    ///
+    /// db.update_document_status(
+    ///     "doc-2",
+    ///     DocumentStatus::Failed,
+    ///     Some(ErrorInfo {
+    ///         code: "PARSE_FAILED".to_string(),
+    ///         message: "Corrupt PDF".to_string(),
+    ///     }),
+    /// ).unwrap();
+    /// ```
     pub fn update_document_status(
         &self,
         id: &str,
@@ -233,7 +367,24 @@ impl Database {
         Ok(())
     }
 
-    /// Set the chunk count on a document.
+    /// Set the chunk count on a document after ingestion.
+    ///
+    /// Also refreshes the `updated_at` timestamp.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Document identifier.
+    /// * `count` - Number of chunks produced during ingestion.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())`, or [`CiteError::DocumentNotFound`] if the ID is unknown.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// db.update_document_chunk_count("doc-1", 42).unwrap();
+    /// ```
     pub fn update_document_chunk_count(&self, id: &str, count: u32) -> Result<(), CiteError> {
         let n = self
             .conn
@@ -251,7 +402,27 @@ impl Database {
         Ok(())
     }
 
-    /// Increment retry_count by 1.
+    /// Increment the retry counter on a document by one.
+    ///
+    /// Called when a transient failure triggers a retry. Also refreshes
+    /// the `updated_at` timestamp.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Document identifier.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())`, or [`CiteError::DocumentNotFound`] if the ID is unknown.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// db.increment_retry_count("doc-1").unwrap();
+    /// db.increment_retry_count("doc-1").unwrap();
+    /// let doc = db.get_document("doc-1").unwrap().unwrap();
+    /// assert_eq!(doc.retry_count, 2);
+    /// ```
     pub fn increment_retry_count(&self, id: &str) -> Result<(), CiteError> {
         let n = self
             .conn
@@ -269,7 +440,24 @@ impl Database {
         Ok(())
     }
 
-    /// Reset retry_count back to 0.
+    /// Reset the retry counter on a document back to zero.
+    ///
+    /// Typically called after a successful processing run. Also refreshes
+    /// the `updated_at` timestamp.
+    ///
+    /// # Arguments
+    ///
+    /// * `id` - Document identifier.
+    ///
+    /// # Returns
+    ///
+    /// `Ok(())`, or [`CiteError::DocumentNotFound`] if the ID is unknown.
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// db.reset_retry_count("doc-1").unwrap();
+    /// ```
     pub fn reset_retry_count(&self, id: &str) -> Result<(), CiteError> {
         let n = self
             .conn
@@ -287,7 +475,37 @@ impl Database {
         Ok(())
     }
 
-    /// Recover processing documents only when the ingest lock is not currently held.
+    /// Recover orphaned "processing" documents when no active ingest lock
+    /// is held.
+    ///
+    /// If the pipeline crashed mid-processing, some documents may be stuck
+    /// in `Processing` status. This method marks them as `Failed` with the
+    /// provided error info **only** when the named lock is not currently
+    /// acquired — preventing interference with a legitimately running ingest.
+    ///
+    /// # Arguments
+    ///
+    /// * `lock_name` - The durable lock to check (e.g. `"ingest_pipeline"`).
+    /// * `error` - [`ErrorInfo`] to record on recovered documents.
+    ///
+    /// # Returns
+    ///
+    /// The number of documents recovered, or [`CiteError::StorageError`].
+    ///
+    /// # Examples
+    ///
+    /// ```ignore
+    /// use common::types::ErrorInfo;
+    ///
+    /// let recovered = db.recover_processing_documents_if_lock_free(
+    ///     "ingest_pipeline",
+    ///     &ErrorInfo {
+    ///         code: "interrupted_processing_recovered".to_string(),
+    ///         message: "Recovered".to_string(),
+    ///     },
+    /// ).unwrap();
+    /// println!("Recovered {} documents", recovered);
+    /// ```
     pub fn recover_processing_documents_if_lock_free(
         &self,
         lock_name: &str,

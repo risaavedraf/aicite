@@ -123,8 +123,8 @@ impl Default for IngestConfig {
             embedding_timeout_secs: 30,
             embedding_endpoint: None,
             sentence_chunking: false,
-            min_chunk_chars: 30,
-            max_chunk_chars: 200,
+            min_chunk_chars: default_min_chunk_chars(),
+            max_chunk_chars: default_max_chunk_chars(),
             build_hierarchy: false,
         }
     }

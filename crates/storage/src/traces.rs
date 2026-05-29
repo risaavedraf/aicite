@@ -5,33 +5,8 @@ use common::types::{
 use common::CiteError;
 use rusqlite::params;
 
-use crate::util::{parse_dt, storage_err};
+use crate::util::{parse_dt, row_to_chunk, storage_err};
 use crate::Database;
-
-fn row_to_chunk(row: &rusqlite::Row<'_>) -> Result<Chunk, CiteError> {
-    let created_at_str: String = row.get("created_at").map_err(storage_err)?;
-
-    Ok(Chunk {
-        chunk_id: row.get("chunk_id").map_err(storage_err)?,
-        document_id: row.get("document_id").map_err(storage_err)?,
-        section_id: row.get("section_id").map_err(storage_err)?,
-        chunk_index: row.get::<_, i64>("chunk_index").map_err(storage_err)? as u32,
-        text: row.get("text").map_err(storage_err)?,
-        page: row
-            .get::<_, Option<i64>>("page")
-            .map_err(storage_err)?
-            .map(|v| v as u32),
-        offset_start: row
-            .get::<_, Option<i64>>("offset_start")
-            .map_err(storage_err)?
-            .map(|v| v as u32),
-        offset_end: row
-            .get::<_, Option<i64>>("offset_end")
-            .map_err(storage_err)?
-            .map(|v| v as u32),
-        created_at: parse_dt(&created_at_str)?,
-    })
-}
 
 impl Database {
     /// Persist a trace header and its citations atomically.

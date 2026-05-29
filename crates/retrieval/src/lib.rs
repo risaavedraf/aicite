@@ -1,5 +1,41 @@
+//! Retrieval and ranking utilities for the AI Cite pipeline.
+//!
+//! Provides cosine similarity computation and top-k ranking of chunk
+//! embeddings. These are the core math operations behind context pack
+//! assembly.
+
 use storage::embeddings::ChunkEmbeddingRecord;
 
+/// A text chunk paired with its retrieval relevance score.
+///
+/// Produced by [`rank_by_similarity`] when comparing a query embedding
+/// against candidate chunk embeddings. Fields mirror
+/// [`ChunkEmbeddingRecord`]
+/// with the addition of `score` and optional hierarchy metadata.
+///
+/// # Examples
+///
+/// ```
+/// use retrieval::ScoredChunk;
+///
+/// let chunk = ScoredChunk {
+///     chunk_id: "c1".to_string(),
+///     document_id: "d1".to_string(),
+///     display_name: "doc.txt".to_string(),
+///     section_id: None,
+///     chunk_index: 0,
+///     text: "hello".to_string(),
+///     page: None,
+///     offset_start: None,
+///     offset_end: None,
+///     score: 0.95,
+///     topic_id: None,
+///     topic_name: None,
+///     concept_id: None,
+///     concept_name: None,
+/// };
+/// assert!(chunk.score > 0.9);
+/// ```
 #[derive(Debug, Clone)]
 pub struct ScoredChunk {
     pub chunk_id: String,
@@ -22,9 +58,44 @@ pub struct ScoredChunk {
     pub concept_name: Option<String>,
 }
 
-/// Cosine similarity in [-1, 1].
+/// Computes the cosine similarity between two f32 vectors.
 ///
-/// Returns None when dimensions differ or either vector has zero norm.
+/// Returns a value in `[-1.0, 1.0]` where `1.0` means identical direction
+/// and `-1.0` means opposite direction.
+///
+/// Returns `None` when:
+/// - The vectors have different lengths.
+/// - Either vector is empty.
+/// - Either vector has zero norm (all zeros).
+///
+/// The implementation uses `f64` internally to reduce floating-point
+/// accumulation errors on long vectors.
+///
+/// # Arguments
+///
+/// * `a` - First embedding vector.
+/// * `b` - Second embedding vector (must have the same length as `a`).
+///
+/// # Returns
+///
+/// `Some(similarity)` in `[-1.0, 1.0]`, or `None` on invalid input.
+///
+/// # Examples
+///
+/// ```
+/// use retrieval::cosine_similarity;
+///
+/// // Identical vectors → similarity = 1.0
+/// let sim = cosine_similarity(&[1.0, 0.0], &[1.0, 0.0]).unwrap();
+/// assert!((sim - 1.0).abs() < 1e-6);
+///
+/// // Orthogonal vectors → similarity = 0.0
+/// let sim = cosine_similarity(&[1.0, 0.0], &[0.0, 1.0]).unwrap();
+/// assert!((sim - 0.0).abs() < 1e-6);
+///
+/// // Dimension mismatch → None
+/// assert!(cosine_similarity(&[1.0], &[1.0, 2.0]).is_none());
+/// ```
 pub fn cosine_similarity(a: &[f32], b: &[f32]) -> Option<f32> {
     if a.len() != b.len() || a.is_empty() {
         return None;
@@ -49,7 +120,35 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> Option<f32> {
     Some((dot / (norm_a.sqrt() * norm_b.sqrt())) as f32)
 }
 
-/// Rank candidate chunk embeddings by cosine similarity and return top-k.
+/// Rank candidate chunks by cosine similarity to a query embedding and
+/// return the top `k` results in descending score order.
+///
+/// Candidates whose embeddings differ in dimension from the query or have
+/// zero norm are silently skipped (they would return `None` from
+/// [`cosine_similarity`]).
+///
+/// # Arguments
+///
+/// * `query_vector` - The embedding of the user query.
+/// * `candidates` - Slice of chunk embedding records to rank.
+/// * `k` - Maximum number of results to return.
+///
+/// # Returns
+///
+/// A `Vec<ScoredChunk>` of at most `k` items, sorted by descending
+/// cosine similarity score.
+///
+/// # Examples
+///
+/// ```ignore
+/// // Requires ChunkEmbeddingRecord from storage::embeddings
+/// use retrieval::rank_by_similarity;
+///
+/// let query = vec![1.0, 0.0, 0.0];
+/// // let candidates = vec![ ... ]; // ChunkEmbeddingRecords
+/// let top = rank_by_similarity(&query, &candidates, 2);
+/// assert!(top.len() <= 2);
+/// ```
 pub fn rank_by_similarity(
     query_vector: &[f32],
     candidates: &[ChunkEmbeddingRecord],

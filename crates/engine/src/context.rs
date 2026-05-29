@@ -6,11 +6,11 @@ use common::types::{
 use common::CiteError;
 use config::{RateLimitConfig, RetrievalConfig};
 use providers::EmbeddingProvider;
-use retrieval::rank_by_similarity;
 use storage::Database;
 use uuid::Uuid;
 
-use crate::retrieve::{build_breadcrumb, fetch_candidates, resolve_k, validate_query};
+use crate::retrieve::{build_breadcrumb, ranked_candidates, resolve_k, RetrievalRequest};
+use retrieval::ScoredChunk;
 
 const SCHEMA_VERSION: &str = "context-v1";
 const DISCLAIMER: &str =
@@ -25,7 +25,6 @@ const CORPUS_INDEX_STATE: &str = "ready";
 const CAUTION_TEXT: &str =
     "The following citations may be low-confidence or partially cover the query. \
      Verify claims against source documents before relying on them.";
-const CONTEXT_ROUTE: &str = "context";
 
 // ---------------------------------------------------------------------------
 // Result-kind computation
@@ -68,16 +67,28 @@ fn compute_result_kind(
 
 fn required_facets_for_query(query: &str) -> u32 {
     let q = query.to_lowercase();
-    if q.contains(" and ") || q.contains(" y ") {
+
+    // Detect multi-facet queries via conjunctions in common languages.
+    // "and" (English), "y" (Spanish), "et" (French), "und" (German),
+    // "e" (Portuguese/Italian), "en" (Dutch)
+    if q.contains(" and ")
+        || q.contains(" y ")
+        || q.contains(" et ")
+        || q.contains(" und ")
+        || q.contains(" e ")
+        || q.contains(" en ")
+    {
+        return 2;
+    }
+
+    // Heuristic: comma-separated clauses with >10 chars each likely represent
+    // distinct sub-questions. The threshold of 10 avoids counting short filler
+    // phrases like "A, B" as separate facets.
+    let clause_count = q.split(',').filter(|c| c.trim().len() > 10).count();
+    if clause_count >= 2 {
         2
     } else {
-        // Count comma-separated clauses that look like distinct questions
-        let clause_count = q.split(',').filter(|c| c.trim().len() > 10).count();
-        if clause_count >= 2 {
-            2
-        } else {
-            1
-        }
+        1
     }
 }
 
@@ -93,29 +104,15 @@ fn confidence_label_for(top_score: f32, threshold: f32) -> Option<String> {
 // Public API: build_context
 // ---------------------------------------------------------------------------
 
-/// Build a context pack from a retrieval query.
-#[allow(clippy::too_many_arguments)]
-pub fn build_context(
-    db: &Database,
-    provider: &dyn EmbeddingProvider,
-    config: &RetrievalConfig,
-    rate_limit: &RateLimitConfig,
-    query: &str,
-    k_override: Option<u32>,
-    topic_filter: Option<&str>,
-    concept_filter: Option<&str>,
-) -> Result<ContextResponse, CiteError> {
-    let start = std::time::Instant::now();
-    let k = resolve_k(config, k_override)?;
-    validate_query(query)?;
-    enforce_rate_limit(db, provider, rate_limit)?;
-
-    // Check corpus readiness
+/// Validate that the corpus has at least one ready document.
+///
+/// Returns `(non_ready_ids, ready_count)` or an error if no documents are ready.
+fn validate_corpus_ready(db: &Database) -> Result<(Vec<String>, u32), CiteError> {
     let non_ready_ids = db.list_non_ready_document_ids()?;
     let all_docs = db.list_documents()?;
     let ready_count = all_docs
         .iter()
-        .filter(|d| d.status == super::common_status_ready())
+        .filter(|d| d.status == common::types::DocumentStatus::Ready)
         .count() as u32;
 
     if ready_count == 0 {
@@ -124,104 +121,74 @@ pub fn build_context(
         });
     }
 
-    // Embed query and rank
-    let query_vector = provider.embed(query)?;
-    let (candidates, hierarchy_meta) = fetch_candidates(db, config, topic_filter, concept_filter)?;
-    let ranked = rank_by_similarity(&query_vector, &candidates, k as usize);
-    let ranked = if let Some(ref meta) = hierarchy_meta {
-        crate::retrieve::enrich_with_hierarchy(ranked, meta)
-    } else {
-        ranked
-    };
+    Ok((non_ready_ids, ready_count))
+}
 
-    let trace_id = format!("trace_{}", Uuid::new_v4());
-    let query_id = format!("qry_{}", Uuid::new_v4());
-    let context_pack_id = format!("ctx_{}", Uuid::new_v4());
+/// Build citations from ranked retrieval hits.
+///
+/// Returns an empty vector when `result_kind` is `NoResults`.
+fn build_citations_from_ranked(
+    ranked: &[ScoredChunk],
+    result_kind: &ResultKind,
+    threshold: f32,
+) -> Vec<Citation> {
+    if *result_kind == ResultKind::NoResults {
+        return vec![];
+    }
 
-    let top_score = ranked.first().map(|r| r.score).unwrap_or(0.0);
-    let threshold = config.confidence_threshold as f32;
-
-    // Count distinct cited chunks above confidence threshold
-    let cited_above_threshold: u32 = ranked
+    ranked
         .iter()
-        .filter(|r| r.score >= threshold)
-        .map(|r| r.chunk_id.as_str())
-        .collect::<std::collections::HashSet<_>>()
-        .len() as u32;
+        .enumerate()
+        .map(|(i, hit)| {
+            let label = if *result_kind == ResultKind::InsufficientContext {
+                confidence_label_for(hit.score, threshold)
+                    .or_else(|| Some("partial_coverage".into()))
+            } else {
+                None
+            };
 
-    let (result_kind, insufficient_reason) =
-        compute_result_kind(top_score, config, query, cited_above_threshold);
-
-    // Build citations (empty for no_results)
-    let citations: Vec<Citation> = if result_kind == ResultKind::NoResults {
-        vec![]
-    } else {
-        ranked
-            .iter()
-            .enumerate()
-            .map(|(i, hit)| {
-                let label = if result_kind == ResultKind::InsufficientContext {
-                    confidence_label_for(hit.score, threshold)
-                        .or_else(|| Some("partial_coverage".into()))
+            Citation {
+                citation_id: format!("c{}", i + 1),
+                document_id: hit.document_id.clone(),
+                display_name: hit.display_name.clone(),
+                chunk_id: hit.chunk_id.clone(),
+                page: hit.page,
+                offset: match (hit.offset_start, hit.offset_end) {
+                    (Some(s), Some(e)) => Some(OffsetRange { start: s, end: e }),
+                    _ => None,
+                },
+                text: hit.text.clone(),
+                score: Some(hit.score as f64),
+                confidence_label: label,
+                topic_name: hit.topic_name.clone(),
+                concept_name: hit.concept_name.clone(),
+                breadcrumb: if hit.topic_name.is_some() || hit.concept_name.is_some() {
+                    Some(build_breadcrumb(
+                        &hit.display_name,
+                        hit.topic_name.as_deref(),
+                        hit.concept_name.as_deref(),
+                    ))
                 } else {
                     None
-                };
+                },
+            }
+        })
+        .collect()
+}
 
-                Citation {
-                    citation_id: format!("c{}", i + 1),
-                    document_id: hit.document_id.clone(),
-                    display_name: hit.display_name.clone(),
-                    chunk_id: hit.chunk_id.clone(),
-                    page: hit.page,
-                    offset: match (hit.offset_start, hit.offset_end) {
-                        (Some(s), Some(e)) => Some(OffsetRange { start: s, end: e }),
-                        _ => None,
-                    },
-                    text: hit.text.clone(),
-                    score: Some(hit.score as f64),
-                    confidence_label: label,
-                    topic_name: hit.topic_name.clone(),
-                    concept_name: hit.concept_name.clone(),
-                    breadcrumb: if hit.topic_name.is_some() || hit.concept_name.is_some() {
-                        Some(build_breadcrumb(
-                            &hit.display_name,
-                            hit.topic_name.as_deref(),
-                            hit.concept_name.as_deref(),
-                        ))
-                    } else {
-                        None
-                    },
-                }
-            })
-            .collect()
-    };
-
-    let latency_ms = start.elapsed().as_millis() as u64;
-    let excluded_non_ready_count = non_ready_ids.len() as u32;
-
-    let metadata = ContextMetadata {
-        schema_version: SCHEMA_VERSION.into(),
-        created_at: Utc::now(),
-        retrieved_chunks: ranked.len() as u32,
-        evidence_floor: config.evidence_floor,
-        confidence_threshold: config.confidence_threshold,
-        ranking_method: RANKING_METHOD_DEFAULT.into(),
-        top_score: Some(top_score),
-        corpus_index_state: CORPUS_INDEX_STATE.into(),
-        ready_document_count: ready_count,
-        excluded_non_ready_document_count: excluded_non_ready_count,
-        excluded_non_ready_document_ids: non_ready_ids,
-        latency_ms,
-        disclaimer: DISCLAIMER.into(),
-        insufficient_context_reason: insufficient_reason,
-        caution: if result_kind == ResultKind::InsufficientContext {
-            Some(CAUTION_TEXT.into())
-        } else {
-            None
-        },
-    };
-
-    // Persist trace + citations
+/// Persist trace header and citations to the database.
+#[allow(clippy::too_many_arguments)]
+fn persist_trace(
+    db: &Database,
+    citations: &[Citation],
+    ranked: &[ScoredChunk],
+    trace_id: &str,
+    query_id: &str,
+    context_pack_id: &str,
+    k: u32,
+    config: &RetrievalConfig,
+    latency_ms: u64,
+) -> Result<(), CiteError> {
     let citation_ids_str = if citations.is_empty() {
         None
     } else {
@@ -245,7 +212,7 @@ pub fn build_context(
     let trace_citations: Vec<TraceCitationRecord> = citations
         .iter()
         .map(|c| TraceCitationRecord {
-            trace_id: trace_id.clone(),
+            trace_id: trace_id.to_string(),
             citation_id: c.citation_id.clone(),
             document_id: c.document_id.clone(),
             display_name: c.display_name.clone(),
@@ -261,9 +228,9 @@ pub fn build_context(
 
     db.persist_trace_with_citations(
         &TraceHeaderInput {
-            trace_id: trace_id.clone(),
-            query_id: Some(query_id.clone()),
-            context_pack_id: Some(context_pack_id.clone()),
+            trace_id: trace_id.to_string(),
+            query_id: Some(query_id.to_string()),
+            context_pack_id: Some(context_pack_id.to_string()),
             request_type: "context".into(),
             document_ids: Some(document_ids_str),
             citation_ids: citation_ids_str,
@@ -274,7 +241,81 @@ pub fn build_context(
             latency_ms: Some(latency_ms),
         },
         &trace_citations,
+    )
+}
+
+/// Build a context pack from a retrieval query.
+#[allow(clippy::too_many_arguments)]
+pub fn build_context(
+    db: &Database,
+    provider: &dyn EmbeddingProvider,
+    config: &RetrievalConfig,
+    rate_limit: &RateLimitConfig,
+    query: &str,
+    k_override: Option<u32>,
+    topic_filter: Option<&str>,
+    concept_filter: Option<&str>,
+) -> Result<ContextResponse, CiteError> {
+    let start = std::time::Instant::now();
+    let k = resolve_k(config, k_override)?;
+
+    // Validate corpus readiness
+    let (non_ready_ids, ready_count) = validate_corpus_ready(db)?;
+
+    // Run retrieval pipeline
+    let req = RetrievalRequest {
+        db,
+        provider,
+        config,
+        rate_limit,
+        query,
+        k_override,
+        topic_filter,
+        concept_filter,
+    };
+    let ranked = ranked_candidates(&req, "context")?;
+
+    let trace_id = format!("trace_{}", Uuid::new_v4());
+    let query_id = format!("qry_{}", Uuid::new_v4());
+    let context_pack_id = format!("ctx_{}", Uuid::new_v4());
+
+    let top_score = ranked.first().map(|r| r.score).unwrap_or(0.0);
+    let threshold = config.confidence_threshold as f32;
+
+    // Count distinct cited chunks above confidence threshold
+    let cited_above_threshold: u32 = ranked
+        .iter()
+        .filter(|r| r.score >= threshold)
+        .map(|r| r.chunk_id.as_str())
+        .collect::<std::collections::HashSet<_>>()
+        .len() as u32;
+
+    let (result_kind, insufficient_reason) =
+        compute_result_kind(top_score, config, query, cited_above_threshold);
+
+    // Build citations
+    let citations = build_citations_from_ranked(&ranked, &result_kind, threshold);
+
+    // Persist trace
+    let latency_ms = start.elapsed().as_millis() as u64;
+    persist_trace(
+        db,
+        &citations,
+        &ranked,
+        &trace_id,
+        &query_id,
+        &context_pack_id,
+        k,
+        config,
+        latency_ms,
     )?;
+
+    // Assemble response
+    let caution = if result_kind == ResultKind::InsufficientContext {
+        Some(CAUTION_TEXT.into())
+    } else {
+        None
+    };
 
     Ok(ContextResponse {
         context_pack_id,
@@ -283,34 +324,29 @@ pub fn build_context(
         trace_id,
         instructions: AGENT_INSTRUCTIONS.into(),
         citations,
-        metadata,
+        metadata: ContextMetadata {
+            schema_version: SCHEMA_VERSION.into(),
+            created_at: Utc::now(),
+            retrieved_chunks: ranked.len() as u32,
+            evidence_floor: config.evidence_floor,
+            confidence_threshold: config.confidence_threshold,
+            ranking_method: RANKING_METHOD_DEFAULT.into(),
+            top_score: Some(top_score),
+            corpus_index_state: CORPUS_INDEX_STATE.into(),
+            ready_document_count: ready_count,
+            excluded_non_ready_document_count: non_ready_ids.len() as u32,
+            excluded_non_ready_document_ids: non_ready_ids,
+            latency_ms,
+            disclaimer: DISCLAIMER.into(),
+            insufficient_context_reason: insufficient_reason,
+            caution,
+        },
     })
 }
 
 // ---------------------------------------------------------------------------
 // Public API: read_context
 // ---------------------------------------------------------------------------
-
-fn enforce_rate_limit(
-    db: &Database,
-    provider: &dyn EmbeddingProvider,
-    rate_limit: &RateLimitConfig,
-) -> Result<(), CiteError> {
-    let key = provider.provider_id();
-    match db.check_and_increment_rate_limit(
-        CONTEXT_ROUTE,
-        key,
-        rate_limit.max_requests,
-        rate_limit.window_seconds,
-    )? {
-        storage::rate_limits::RateLimitDecision::Allowed => Ok(()),
-        storage::rate_limits::RateLimitDecision::Blocked {
-            retry_after_seconds,
-        } => Err(CiteError::RateLimitExceeded {
-            retry_after_seconds,
-        }),
-    }
-}
 
 /// Resolve a read request by citation or chunk selector.
 pub fn read_context(db: &Database, selector: ReadSelector) -> Result<ReadResponse, CiteError> {

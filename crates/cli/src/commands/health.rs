@@ -3,7 +3,7 @@ use config::Config;
 use serde::Serialize;
 use std::time::Instant;
 
-use super::{create_provider, resolve_data_dir};
+use super::{create_provider, resolve_api_key, resolve_data_dir};
 use crate::output::print_json;
 
 #[derive(Serialize)]
@@ -99,14 +99,7 @@ fn build_health_output(
 }
 
 fn check_api_key(config: &Config) -> ApiKeyStatus {
-    // Check env vars first (same precedence as create_provider)
-    let key = std::env::var("CITE_EMBEDDING_API_KEY")
-        .or_else(|_| std::env::var("GEMINI_API_KEY"))
-        .or_else(|_| std::env::var("OPENAI_API_KEY"))
-        .ok()
-        .or_else(|| config.embedding.api_key.clone());
-
-    match key {
+    match resolve_api_key(config) {
         Some(k) if !k.is_empty() => {
             let masked = mask_key(&k);
             ApiKeyStatus {
@@ -132,11 +125,7 @@ fn mask_key(key: &str) -> String {
 }
 
 fn check_provider(config: &Config) -> ProviderHealth {
-    let api_key = std::env::var("CITE_EMBEDDING_API_KEY")
-        .or_else(|_| std::env::var("GEMINI_API_KEY"))
-        .or_else(|_| std::env::var("OPENAI_API_KEY"))
-        .ok()
-        .or_else(|| config.embedding.api_key.clone());
+    let api_key = resolve_api_key(config);
 
     // No key → skip provider test
     if api_key.is_none() || api_key.as_deref() == Some("") {

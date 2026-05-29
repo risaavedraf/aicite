@@ -1,4 +1,5 @@
 use crate::types::{Concept, HeadingSpan, Topic};
+use chrono::Utc;
 
 /// A topic with its nested concepts and chunk assignments.
 #[derive(Debug, Clone)]
@@ -45,7 +46,7 @@ pub fn build_hierarchy(
             summary: None,
             embedding: None,
             chunk_count: chunk_offsets.len() as i64,
-            created_at: String::new(),
+            created_at: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         };
 
         let all_indices: Vec<usize> = (0..chunk_offsets.len()).collect();
@@ -56,7 +57,7 @@ pub fn build_hierarchy(
             summary: None,
             embedding: None,
             chunk_count: all_indices.len() as i64,
-            created_at: String::new(),
+            created_at: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         };
 
         return HierarchyResult {
@@ -85,7 +86,7 @@ pub fn build_hierarchy(
                 summary: None,
                 embedding: None,
                 chunk_count: 0,
-                created_at: String::new(),
+                created_at: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             };
             topics.push(TopicWithConcepts {
                 topic,
@@ -95,26 +96,27 @@ pub fn build_hierarchy(
             current_concept_idx = 0;
         } else if heading.level == 3 && !topics.is_empty() {
             // H3 = Concept within current topic
-            let topic = topics.last_mut().unwrap();
-            let concept = Concept {
-                concept_id: format!(
-                    "concept_{}_{}_{}",
-                    document_id,
-                    current_topic_idx - 1,
-                    current_concept_idx
-                ),
-                topic_id: topic.topic.topic_id.clone(),
-                name: heading.title.clone(),
-                summary: None,
-                embedding: None,
-                chunk_count: 0,
-                created_at: String::new(),
-            };
-            topic.concepts.push(ConceptWithChunks {
-                concept,
-                chunk_indices: Vec::new(),
-            });
-            current_concept_idx += 1;
+            if let Some(topic) = topics.last_mut() {
+                let concept = Concept {
+                    concept_id: format!(
+                        "concept_{}_{}_{}",
+                        document_id,
+                        current_topic_idx - 1,
+                        current_concept_idx
+                    ),
+                    topic_id: topic.topic.topic_id.clone(),
+                    name: heading.title.clone(),
+                    summary: None,
+                    embedding: None,
+                    chunk_count: 0,
+                    created_at: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                };
+                topic.concepts.push(ConceptWithChunks {
+                    concept,
+                    chunk_indices: Vec::new(),
+                });
+                current_concept_idx += 1;
+            }
         }
         // H1, H4+ are ignored
     }
@@ -131,7 +133,7 @@ pub fn build_hierarchy(
             summary: None,
             embedding: None,
             chunk_count: 0,
-            created_at: String::new(),
+            created_at: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         };
         topics.push(TopicWithConcepts {
             topic,

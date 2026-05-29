@@ -86,7 +86,7 @@ cite evaluate
 ### Step 1: Clone and build
 
 ```bash
-git clone https://github.com/your-org/aicite.git
+git clone https://github.com/risaavedraf/aicite.git
 cd aicite
 cargo build --release
 ```

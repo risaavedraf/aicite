@@ -67,7 +67,10 @@ fn extract_pdf_text(path: &Path) -> Result<ExtractionResult, CiteError> {
     let mut total_chars = 0usize;
 
     for &page_num in pages_map.keys() {
-        let text = doc.extract_text(&[page_num]).unwrap_or_default();
+        let text = doc.extract_text(&[page_num]).unwrap_or_else(|e| {
+            eprintln!("Warning: Failed to extract text from page {page_num}: {e}");
+            String::new()
+        });
         total_chars += text.len();
         pages.push(PageText {
             page: page_num,

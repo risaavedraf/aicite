@@ -15,18 +15,6 @@ use uuid::Uuid;
 /// Ingest handles document extraction, chunking, and embedding
 pub struct Ingest;
 
-impl Ingest {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Default for Ingest {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// Ingest a document: chunk text, store chunks, and optionally build hierarchy.
 ///
 /// When `config.sentence_chunking` is true, uses sentence-based chunking
@@ -48,11 +36,7 @@ pub fn ingest_document(
 ) -> Result<Vec<String>, CiteError> {
     // 1. Chunk the text based on config
     let raw_chunks: Vec<chunker::ChunkInput> = if config.sentence_chunking {
-        let sentence_chunks = sentence_chunker::chunk_by_sentence(
-            text,
-            config.min_chunk_chars,
-            config.max_chunk_chars,
-        );
+        let sentence_chunks = sentence_chunker::chunk_by_sentence(text, config.min_chunk_chars);
         sentence_chunks
             .into_iter()
             .enumerate()

@@ -21,9 +21,3 @@ pub enum ExitCode {
     /// Rate limit exceeded
     RateLimitExceeded = 7,
 }
-
-impl From<ExitCode> for i32 {
-    fn from(code: ExitCode) -> Self {
-        code as i32
-    }
-}

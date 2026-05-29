@@ -4,7 +4,7 @@ use config::Config;
 use engine::ingest;
 use serde::Serialize;
 
-use super::resolve_data_dir;
+use super::CommandContext;
 use crate::output::print_json;
 
 #[derive(Args)]
@@ -32,20 +32,12 @@ struct ErrorOutput {
 }
 
 pub fn execute(args: &GetArgs, config: &Config, json: bool) -> i32 {
-    let data_dir = resolve_data_dir(config);
-    let db = match storage::Database::open(&data_dir) {
-        Ok(db) => db,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
-        }
+    let ctx = match CommandContext::open_db_only(config, json) {
+        Ok(ctx) => ctx,
+        Err(code) => return code,
     };
 
-    match ingest::get_document(&db, &args.document_id) {
+    match ingest::get_document(&ctx.db, &args.document_id) {
         Ok(doc) => {
             let output = GetOutput {
                 document_id: doc.document_id,

@@ -15,22 +15,20 @@ pub struct IngestBacklogItem {
     pub status: String,
 }
 
-fn strip_windows_extended_prefix(path_str: String) -> String {
-    if let Some(stripped) = path_str.strip_prefix(r"\\?\") {
-        stripped.to_string()
-    } else {
-        path_str
-    }
+fn strip_windows_extended_prefix(path_str: &str) -> &str {
+    path_str.strip_prefix(r"\\?\").unwrap_or(path_str)
 }
 
 fn normalize_source_path(path: &Path) -> String {
     let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    strip_windows_extended_prefix(canonical.to_string_lossy().to_string()).replace('\\', "/")
+    let lossy = canonical.to_string_lossy();
+    strip_windows_extended_prefix(&lossy).replace('\\', "/")
 }
 
 fn source_path_for_storage(path: &Path) -> String {
     let canonical = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    strip_windows_extended_prefix(canonical.to_string_lossy().to_string())
+    let lossy = canonical.to_string_lossy();
+    strip_windows_extended_prefix(&lossy).to_owned()
 }
 
 fn build_idempotency_key(path: &Path) -> String {

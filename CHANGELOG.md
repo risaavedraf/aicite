@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.2.2 (2026-05-29)
+
+### Critical fixes
+
+- **unwrap() in production code** — Replaced `.unwrap()` calls on `Option<Provider>` in `trace.rs` and `search.rs` with `match` that returns `ExitCode::Validation` and a descriptive error. Prevents CLI panics when provider is unavailable.
+
+### Improvements
+
+- **Refactored `build_context`** — Extracted `validate_corpus_ready()`, `build_citations_from_ranked()`, and `persist_trace()` helpers from the 212-line monolith. Public API unchanged, all 17 context tests pass.
+- **DRY fix: API key resolution** — Extracted `resolve_api_key()` shared helper in `commands/mod.rs`, eliminating duplicated env var precedence chain in `health.rs`.
+- **Doc comments on public APIs** — Added `///` documentation with examples to all public types in `common`, `retrieval`, `graph`, and `storage` crates (40+ APIs documented).
+- **Newtype wrappers** — Added `DocumentId`, `ChunkId`, `TraceId` in `common/src/types.rs` with `Display`, `From<String>`, `AsRef<str>`, `Serialize`, `Deserialize` and standard derives. Ready for incremental adoption.
+- **12 doc tests** — Added compilable doc examples across `common`, `retrieval`, `graph`, and `storage` crates.
+
+### Code quality
+
+- Ran comprehensive code quality review with Clean Code, Rust Idioms, and GitHub Structure references.
+- All 260 tests pass, zero compiler warnings, clippy clean.
+
 ## v0.2.1 (2026-05-28)
 
 ### Fixes

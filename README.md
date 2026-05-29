@@ -1,3 +1,7 @@
+[![CI](https://github.com/risaavedraf/aicite/actions/workflows/ci.yml/badge.svg)](https://github.com/risaavedraf/aicite/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/risaavedraf/aicite)](https://github.com/risaavedraf/aicite/releases)
+
 # AI Cite CLI
 
 CLI-first semantic document engine for AI agents. Ingest private documents, retrieve cited context through stable CLI commands.
@@ -118,7 +122,7 @@ The packaged demo runs in `public_packaged_demo` mode: uploads are disabled and 
 
 ```bash
 # 1. Clone and build
-git clone https://github.com/your-org/aicite.git
+git clone https://github.com/risaavedraf/aicite.git
 cd aicite
 cargo build --release
 

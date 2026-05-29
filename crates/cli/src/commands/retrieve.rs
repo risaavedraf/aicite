@@ -2,10 +2,9 @@ use clap::Args;
 use common::ExitCode;
 use config::Config;
 use engine::retrieve;
-use providers::EmbeddingProvider;
 use serde::Serialize;
 
-use super::{create_provider, resolve_data_dir};
+use super::CommandContext;
 use crate::output::{print_json, to_compact_retrieve};
 
 #[derive(Args)]
@@ -73,30 +72,12 @@ pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
         return common::ExitCode::Validation as i32;
     }
 
-    let data_dir = resolve_data_dir(config);
-    let db = match storage::Database::open(&data_dir) {
-        Ok(db) => db,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
-        }
+    let ctx = match CommandContext::open(config, json) {
+        Ok(ctx) => ctx,
+        Err(code) => return code,
     };
-
-    let provider: Box<dyn EmbeddingProvider> = match create_provider(config) {
-        Ok(p) => p,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
-        }
-    };
+    let db = &ctx.db;
+    let provider = ctx.provider.as_ref().unwrap();
 
     let mut retrieval_config = config.retrieval.clone();
     if args.flat {
@@ -107,7 +88,7 @@ pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
     let concept_filter = args.concept.as_deref();
 
     match retrieve::retrieve(
-        &db,
+        db,
         provider.as_ref(),
         &retrieval_config,
         &config.rate_limit,

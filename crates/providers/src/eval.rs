@@ -23,7 +23,7 @@ pub struct EvalProvider;
 impl EvalProvider {
     /// Compute a topic-based vector from text content.
     /// Uses keyword detection to assign weights to each dimension.
-    pub(crate) fn compute_vector(text: &str) -> Vec<f32> {
+    pub fn compute_vector(text: &str) -> Vec<f32> {
         let lower = text.to_lowercase();
         let mut vec = vec![0.0f32; DIM];
 

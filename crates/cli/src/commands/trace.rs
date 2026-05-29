@@ -1,11 +1,9 @@
+use super::CommandContext;
+use crate::output::print_json;
 use clap::Args;
 use common::ExitCode;
 use config::Config;
 use engine::context;
-use providers::EmbeddingProvider;
-
-use super::{create_provider, resolve_data_dir};
-use crate::output::print_json;
 
 #[derive(Args)]
 pub struct TraceArgs {
@@ -14,32 +12,20 @@ pub struct TraceArgs {
 }
 
 pub fn execute(args: &TraceArgs, config: &Config, json: bool) -> i32 {
-    let data_dir = resolve_data_dir(config);
-    let db = match storage::Database::open(&data_dir) {
-        Ok(db) => db,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
+    let ctx = match CommandContext::open(config, json) {
+        Ok(ctx) => ctx,
+        Err(code) => return code,
+    };
+    let db = &ctx.db;
+    let provider = match ctx.provider.as_ref() {
+        Some(p) => p,
+        None => {
+            eprintln!("Error: embedding provider not configured");
+            return ExitCode::Validation as i32;
         }
     };
 
-    let provider: Box<dyn EmbeddingProvider> = match create_provider(config) {
-        Ok(p) => p,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
-        }
-    };
-
-    match context::get_trace(&db, provider.as_ref(), &args.trace_id) {
+    match context::get_trace(db, provider.as_ref(), &args.trace_id) {
         Ok(response) => {
             if json {
                 print_json(&response);

@@ -31,3 +31,10 @@ Thumbs.db
 .pi/
 .pi-lens/
 .atl/
+
+# Temp files
+*.tmp
+temp_*
+*~
+
+skills

@@ -103,30 +103,11 @@ pub fn sanitize_display_name(name: &str) -> String {
 /// Check that a path is safe for file access.
 ///
 /// Rejects path traversal (`..`), UNC paths (`\\`), and device file paths (`/dev/`).
+///
+/// This is the pre-canonicalization check. After canonicalization, use
+/// `reject_network_path` and `reject_device_path` on the resolved path.
 pub fn is_path_safe(path: &Path) -> Result<(), CiteError> {
-    let path_str = path.to_string_lossy();
-
-    // Reject UNC / network paths (\\server or //server)
-    // but allow Windows extended-length paths (\\?\...)
-    if path_str.starts_with("\\\\") && !path_str.starts_with("\\\\?\\") {
-        return Err(CiteError::PathRejected {
-            message: "Network paths are not allowed".to_string(),
-        });
-    }
-    if path_str.starts_with("//") {
-        return Err(CiteError::PathRejected {
-            message: "Network paths are not allowed".to_string(),
-        });
-    }
-
-    // Reject device file paths
-    if path_str.starts_with("/dev/") || path_str.starts_with("\\\\.\\") {
-        return Err(CiteError::PathRejected {
-            message: "Device file paths are not allowed".to_string(),
-        });
-    }
-
-    // Reject .. components (path traversal)
+    // Reject path traversal (..) before any other checks
     for component in path.components() {
         if let std::path::Component::ParentDir = component {
             return Err(CiteError::PathRejected {
@@ -135,14 +116,19 @@ pub fn is_path_safe(path: &Path) -> Result<(), CiteError> {
         }
     }
 
+    // Delegate network and device path checks to shared helpers
+    reject_network_path(path)?;
+    reject_device_path(path)?;
+
     Ok(())
 }
 
-/// Reject network/UNC paths on an already-resolved path.
+/// Reject network/UNC paths.
 ///
 /// On Windows, `std::fs::canonicalize` returns extended-length paths like
 /// `\\?\C:\...` which are local, not network. We allow `\\?\` but reject
 /// `\\?\UNC\` (extended-length UNC) and bare `\\server` (standard UNC).
+/// On Unix, rejects `//server` style paths.
 fn reject_network_path(path: &Path) -> Result<(), CiteError> {
     let s = path.to_string_lossy();
     // Reject extended-length UNC paths
@@ -165,7 +151,7 @@ fn reject_network_path(path: &Path) -> Result<(), CiteError> {
     Ok(())
 }
 
-/// Reject device file paths on an already-resolved path.
+/// Reject device file paths.
 fn reject_device_path(path: &Path) -> Result<(), CiteError> {
     let s = path.to_string_lossy();
     if s.starts_with("/dev/") || s.starts_with("\\\\.\\") {

@@ -13,7 +13,7 @@ pub fn print_json<T: Serialize>(value: &T) {
 // ---------------------------------------------------------------------------
 
 use common::types::{ContextResponse, ResultKind};
-use engine::retrieve::{RetrieveHit, SearchHit};
+use engine::retrieve::Hit;
 
 const MAX_SNIPPET_CHARS: usize = 200;
 
@@ -82,8 +82,31 @@ pub fn to_compact_context(resp: &ContextResponse) -> CompactContextResponse {
     }
 }
 
+/// Consuming transform: ContextResponse -> compact format, avoids cloning string fields.
+/// Available for callers that own the data and want to avoid cloning.
+#[allow(dead_code)]
+pub fn into_compact_context(resp: ContextResponse) -> CompactContextResponse {
+    CompactContextResponse {
+        result_kind: resp.result_kind,
+        trace_id: resp.trace_id,
+        citations: resp
+            .citations
+            .into_iter()
+            .map(|c| {
+                let snippet = truncate_to(&c.text, MAX_SNIPPET_CHARS);
+                CompactCitation {
+                    id: c.citation_id,
+                    source: c.display_name,
+                    snippet,
+                    score: c.score,
+                }
+            })
+            .collect(),
+    }
+}
+
 /// Transform search hits to compact format.
-pub fn to_compact_search(hits: &[SearchHit]) -> CompactSearchOutput {
+pub fn to_compact_search(hits: &[Hit]) -> CompactSearchOutput {
     CompactSearchOutput {
         results: hits
             .iter()
@@ -91,14 +114,34 @@ pub fn to_compact_search(hits: &[SearchHit]) -> CompactSearchOutput {
                 id: h.chunk_id.clone(),
                 source: h.display_name.clone(),
                 score: h.score,
-                preview: h.preview.clone(),
+                preview: h.preview(),
+            })
+            .collect(),
+    }
+}
+
+/// Consuming transform: Hit Vec -> compact format, avoids cloning string fields.
+/// Available for callers that own the data and want to avoid cloning.
+#[allow(dead_code)]
+pub fn into_compact_search(hits: Vec<Hit>) -> CompactSearchOutput {
+    CompactSearchOutput {
+        results: hits
+            .into_iter()
+            .map(|h| {
+                let preview = h.preview();
+                CompactSearchItem {
+                    id: h.chunk_id,
+                    source: h.display_name,
+                    score: h.score,
+                    preview,
+                }
             })
             .collect(),
     }
 }
 
 /// Transform retrieve hits to compact format.
-pub fn to_compact_retrieve(hits: &[RetrieveHit]) -> CompactRetrieveOutput {
+pub fn to_compact_retrieve(hits: &[Hit]) -> CompactRetrieveOutput {
     CompactRetrieveOutput {
         results: hits
             .iter()
@@ -112,8 +155,25 @@ pub fn to_compact_retrieve(hits: &[RetrieveHit]) -> CompactRetrieveOutput {
     }
 }
 
+/// Consuming transform: Hit Vec -> compact retrieve format, avoids cloning string fields.
+/// Available for callers that own the data and want to avoid cloning.
+#[allow(dead_code)]
+pub fn into_compact_retrieve(hits: Vec<Hit>) -> CompactRetrieveOutput {
+    CompactRetrieveOutput {
+        results: hits
+            .into_iter()
+            .map(|h| CompactRetrieveItem {
+                id: h.chunk_id,
+                source: h.display_name,
+                score: h.score,
+                text: h.text,
+            })
+            .collect(),
+    }
+}
+
 /// Truncate text to max chars, adding ellipsis if truncated.
-fn truncate_to(text: &str, max_chars: usize) -> String {
+pub fn truncate_to(text: &str, max_chars: usize) -> String {
     let mut chars = text.chars();
     let truncated: String = chars.by_ref().take(max_chars).collect();
     if chars.next().is_some() {
@@ -235,7 +295,7 @@ mod tests {
 
     #[test]
     fn test_compact_search_basic() {
-        let hits = vec![SearchHit {
+        let hits = vec![Hit {
             chunk_id: "chunk1".into(),
             document_id: "doc1".into(),
             display_name: "arch.txt".into(),
@@ -245,7 +305,7 @@ mod tests {
             offset_start: None,
             offset_end: None,
             score: 0.95,
-            preview: "JWT tokens with 15-min expiry...".into(),
+            text: "JWT tokens with 15-min expiry...".into(),
             topic_name: None,
             concept_name: None,
             breadcrumb: None,
@@ -260,7 +320,7 @@ mod tests {
 
     #[test]
     fn test_compact_retrieve_basic() {
-        let hits = vec![RetrieveHit {
+        let hits = vec![Hit {
             chunk_id: "chunk1".into(),
             document_id: "doc1".into(),
             display_name: "arch.txt".into(),

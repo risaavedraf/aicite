@@ -2,10 +2,9 @@ use clap::Args;
 use common::ExitCode;
 use config::Config;
 use engine::retrieve;
-use providers::EmbeddingProvider;
 use serde::Serialize;
 
-use super::{create_provider, resolve_data_dir};
+use super::CommandContext;
 use crate::output::{print_json, to_compact_search};
 
 #[derive(Args)]
@@ -73,28 +72,16 @@ pub fn execute(args: &SearchArgs, config: &Config, json: bool) -> i32 {
         return common::ExitCode::Validation as i32;
     }
 
-    let data_dir = resolve_data_dir(config);
-    let db = match storage::Database::open(&data_dir) {
-        Ok(db) => db,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
-        }
+    let ctx = match CommandContext::open(config, json) {
+        Ok(ctx) => ctx,
+        Err(code) => return code,
     };
-
-    let provider: Box<dyn EmbeddingProvider> = match create_provider(config) {
-        Ok(p) => p,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
+    let db = &ctx.db;
+    let provider = match ctx.provider.as_ref() {
+        Some(p) => p,
+        None => {
+            eprintln!("Error: embedding provider not configured");
+            return common::ExitCode::Validation as i32;
         }
     };
 
@@ -107,7 +94,7 @@ pub fn execute(args: &SearchArgs, config: &Config, json: bool) -> i32 {
     let concept_filter = args.concept.as_deref();
 
     match retrieve::search(
-        &db,
+        db,
         provider.as_ref(),
         &retrieval_config,
         &config.rate_limit,
@@ -125,20 +112,23 @@ pub fn execute(args: &SearchArgs, config: &Config, json: bool) -> i32 {
                         hit_count: hits.len(),
                         results: hits
                             .into_iter()
-                            .map(|h| SearchResultItem {
-                                chunk_id: h.chunk_id,
-                                document_id: h.document_id,
-                                display_name: h.display_name,
-                                section_id: h.section_id,
-                                chunk_index: h.chunk_index,
-                                page: h.page,
-                                offset_start: h.offset_start,
-                                offset_end: h.offset_end,
-                                score: h.score,
-                                preview: h.preview,
-                                topic_name: h.topic_name,
-                                concept_name: h.concept_name,
-                                breadcrumb: h.breadcrumb,
+                            .map(|h| {
+                                let preview = h.preview();
+                                SearchResultItem {
+                                    chunk_id: h.chunk_id,
+                                    document_id: h.document_id,
+                                    display_name: h.display_name,
+                                    section_id: h.section_id,
+                                    chunk_index: h.chunk_index,
+                                    page: h.page,
+                                    offset_start: h.offset_start,
+                                    offset_end: h.offset_end,
+                                    score: h.score,
+                                    preview,
+                                    topic_name: h.topic_name,
+                                    concept_name: h.concept_name,
+                                    breadcrumb: h.breadcrumb,
+                                }
                             })
                             .collect(),
                     };
@@ -159,7 +149,7 @@ pub fn execute(args: &SearchArgs, config: &Config, json: bool) -> i32 {
                         hit.chunk_index,
                         hit.chunk_id
                     );
-                    println!("     {}", hit.preview);
+                    println!("     {}", hit.preview());
                 }
             }
 

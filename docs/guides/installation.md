@@ -71,7 +71,7 @@ cite health --json
 curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
 ```
 
-The script detects OS/arch, downloads the correct binary, and offers to run `cite setup` interactively.
+The script detects OS/arch, downloads the correct binary, verifies SHA256 checksums when available, and offers to run `cite setup` interactively. It auto-detects the latest release version.
 
 Custom options:
 ```bash
@@ -80,6 +80,9 @@ INSTALL_DIR=~/.local/bin curl -sSf https://raw.githubusercontent.com/risaavedraf
 
 # Specific version
 CITE_VERSION=0.2.0 curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
+
+# Non-interactive mode (CI/scripts)
+NONINTERACTIVE=1 curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
 ```
 
 ---
@@ -225,61 +228,20 @@ cargo install cite
 
 ### Install script (Linux/macOS)
 
-A universal install script that detects OS and architecture:
+A universal install script that detects OS/arch, downloads the correct binary, verifies SHA256 checksums when available, and offers to run `cite setup` interactively.
 
-```bash
-#!/bin/bash
-# install.sh — Instala cite CLI
-set -e
+See [`install.sh`](../install.sh) for the full source.
 
-VERSION="${CITE_VERSION:-0.2.0}"
-REPO="risaavedraf/aicite"
-BASE_URL="https://github.com/${REPO}/releases/download/v${VERSION}"
-
-detect_platform() {
-  local os arch
-  os=$(uname -s | tr '[:upper:]' '[:lower:]')
-  arch=$(uname -m)
-
-  case "$os" in
-    linux)  os="linux" ;;
-    darwin) os="macos" ;;
-    *)      echo "Unsupported OS: $os" >&2; exit 1 ;;
-  esac
-
-  case "$arch" in
-    x86_64)  arch="amd64" ;;
-    aarch64|arm64) arch="arm64" ;;
-    *)       echo "Unsupported architecture: $arch" >&2; exit 1 ;;
-  esac
-
-  echo "${os}-${arch}"
-}
-
-main() {
-  local platform
-  platform=$(detect_platform)
-  local url="${BASE_URL}/cite-${platform}"
-  local install_dir="${INSTALL_DIR:-/usr/local/bin}"
-
-  echo "Installing cite v${VERSION} for ${platform}..."
-  echo "Download: ${url}"
-
-  curl -sSfL "$url" -o "${install_dir}/cite"
-  chmod +x "${install_dir}/cite"
-
-  echo ""
-  echo "Installed: ${install_dir}/cite"
-  "${install_dir}/cite" health --json
-}
-
-main "$@"
-```
+**Features:**
+- Auto-detects latest release version via GitHub API
+- SHA256 checksum verification when checksums file is available
+- Atomic install (downloads to temp file first)
+- Non-interactive mode for CI/scripts (`NONINTERACTIVE=1`)
 
 **Usage:**
 
 ```bash
-# Default install to /usr/local/bin
+# Default install to /usr/local/bin (auto-detects latest version)
 curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
 
 # Custom install directory
@@ -287,6 +249,9 @@ INSTALL_DIR=~/.local/bin curl -sSf https://raw.githubusercontent.com/risaavedraf
 
 # Specific version
 CITE_VERSION=0.2.0 curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
+
+# Non-interactive (CI/scripts)
+NONINTERACTIVE=1 curl -sSf https://raw.githubusercontent.com/risaavedraf/aicite/main/install.sh | sh
 ```
 
 ---

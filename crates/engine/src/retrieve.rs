@@ -1,7 +1,7 @@
 use common::CiteError;
 use config::{RateLimitConfig, RetrievalConfig};
 use providers::EmbeddingProvider;
-use retrieval::rank_by_similarity;
+use retrieval::{rank_by_similarity, ScoredChunk};
 use std::collections::HashMap;
 use storage::Database;
 
@@ -12,28 +12,31 @@ const SEARCH_PREVIEW_CHARS: usize = 160;
 const SEARCH_ROUTE: &str = "search";
 const RETRIEVE_ROUTE: &str = "retrieve";
 
-#[derive(Debug, Clone)]
-pub struct SearchHit {
-    pub chunk_id: String,
-    pub document_id: String,
-    pub display_name: String,
-    pub section_id: Option<String>,
-    pub chunk_index: u32,
-    pub page: Option<u32>,
-    pub offset_start: Option<u32>,
-    pub offset_end: Option<u32>,
-    pub score: f32,
-    pub preview: String,
-    /// Topic name from hierarchy (Phase 11)
-    pub topic_name: Option<String>,
-    /// Concept name from hierarchy (Phase 11)
-    pub concept_name: Option<String>,
-    /// Breadcrumb path: "display_name > topic > concept" (Phase 11)
-    pub breadcrumb: Option<String>,
+// ---------------------------------------------------------------------------
+// Parameter object
+// ---------------------------------------------------------------------------
+
+/// Parameter object for retrieval operations.
+pub struct RetrievalRequest<'a> {
+    pub db: &'a Database,
+    pub provider: &'a dyn EmbeddingProvider,
+    pub config: &'a RetrievalConfig,
+    pub rate_limit: &'a RateLimitConfig,
+    pub query: &'a str,
+    pub k_override: Option<u32>,
+    pub topic_filter: Option<&'a str>,
+    pub concept_filter: Option<&'a str>,
 }
 
+// ---------------------------------------------------------------------------
+// Unified hit type
+// ---------------------------------------------------------------------------
+
+/// Unified hit from retrieval operations.
+///
+/// Contains the full chunk text. Use [`Hit::preview`] for a truncated preview.
 #[derive(Debug, Clone)]
-pub struct RetrieveHit {
+pub struct Hit {
     pub chunk_id: String,
     pub document_id: String,
     pub display_name: String,
@@ -52,6 +55,15 @@ pub struct RetrieveHit {
     pub breadcrumb: Option<String>,
 }
 
+/// Backward-compatible alias for [`Hit`].
+pub type SearchHit = Hit;
+/// Backward-compatible alias for [`Hit`].
+pub type RetrieveHit = Hit;
+
+// ---------------------------------------------------------------------------
+// Hierarchy helpers
+// ---------------------------------------------------------------------------
+
 /// Build a breadcrumb path from display name and hierarchy metadata.
 pub(crate) fn build_breadcrumb(
     display_name: &str,
@@ -66,19 +78,10 @@ pub(crate) fn build_breadcrumb(
 }
 
 /// Enrich ranked `ScoredChunk` results with hierarchy metadata from a lookup map.
-#[allow(clippy::type_complexity)]
 pub(crate) fn enrich_with_hierarchy(
-    ranked: Vec<retrieval::ScoredChunk>,
-    meta: &HashMap<
-        String,
-        (
-            Option<String>,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-        ),
-    >,
-) -> Vec<retrieval::ScoredChunk> {
+    ranked: Vec<ScoredChunk>,
+    meta: &HierarchyMeta,
+) -> Vec<ScoredChunk> {
     ranked
         .into_iter()
         .map(|mut item| {
@@ -145,6 +148,74 @@ pub(crate) fn fetch_candidates(
     }
 }
 
+// ---------------------------------------------------------------------------
+// Shared retrieval pipeline
+// ---------------------------------------------------------------------------
+
+/// Shared retrieval pipeline: validate query, enforce rate limit, embed,
+/// fetch candidates, rank by similarity, and enrich with hierarchy metadata.
+pub fn ranked_candidates(
+    req: &RetrievalRequest<'_>,
+    route: &str,
+) -> Result<Vec<ScoredChunk>, CiteError> {
+    let k = resolve_k(req.config, req.k_override)?;
+    validate_query(req.query)?;
+    enforce_rate_limit(req.db, req.provider, req.rate_limit, route)?;
+    let query_vector = req.provider.embed(req.query)?;
+    let (candidates, hierarchy_meta) =
+        fetch_candidates(req.db, req.config, req.topic_filter, req.concept_filter)?;
+    let ranked = rank_by_similarity(&query_vector, &candidates, k as usize);
+    Ok(if let Some(ref meta) = hierarchy_meta {
+        enrich_with_hierarchy(ranked, meta)
+    } else {
+        ranked
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Hit conversion
+// ---------------------------------------------------------------------------
+
+impl Hit {
+    /// Create a [`Hit`] from a ranked [`ScoredChunk`], computing the breadcrumb
+    /// path when hierarchy metadata is present.
+    fn from_scored_chunk(item: ScoredChunk) -> Self {
+        let breadcrumb = if item.topic_name.is_some() || item.concept_name.is_some() {
+            Some(build_breadcrumb(
+                &item.display_name,
+                item.topic_name.as_deref(),
+                item.concept_name.as_deref(),
+            ))
+        } else {
+            None
+        };
+        Hit {
+            chunk_id: item.chunk_id,
+            document_id: item.document_id,
+            display_name: item.display_name,
+            section_id: item.section_id,
+            chunk_index: item.chunk_index,
+            page: item.page,
+            offset_start: item.offset_start,
+            offset_end: item.offset_end,
+            score: item.score,
+            text: item.text,
+            topic_name: item.topic_name,
+            concept_name: item.concept_name,
+            breadcrumb,
+        }
+    }
+
+    /// Returns a truncated preview of the chunk text (~160 characters).
+    pub fn preview(&self) -> String {
+        make_preview(&self.text)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Public API: search & retrieve
+// ---------------------------------------------------------------------------
+
 #[allow(clippy::too_many_arguments)]
 pub fn search(
     db: &Database,
@@ -155,49 +226,19 @@ pub fn search(
     k_override: Option<u32>,
     topic_filter: Option<&str>,
     concept_filter: Option<&str>,
-) -> Result<Vec<SearchHit>, CiteError> {
-    let k = resolve_k(config, k_override)?;
-    validate_query(query)?;
-    enforce_rate_limit(db, provider, rate_limit, SEARCH_ROUTE)?;
-
-    let query_vector = provider.embed(query)?;
-    let (candidates, hierarchy_meta) = fetch_candidates(db, config, topic_filter, concept_filter)?;
-    let ranked = rank_by_similarity(&query_vector, &candidates, k as usize);
-    let ranked = if let Some(ref meta) = hierarchy_meta {
-        enrich_with_hierarchy(ranked, meta)
-    } else {
-        ranked
+) -> Result<Vec<Hit>, CiteError> {
+    let req = RetrievalRequest {
+        db,
+        provider,
+        config,
+        rate_limit,
+        query,
+        k_override,
+        topic_filter,
+        concept_filter,
     };
-
-    Ok(ranked
-        .into_iter()
-        .map(|item| {
-            let breadcrumb = if item.topic_name.is_some() || item.concept_name.is_some() {
-                Some(build_breadcrumb(
-                    &item.display_name,
-                    item.topic_name.as_deref(),
-                    item.concept_name.as_deref(),
-                ))
-            } else {
-                None
-            };
-            SearchHit {
-                chunk_id: item.chunk_id,
-                document_id: item.document_id,
-                display_name: item.display_name,
-                section_id: item.section_id,
-                chunk_index: item.chunk_index,
-                page: item.page,
-                offset_start: item.offset_start,
-                offset_end: item.offset_end,
-                score: item.score,
-                preview: make_preview(&item.text),
-                topic_name: item.topic_name,
-                concept_name: item.concept_name,
-                breadcrumb,
-            }
-        })
-        .collect())
+    let ranked = ranked_candidates(&req, SEARCH_ROUTE)?;
+    Ok(ranked.into_iter().map(Hit::from_scored_chunk).collect())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -210,50 +251,24 @@ pub fn retrieve(
     k_override: Option<u32>,
     topic_filter: Option<&str>,
     concept_filter: Option<&str>,
-) -> Result<Vec<RetrieveHit>, CiteError> {
-    let k = resolve_k(config, k_override)?;
-    validate_query(query)?;
-    enforce_rate_limit(db, provider, rate_limit, RETRIEVE_ROUTE)?;
-
-    let query_vector = provider.embed(query)?;
-    let (candidates, hierarchy_meta) = fetch_candidates(db, config, topic_filter, concept_filter)?;
-    let ranked = rank_by_similarity(&query_vector, &candidates, k as usize);
-    let ranked = if let Some(ref meta) = hierarchy_meta {
-        enrich_with_hierarchy(ranked, meta)
-    } else {
-        ranked
+) -> Result<Vec<Hit>, CiteError> {
+    let req = RetrievalRequest {
+        db,
+        provider,
+        config,
+        rate_limit,
+        query,
+        k_override,
+        topic_filter,
+        concept_filter,
     };
-
-    Ok(ranked
-        .into_iter()
-        .map(|item| {
-            let breadcrumb = if item.topic_name.is_some() || item.concept_name.is_some() {
-                Some(build_breadcrumb(
-                    &item.display_name,
-                    item.topic_name.as_deref(),
-                    item.concept_name.as_deref(),
-                ))
-            } else {
-                None
-            };
-            RetrieveHit {
-                chunk_id: item.chunk_id,
-                document_id: item.document_id,
-                display_name: item.display_name,
-                section_id: item.section_id,
-                chunk_index: item.chunk_index,
-                page: item.page,
-                offset_start: item.offset_start,
-                offset_end: item.offset_end,
-                score: item.score,
-                text: item.text,
-                topic_name: item.topic_name,
-                concept_name: item.concept_name,
-                breadcrumb,
-            }
-        })
-        .collect())
+    let ranked = ranked_candidates(&req, RETRIEVE_ROUTE)?;
+    Ok(ranked.into_iter().map(Hit::from_scored_chunk).collect())
 }
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
 
 fn rate_limit_key(provider: &dyn EmbeddingProvider) -> String {
     provider.provider_id().to_string()
@@ -302,6 +317,13 @@ pub(crate) fn validate_query(query: &str) -> Result<(), CiteError> {
         });
     }
 
+    // Reject queries that consist only of punctuation or control characters
+    if !trimmed.chars().any(|c| c.is_alphanumeric()) {
+        return Err(CiteError::InvalidParameter {
+            message: "query must contain at least one alphanumeric character".to_string(),
+        });
+    }
+
     let len = trimmed.chars().count();
     if len > MAX_QUERY_CHARS {
         return Err(CiteError::QueryTooLong {
@@ -314,14 +336,31 @@ pub(crate) fn validate_query(query: &str) -> Result<(), CiteError> {
 }
 
 fn make_preview(text: &str) -> String {
-    let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
-    let mut chars = normalized.chars();
-    let preview: String = chars.by_ref().take(SEARCH_PREVIEW_CHARS).collect();
-    if chars.next().is_some() {
-        format!("{preview}…")
-    } else {
-        preview
+    // Single-pass: normalize whitespace and truncate to SEARCH_PREVIEW_CHARS.
+    let mut out = String::new();
+    let mut char_count = 0usize;
+    let mut prev_was_space = true; // treat start as after-space to skip leading ws
+    for ch in text.chars() {
+        if ch.is_whitespace() {
+            if !prev_was_space {
+                prev_was_space = true;
+            }
+        } else {
+            if prev_was_space && !out.is_empty() {
+                if char_count >= SEARCH_PREVIEW_CHARS {
+                    return format!("{out}…");
+                }
+                out.push(' ');
+            }
+            if char_count >= SEARCH_PREVIEW_CHARS {
+                return format!("{out}…");
+            }
+            out.push(ch);
+            char_count += 1;
+            prev_was_space = false;
+        }
     }
+    out
 }
 
 #[cfg(test)]
@@ -421,6 +460,26 @@ mod tests {
     }
 
     #[test]
+    fn test_search_rejects_punctuation_only_query() {
+        let db = test_db();
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let cfg = RetrievalConfig {
+            top_k: 5,
+            evidence_floor: 0.5,
+            confidence_threshold: 0.7,
+            use_hierarchy: true,
+        };
+
+        let err = search(&db, &provider, &cfg, &rl_cfg(), "???", None, None, None).unwrap_err();
+        assert!(matches!(err, CiteError::InvalidParameter { .. }));
+
+        let err = search(&db, &provider, &cfg, &rl_cfg(), "...", None, None, None).unwrap_err();
+        assert!(matches!(err, CiteError::InvalidParameter { .. }));
+    }
+
+    #[test]
     fn test_search_rejects_invalid_k() {
         let db = test_db();
         let provider = FakeProvider {
@@ -471,7 +530,7 @@ mod tests {
         let results = search(&db, &provider, &cfg, &rl_cfg(), "query", None, None, None).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].document_id, "doc-ready");
-        assert!(results[0].preview.contains("ready text"));
+        assert!(results[0].preview().contains("ready text"));
     }
 
     #[test]

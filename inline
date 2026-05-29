@@ -1,0 +1,94 @@
+# Documentation Polish & Cleanup — Results
+
+## Summary
+
+All 5 tasks completed successfully. `cargo check` passes, all 16 validator tests pass.
+
+## Task 1: Reorganize docs/ folder ✅
+
+Moved files into organized subdirectories:
+
+```
+docs/
+├── guides/
+│   ├── installation.md          (moved)
+│   ├── agent-usage-guide.md     (moved)
+│   └── demo.md                  (moved)
+├── architecture/
+│   ├── rename-to-cite.md        (moved)
+│   └── v0.2.0-hierarchical-graph.md (moved)
+├── rfc/
+│   └── rfc-install-setup-ux.md  (moved)
+├── reports/                     (kept as-is)
+├── prd/                         (kept as-is)
+├── sdd/                         (kept as-is)
+├── Improvements/                (kept as-is)
+└── index.md                     (new)
+```
+
+Updated cross-references in moved files:
+- `v0.2.0-hierarchical-graph.md`: links now point to `../guides/`, `../prd/`, `../sdd/`
+- `rfc-install-setup-ux.md`: links now point to `../guides/installation.md` and `../guides/agent-usage-guide.md`
+
+## Task 2: Add docs/index.md landing page ✅
+
+Created `docs/index.md` with table of contents linking to:
+- PRD (15 documents + overview)
+- SDD (overview, roadmap, phase map)
+- Guides (installation, agent usage, demo)
+- Architecture (rename policy, hierarchical graph proposal)
+- RFCs (install & setup UX)
+- Reports (clean code, GitHub structure, Rust idioms)
+
+## Task 3: Fix placeholder URLs ✅
+
+- Fixed `docs/guides/demo.md`: `your-org` → `risaavedraf` in git clone URL
+- README.md was already clean (no `your-org` references)
+- Reports contain `your-org` references as part of the review documentation (not actual links)
+
+## Task 4: Polish install.sh ✅
+
+Improvements to `install.sh`:
+
+| Feature | Before | After |
+|---|---|---|
+| Version detection | Hardcoded `0.2.0` | Auto-detects latest from GitHub API |
+| Checksum verification | None | SHA256 when checksums file available |
+| Install method | Direct write to target | Atomic (temp file + mv) |
+| Non-interactive mode | Not supported | `NONINTERACTIVE=1` or CI detection |
+| Error handling | Basic `set -e` | Colored output, informative messages |
+| Cleanup | No temp file cleanup | `trap` cleanup on failure |
+
+Also updated `docs/guides/installation.md`:
+- Removed inline copy of install script (references actual file instead)
+- Added documentation of new features (auto-version, checksum, non-interactive)
+- Added `NONINTERACTIVE=1` usage example
+
+## Task 5: Clean validator.rs duplication ✅
+
+**Before**: `is_path_safe` had its own inline network path checks and device path checks, duplicating the logic in `reject_network_path` and `reject_device_path`.
+
+**After**: `is_path_safe` delegates to the shared helpers:
+
+```rust
+pub fn is_path_safe(path: &Path) -> Result<(), CiteError> {
+    // Reject path traversal (..) — unique to pre-canonicalization
+    for component in path.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err(CiteError::PathRejected { ... });
+        }
+    }
+    // Delegate to shared helpers
+    reject_network_path(path)?;
+    reject_device_path(path)?;
+    Ok(())
+}
+```
+
+This eliminates ~20 lines of duplicated path-checking logic while preserving identical behavior. All 16 validator tests pass.
+
+## Verification
+
+- `cargo check` — passes
+- `cargo test -p ingest -- validator` — 16/16 tests pass
+- No `your-org` placeholder URLs remain in the codebase

@@ -3,7 +3,7 @@ use config::Config;
 use engine::ingest;
 use serde::Serialize;
 
-use super::resolve_data_dir;
+use super::CommandContext;
 use crate::output::print_json;
 
 #[derive(Serialize)]
@@ -22,20 +22,12 @@ struct DocumentSummary {
 }
 
 pub fn execute(config: &Config, json: bool) -> i32 {
-    let data_dir = resolve_data_dir(config);
-    let db = match storage::Database::open(&data_dir) {
-        Ok(db) => db,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
-        }
+    let ctx = match CommandContext::open_db_only(config, json) {
+        Ok(ctx) => ctx,
+        Err(code) => return code,
     };
 
-    match ingest::list_documents(&db) {
+    match ingest::list_documents(&ctx.db) {
         Ok(docs) => {
             let summaries: Vec<DocumentSummary> = docs
                 .iter()

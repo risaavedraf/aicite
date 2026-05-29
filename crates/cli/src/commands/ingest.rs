@@ -2,10 +2,9 @@ use clap::{ArgGroup, Args};
 use common::ExitCode;
 use config::Config;
 use engine::ingest;
-use providers::EmbeddingProvider;
 use serde::Serialize;
 
-use super::{create_provider, resolve_data_dir};
+use super::CommandContext;
 use crate::output::print_json;
 
 #[derive(Args)]
@@ -59,42 +58,18 @@ struct NextIngestOutput {
 }
 
 pub fn execute(args: &IngestArgs, config: &Config, json: bool) -> i32 {
-    // Initialize database
-    let data_dir = resolve_data_dir(config);
-    if let Err(e) = std::fs::create_dir_all(&data_dir) {
-        eprintln!("Failed to create data directory: {e}");
-        return ExitCode::Internal as i32;
-    }
-    let db = match storage::Database::open(&data_dir) {
-        Ok(db) => db,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
-        }
+    let ctx = match CommandContext::open(config, json) {
+        Ok(ctx) => ctx,
+        Err(code) => return code,
     };
-
-    // Create embedding provider based on config
-    let provider: Box<dyn EmbeddingProvider> = match create_provider(config) {
-        Ok(p) => p,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
-        }
-    };
+    let db = &ctx.db;
+    let provider = ctx.provider.as_ref().unwrap();
 
     let production_mode = config.runtime.mode == config::RuntimeMode::Production;
 
     if let Some(path) = args.queued.as_deref() {
         let path = std::path::Path::new(path);
-        match ingest::enqueue_ingest(&db, &config.ingest, path, args.display_name.as_deref()) {
+        match ingest::enqueue_ingest(db, &config.ingest, path, args.display_name.as_deref()) {
             Ok(()) => {
                 let output = QueuedIngestOutput {
                     status: "queued".to_string(),
@@ -123,7 +98,7 @@ pub fn execute(args: &IngestArgs, config: &Config, json: bool) -> i32 {
     }
 
     if args.next {
-        match ingest::ingest_next(&db, provider.as_ref(), &config.ingest, production_mode) {
+        match ingest::ingest_next(db, provider.as_ref(), &config.ingest, production_mode) {
             Ok(ingest::IngestNextResult::Empty) => {
                 let output = NextIngestOutput {
                     status: "empty_queue".to_string(),
@@ -179,7 +154,7 @@ pub fn execute(args: &IngestArgs, config: &Config, json: bool) -> i32 {
     let path = std::path::Path::new(path);
 
     match ingest::ingest(
-        &db,
+        db,
         provider.as_ref(),
         &config.ingest,
         path,

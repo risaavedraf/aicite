@@ -68,57 +68,50 @@ pub enum CiteError {
 }
 
 impl CiteError {
+    /// Returns both the machine-readable error code and CLI exit code.
+    fn code_and_exit(&self) -> (&'static str, ExitCode) {
+        match self {
+            Self::UnsupportedFileType { .. } => ("unsupported_file_type", ExitCode::Validation),
+            Self::FileTooLarge { .. } => ("file_too_large", ExitCode::Validation),
+            Self::FileNotFound { .. } => ("file_not_found", ExitCode::NotFound),
+            Self::DocumentNotFound { .. } => ("document_not_found", ExitCode::NotFound),
+            Self::DocumentNotReady { .. } => ("document_not_ready", ExitCode::NotFound),
+            Self::TraceNotFound { .. } => ("trace_not_found", ExitCode::NotFound),
+            Self::CitationNotFound { .. } => ("citation_not_found", ExitCode::NotFound),
+            Self::ChunkNotFound { .. } => ("chunk_not_found", ExitCode::NotFound),
+            Self::ConfigError { .. } => ("config_error", ExitCode::Validation),
+            Self::StorageError { .. } => ("storage_error", ExitCode::Internal),
+            Self::InternalError { .. } => ("internal_error", ExitCode::Internal),
+            Self::QueryTooLong { .. } => ("query_too_long", ExitCode::Validation),
+            Self::InvalidParameter { .. } => ("invalid_parameter", ExitCode::Validation),
+            Self::PathRejected { .. } => ("path_rejected", ExitCode::Validation),
+            Self::RuntimeModeForbidden { .. } => {
+                ("runtime_mode_forbidden", ExitCode::RuntimeForbidden)
+            }
+            Self::RateLimitExceeded { .. } => ("rate_limit_exceeded", ExitCode::RateLimitExceeded),
+            Self::OperationInProgress { .. } => {
+                ("operation_in_progress", ExitCode::OperationInProgress)
+            }
+            Self::EmbeddingProviderError { .. } => ("embedding_provider_error", ExitCode::Provider),
+            Self::RetrievalTimeout => ("retrieval_timeout", ExitCode::Provider),
+        }
+    }
+
     /// Machine-readable error code
     pub fn code(&self) -> &'static str {
-        match self {
-            Self::UnsupportedFileType { .. } => "unsupported_file_type",
-            Self::FileTooLarge { .. } => "file_too_large",
-            Self::FileNotFound { .. } => "file_not_found",
-            Self::DocumentNotFound { .. } => "document_not_found",
-            Self::DocumentNotReady { .. } => "document_not_ready",
-            Self::TraceNotFound { .. } => "trace_not_found",
-            Self::CitationNotFound { .. } => "citation_not_found",
-            Self::ChunkNotFound { .. } => "chunk_not_found",
-            Self::ConfigError { .. } => "config_error",
-            Self::StorageError { .. } => "storage_error",
-            Self::InternalError { .. } => "internal_error",
-            Self::QueryTooLong { .. } => "query_too_long",
-            Self::InvalidParameter { .. } => "invalid_parameter",
-            Self::PathRejected { .. } => "path_rejected",
-            Self::RuntimeModeForbidden { .. } => "runtime_mode_forbidden",
-            Self::RateLimitExceeded { .. } => "rate_limit_exceeded",
-            Self::OperationInProgress { .. } => "operation_in_progress",
-            Self::EmbeddingProviderError { .. } => "embedding_provider_error",
-            Self::RetrievalTimeout => "retrieval_timeout",
-        }
+        self.code_and_exit().0
     }
 
     /// Exit code for the CLI
     pub fn exit_code(&self) -> ExitCode {
-        match self {
-            Self::UnsupportedFileType { .. } => ExitCode::Validation,
-            Self::FileTooLarge { .. } => ExitCode::Validation,
-            Self::FileNotFound { .. } => ExitCode::NotFound,
-            Self::DocumentNotFound { .. } => ExitCode::NotFound,
-            Self::DocumentNotReady { .. } => ExitCode::NotFound,
-            Self::TraceNotFound { .. } => ExitCode::NotFound,
-            Self::CitationNotFound { .. } => ExitCode::NotFound,
-            Self::ChunkNotFound { .. } => ExitCode::NotFound,
-            Self::ConfigError { .. } => ExitCode::Validation,
-            Self::StorageError { .. } => ExitCode::Internal,
-            Self::InternalError { .. } => ExitCode::Internal,
-            Self::QueryTooLong { .. } => ExitCode::Validation,
-            Self::InvalidParameter { .. } => ExitCode::Validation,
-            Self::PathRejected { .. } => ExitCode::Validation,
-            Self::RuntimeModeForbidden { .. } => ExitCode::RuntimeForbidden,
-            Self::RateLimitExceeded { .. } => ExitCode::RateLimitExceeded,
-            Self::OperationInProgress { .. } => ExitCode::OperationInProgress,
-            Self::EmbeddingProviderError { .. } => ExitCode::Provider,
-            Self::RetrievalTimeout => ExitCode::Provider,
-        }
+        self.code_and_exit().1
     }
 
-    /// Human-readable message
+    /// Human-readable message.
+    ///
+    /// Prefer using the `Display` impl directly (e.g. `format!("{err}")`) over
+    /// calling this method, to avoid the intermediate `String` allocation when
+    /// the caller only needs to display the error.
     pub fn message(&self) -> String {
         self.to_string()
     }

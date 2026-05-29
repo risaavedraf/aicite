@@ -218,5 +218,5 @@ dir = "~/.local/share/cite"        # or CITE_DATA_DIR env var
 ## Related
 
 - Phase 9 installation experience (already done)
-- `docs/installation.md` — current install methods
-- `docs/agent-usage-guide.md` — usage patterns
+- [Installation Guide](../guides/installation.md) — current install methods
+- [Agent Usage Guide](../guides/agent-usage-guide.md) — usage patterns

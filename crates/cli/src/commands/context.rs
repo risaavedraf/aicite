@@ -1,11 +1,9 @@
+use super::CommandContext;
+use crate::output::{print_json, to_compact_context, truncate_to};
 use clap::Args;
 use common::ExitCode;
 use config::Config;
 use engine::context;
-use providers::EmbeddingProvider;
-
-use super::{create_provider, resolve_data_dir};
-use crate::output::{print_json, to_compact_context};
 
 #[derive(Args)]
 pub struct ContextArgs {
@@ -44,30 +42,12 @@ pub fn execute(args: &ContextArgs, config: &Config, json: bool) -> i32 {
         return common::ExitCode::Validation as i32;
     }
 
-    let data_dir = resolve_data_dir(config);
-    let db = match storage::Database::open(&data_dir) {
-        Ok(db) => db,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
-        }
+    let ctx = match CommandContext::open(config, json) {
+        Ok(ctx) => ctx,
+        Err(code) => return code,
     };
-
-    let provider: Box<dyn EmbeddingProvider> = match create_provider(config) {
-        Ok(p) => p,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
-        }
-    };
+    let db = &ctx.db;
+    let provider = ctx.provider.as_ref().unwrap();
 
     let mut retrieval_config = config.retrieval.clone();
     if args.flat {
@@ -78,7 +58,7 @@ pub fn execute(args: &ContextArgs, config: &Config, json: bool) -> i32 {
     let concept_filter = args.concept.as_deref();
 
     match context::build_context(
-        &db,
+        db,
         provider.as_ref(),
         &retrieval_config,
         &config.rate_limit,
@@ -107,7 +87,7 @@ pub fn execute(args: &ContextArgs, config: &Config, json: bool) -> i32 {
                         citation.display_name,
                         citation.citation_id
                     );
-                    println!("     {}", truncate(&citation.text, 160));
+                    println!("     {}", truncate_to(&citation.text, 160));
                 }
                 println!();
                 println!("{}", response.metadata.disclaimer);
@@ -126,15 +106,5 @@ pub fn execute(args: &ContextArgs, config: &Config, json: bool) -> i32 {
             }
             e.exit_code() as i32
         }
-    }
-}
-
-fn truncate(text: &str, max_chars: usize) -> String {
-    let mut chars = text.chars();
-    let truncated: String = chars.by_ref().take(max_chars).collect();
-    if chars.next().is_some() {
-        format!("{}…", truncated)
-    } else {
-        truncated
     }
 }

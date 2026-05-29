@@ -12,7 +12,7 @@ pub struct SentenceChunk {
 /// - Each sentence becomes its own chunk
 /// - If a chunk is shorter than min_chars, it merges with the next sentence
 /// - Tracks char offsets via char_indices()
-pub fn chunk_by_sentence(text: &str, min_chars: usize, _max_chars: usize) -> Vec<SentenceChunk> {
+pub fn chunk_by_sentence(text: &str, min_chars: usize) -> Vec<SentenceChunk> {
     if text.is_empty() {
         return Vec::new();
     }
@@ -130,7 +130,7 @@ mod tests {
     #[test]
     fn test_basic_sentences() {
         let text = "Hello world. This is a test! How are you?";
-        let chunks = chunk_by_sentence(text, 5, 200);
+        let chunks = chunk_by_sentence(text, 5);
         // Each sentence >= min_chars (5), so each is its own chunk
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[0].text, "Hello world.");
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn test_short_sentences_merged() {
         let text = "Hi. OK. This is a longer sentence that should stand alone.";
-        let chunks = chunk_by_sentence(text, 20, 200);
+        let chunks = chunk_by_sentence(text, 20);
         // "Hi." < 20 → merge with "OK." → "Hi. OK." (7) < 20 → merge with next
         // Result: 1 chunk with all three merged
         assert_eq!(chunks.len(), 1);
@@ -153,7 +153,7 @@ mod tests {
     #[test]
     fn test_short_then_long() {
         let text = "Hi. This is a longer sentence that should stand alone. Another long one here.";
-        let chunks = chunk_by_sentence(text, 20, 200);
+        let chunks = chunk_by_sentence(text, 20);
         // "Hi." < 20 → merge with next → "Hi. This is a longer sentence..." (52) >= 20 → flush
         // "Another long one here." (23) >= 20 → flush
         assert_eq!(chunks.len(), 2);
@@ -165,7 +165,7 @@ mod tests {
     #[test]
     fn test_utf8_text() {
         let text = "Hola mundo. Café con leche.";
-        let chunks = chunk_by_sentence(text, 5, 200);
+        let chunks = chunk_by_sentence(text, 5);
         assert_eq!(chunks.len(), 2);
         assert_eq!(chunks[0].text, "Hola mundo.");
         assert_eq!(chunks[1].text, "Café con leche.");
@@ -173,14 +173,14 @@ mod tests {
 
     #[test]
     fn test_empty_text() {
-        let chunks = chunk_by_sentence("", 30, 200);
+        let chunks = chunk_by_sentence("", 30);
         assert!(chunks.is_empty());
     }
 
     #[test]
     fn test_abbreviations_not_split() {
         let text = "Dr. Smith went to Washington. He was happy.";
-        let chunks = chunk_by_sentence(text, 10, 200);
+        let chunks = chunk_by_sentence(text, 10);
         // "Dr. Smith went to Washington." (29) >= 10 → flush
         // "He was happy." (13) >= 10 → flush
         assert_eq!(chunks.len(), 2);
@@ -191,7 +191,7 @@ mod tests {
     #[test]
     fn test_single_sentence() {
         let text = "Just one sentence.";
-        let chunks = chunk_by_sentence(text, 5, 200);
+        let chunks = chunk_by_sentence(text, 5);
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].text, "Just one sentence.");
     }
@@ -199,7 +199,7 @@ mod tests {
     #[test]
     fn test_offset_tracking() {
         let text = "First sentence. Second sentence. Third.";
-        let chunks = chunk_by_sentence(text, 5, 200);
+        let chunks = chunk_by_sentence(text, 5);
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[0].offset_start, 0);
         assert_eq!(chunks[1].offset_start, 15); // "First sentence." = 15 chars, space at 15
@@ -210,14 +210,14 @@ mod tests {
     fn test_min_chars_boundary() {
         // Exactly min_chars should NOT merge
         let text = "ABCDE. FGHIJ. KLMNO."; // 5 chars each, min=5
-        let chunks = chunk_by_sentence(text, 5, 200);
+        let chunks = chunk_by_sentence(text, 5);
         assert_eq!(chunks.len(), 3);
     }
 
     #[test]
     fn test_multiline_text() {
         let text = "First line here. Second line there.\nThird line somewhere.";
-        let chunks = chunk_by_sentence(text, 10, 200);
+        let chunks = chunk_by_sentence(text, 10);
         assert!(!chunks.is_empty());
         for chunk in &chunks {
             assert!(!chunk.text.is_empty());

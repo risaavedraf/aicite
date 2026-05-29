@@ -6,35 +6,6 @@ use crate::util::{format_dt, storage_err};
 use crate::Database;
 
 // ---------------------------------------------------------------------------
-// Row -> Chunk conversion
-// ---------------------------------------------------------------------------
-
-#[allow(dead_code)]
-fn row_to_chunk(row: &rusqlite::Row<'_>) -> Result<Chunk, CiteError> {
-    let chunk_id: String = row.get("chunk_id").map_err(storage_err)?;
-    let document_id: String = row.get("document_id").map_err(storage_err)?;
-    let section_id: Option<String> = row.get("section_id").map_err(storage_err)?;
-    let chunk_index: i64 = row.get("chunk_index").map_err(storage_err)?;
-    let text: String = row.get("text").map_err(storage_err)?;
-    let page: Option<i64> = row.get("page").map_err(storage_err)?;
-    let offset_start: Option<i64> = row.get("offset_start").map_err(storage_err)?;
-    let offset_end: Option<i64> = row.get("offset_end").map_err(storage_err)?;
-    let created_at_str: String = row.get("created_at").map_err(storage_err)?;
-
-    Ok(Chunk {
-        chunk_id,
-        document_id,
-        section_id,
-        chunk_index: chunk_index as u32,
-        text,
-        page: page.map(|p| p as u32),
-        offset_start: offset_start.map(|o| o as u32),
-        offset_end: offset_end.map(|o| o as u32),
-        created_at: crate::util::parse_dt(&created_at_str)?,
-    })
-}
-
-// ---------------------------------------------------------------------------
 // CRUD operations
 // ---------------------------------------------------------------------------
 

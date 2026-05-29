@@ -24,6 +24,7 @@ common = { path = "crates/common" }
 config = { path = "crates/config" }
 storage = { path = "crates/storage" }
 engine = { path = "crates/engine" }
+graph = { path = "crates/graph" }
 ingest = { path = "crates/ingest" }
 providers = { path = "crates/providers" }
 retrieval = { path = "crates/retrieval" }

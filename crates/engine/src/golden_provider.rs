@@ -20,8 +20,6 @@ impl GoldenProvider {
             cache: HashMap::new(),
         }
     }
-
-
 }
 
 impl Default for GoldenProvider {
@@ -54,5 +52,3 @@ fn normalize_key(text: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
 }
-
-

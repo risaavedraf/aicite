@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.2.1 (2026-05-28)
+
+### Fixes
+
+- **rustfmt consistency** — Removed unnecessary braces in `Commands::Setup` match arm to fix CI formatting check.
+
 ## v0.2.0 (2026-05-29)
 
 ### New features

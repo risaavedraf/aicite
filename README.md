@@ -265,6 +265,16 @@ cargo clippy -- -D warnings
 cargo fmt
 ```
 
+## Version history
+
+| Version | Date | Highlights |
+|---|---|---|
+| v0.2.1 | 2026-05-28 | rustfmt CI fix |
+| v0.2.0 | 2026-05-29 | `cite setup` wizard, TOML config, `install.sh`, enhanced health diagnostics |
+| v0.1.0 | 2026-05-28 | Initial release — ingest, search, context, evaluate, 12 CLI commands |
+
+For the full changelog, see [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
 MIT

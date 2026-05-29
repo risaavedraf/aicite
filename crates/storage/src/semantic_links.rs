@@ -126,7 +126,7 @@ mod tests {
             db.insert_document(&doc).unwrap();
         }
 
-        let chunks = vec![
+        let chunks = [
             Chunk {
                 chunk_id: "c-a".to_string(),
                 document_id: "doc-1".to_string(),

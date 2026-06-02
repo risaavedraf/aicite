@@ -8,7 +8,7 @@
 > - TOML config file support with XDG paths
 > - Enhanced `cite health` diagnostics
 >
-> See [CHANGELOG.md](../CHANGELOG.md) for release details.
+> See [CHANGELOG.md](../../CHANGELOG.md) for release details.
 
 ## Problem
 
@@ -218,5 +218,5 @@ dir = "~/.local/share/cite"        # or CITE_DATA_DIR env var
 ## Related
 
 - Phase 9 installation experience (already done)
-- [Installation Guide](../guides/installation.md) — current install methods
-- [Agent Usage Guide](../guides/agent-usage-guide.md) — usage patterns
+- [Installation Guide](../../guides/installation.md) — current install methods
+- [Agent Usage Guide](../../guides/agent-usage-guide.md) — usage patterns

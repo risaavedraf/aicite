@@ -27,15 +27,15 @@ The PRD defines the complete product specification, from vision to acceptance cr
 
 ## SDD (Spec-Driven Development)
 
-Phase-by-phase design artifacts, specs, and task breakdowns.
+Phase-by-phase design artifacts, specs, and task breakdowns. All SDD artifacts live in `openspec/changes/`.
 
 | Document | Purpose |
 |---|---|
-| [SDD Overview](sdd/README.md) | SDD documentation index |
-| [Roadmap](sdd/roadmap.md) | Phase roadmap and status |
-| [v0.2 Phase Map](sdd/v0.2-phase-map.md) | v0.2 phase plan |
+| [SDD Overview](changes/README.md) | SDD documentation index |
+| [Roadmap](changes/roadmap.md) | Phase roadmap and status |
+| [v0.2 Phase Map](changes/v0.2-phase-map.md) | v0.2 phase plan |
 
-Phase artifacts are in `docs/sdd/phase-{N}-{name}/` directories.
+Phase artifacts are in `openspec/changes/phase-{N}-{name}/` directories.
 
 ## Guides
 
@@ -55,14 +55,42 @@ Technical architecture documents and design proposals.
 |---|---|
 | [Rename to Cite](architecture/rename-to-cite.md) | CLI identity and runtime naming policy |
 | [v0.2.0 Hierarchical Graph](architecture/v0.2.0-hierarchical-graph.md) | Proposed hierarchical graph architecture |
+| [Hybrid Notes Ingestion](architecture/cite-notes-hybrid.md) | Notes ingestion design (CLI + front‑matter) |
+| [Front‑Lobe Engine](architecture/front-lobe-engine.md) | Orchestrator that uses Cite as evidence store |
 
 ## RFCs
 
-Requests for comment on design and UX proposals.
+Requests for comment, organized by status.
+
+### Active — pending proposals for this project
 
 | Document | Purpose |
 |---|---|
-| [Install & Setup UX](rfc/rfc-install-setup-ux.md) | Installation script and setup wizard design (implemented) |
+| [Hybrid Notes Ingestion](rfc/active/rfc-notes-hybrid.md) | Notes ingestion via CLI + front‑matter |
+| [Front‑Lobe Engine](rfc/active/rfc-front-lobe-engine.md) | Orchestrator that uses Cite as evidence store |
+
+### Completed — implemented RFCs
+
+| Document | Purpose |
+|---|---|
+| [Install & Setup UX](rfc/completed/rfc-install-setup-ux.md) | Installation script and setup wizard (implemented in v0.2.0) |
+
+### Ideas — related projects and future explorations
+
+| Document | Purpose |
+|---|---|
+| [CITE-Pi Integration](rfc/ideas/rfc-cite-pi-integration.md) | Pi extension with local embedding model |
+| [Landing Page](rfc/ideas/rfc-landing-page.md) | Leptos + GitHub Pages landing |
+| [RAG Benchmark Framework](rfc/ideas/rfc-rag-benchmark-framework.md) | Systematic RAG evaluation methodology |
+
+## Improvements
+
+Inbox for external documents and ideas brought into the project.
+
+| Document | Purpose |
+|---|---|
+| [CITE + Pi Integration Guide](Improvements/CITE_Pi_Integration.md) | Integration guide (Spanish) |
+| [RAG Benchmark Guide](Improvements/RAG_Benchmark_Guide.md) | Benchmark methodology (Spanish) |
 
 ## Reports
 
@@ -70,6 +98,4 @@ Code quality and structure review reports.
 
 | Document | Purpose |
 |---|---|
-| [Clean Code Review](reports/clean-code-review.md) | Code quality analysis |
-| [GitHub Structure Review](reports/github-structure-review.md) | Repository structure review |
-| [Rust Idioms Review](reports/rust-idioms-review.md) | Rust best practices review |
+| [Code Review Pending Items](reports/code-review-pending-items.md) | Pending items from code review |

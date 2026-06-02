@@ -43,8 +43,10 @@ impl Database {
                 evidence_floor,
                 confidence_threshold,
                 ranking_method,
+                embedding_model_registry_id,
+                provider,
                 latency_ms
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 header.trace_id,
                 header.query_id,
@@ -56,6 +58,8 @@ impl Database {
                 header.evidence_floor,
                 header.confidence_threshold,
                 header.ranking_method,
+                header.embedding_model_registry_id,
+                header.provider,
                 header.latency_ms.map(|v| v as i64),
             ],
         )
@@ -232,6 +236,8 @@ impl Database {
                     evidence_floor,
                     confidence_threshold,
                     ranking_method,
+                    embedding_model_registry_id,
+                    provider,
                     latency_ms,
                     created_at
                  FROM traces
@@ -242,7 +248,7 @@ impl Database {
         let mut trace_rows = trace_stmt.query(params![trace_id]).map_err(storage_err)?;
 
         let header = if let Some(row) = trace_rows.next().map_err(storage_err)? {
-            let created_at: String = row.get(11).map_err(storage_err)?;
+            let created_at: String = row.get(13).map_err(storage_err)?;
             TraceHeaderRecord {
                 trace_id: row.get(0).map_err(storage_err)?,
                 query_id: row.get(1).map_err(storage_err)?,
@@ -257,8 +263,10 @@ impl Database {
                 evidence_floor: row.get(7).map_err(storage_err)?,
                 confidence_threshold: row.get(8).map_err(storage_err)?,
                 ranking_method: row.get(9).map_err(storage_err)?,
+                embedding_model_registry_id: row.get(10).map_err(storage_err)?,
+                provider: row.get(11).map_err(storage_err)?,
                 latency_ms: row
-                    .get::<_, Option<i64>>(10)
+                    .get::<_, Option<i64>>(12)
                     .map_err(storage_err)?
                     .map(|v| v as u64),
                 created_at: parse_dt(&created_at)?,
@@ -412,6 +420,8 @@ mod tests {
             evidence_floor: Some(0.5),
             confidence_threshold: Some(0.7),
             ranking_method: Some("vector_cosine_v1".to_string()),
+            embedding_model_registry_id: Some("test-model".to_string()),
+            provider: Some("test-provider".to_string()),
             latency_ms: Some(123),
         }
     }

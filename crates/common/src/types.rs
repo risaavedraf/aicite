@@ -545,6 +545,8 @@ pub struct TraceHeaderInput {
     pub evidence_floor: Option<f64>,
     pub confidence_threshold: Option<f64>,
     pub ranking_method: Option<String>,
+    pub embedding_model_registry_id: Option<String>,
+    pub provider: Option<String>,
     pub latency_ms: Option<u64>,
 }
 
@@ -563,6 +565,8 @@ pub struct TraceHeaderRecord {
     pub evidence_floor: Option<f64>,
     pub confidence_threshold: Option<f64>,
     pub ranking_method: Option<String>,
+    pub embedding_model_registry_id: Option<String>,
+    pub provider: Option<String>,
     pub latency_ms: Option<u64>,
     pub created_at: DateTime<Utc>,
 }

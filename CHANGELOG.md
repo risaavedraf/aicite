@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.2.3 (2026-06-02)
+
+### New features
+
+- **Trace provenance** — `cite trace` now stores and displays the embedding model and provider used at retrieval time. New migration `007_trace_provenance.sql` adds `embedding_model_registry_id` and `provider` columns to the `traces` table.
+- **Offline trace retrieval** — `cite trace` no longer requires an active embedding provider. Provenance data is read from the database, enabling trace inspection in offline or degraded-provider scenarios.
+- **CLI overrides** — New global flags `--data-dir <path>` and `--runtime-mode <mode>` for runtime configuration without config files or env vars.
+- **`RuntimeMode` parsing** — `RuntimeMode` now implements `FromStr` for reusable validation across CLI and env overrides.
+
+### Maintenance
+
+- Renamed `docs/` to `openspec/` to reflect SDD artifact store convention.
+
 ## v0.2.2 (2026-05-29)
 
 ### Critical fixes

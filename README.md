@@ -80,6 +80,18 @@ All commands accept `--json` for structured output suitable for agent pipelines.
 | `refresh` | Refresh corpus with atomic snapshot swap | `cite refresh` |
 | `evaluate` | Run golden dataset evaluation to verify retrieval quality | `cite evaluate --json` |
 
+### Retrieval flags (v0.2.0+)
+
+Commands `search`, `retrieve`, and `context` support hierarchical retrieval:
+
+| Flag | Purpose | Example |
+|---|---|---|
+| `--flat` | Use flat retrieval (v0.1.0 behavior, no hierarchy) | `cite context "query" --flat` |
+| `--topic <name>` | Filter results to a specific topic | `cite search "query" --topic "Authentication"` |
+| `--concept <name>` | Filter results to a specific concept | `cite context "query" --concept "JWT Tokens"` |
+| `--full` | Return full JSON response (default: compact when `--json`) | `cite context "query" --json --full` |
+| `--k <n>` | Number of results (1-10, default 5) | `cite search "query" --k 8` |
+
 Global flags available on every command:
 
 | Flag | Purpose |
@@ -89,6 +101,50 @@ Global flags available on every command:
 | `--data-dir <path>` | Override data directory |
 | `--runtime-mode <mode>` | Override runtime mode |
 | `--no-banner` | Suppress provider disclosure banner |
+
+## Hierarchical retrieval (v0.2.0+)
+
+CITE organizes documents into a hierarchy: **Document → Topic → Concept → Chunk**. This enables more precise retrieval by filtering at different levels.
+
+### How it works
+
+1. **Ingestion**: Documents are parsed into topics (sections) and concepts (knowledge units). Chunks are small (30-200 chars) and atomic.
+2. **Retrieval**: By default, CITE searches chunks but enriches results with topic/concept context (breadcrumb).
+3. **Filtering**: Use `--topic` or `--concept` to narrow results to specific sections.
+
+### Example output (compact mode)
+
+```json
+{
+  "result_kind": "context",
+  "citations": [
+    {
+      "citation_id": "c1",
+      "text": "JWT tokens with 15-minute expiry",
+      "score": 0.95,
+      "breadcrumb": "architecture.txt > Authentication > JWT Tokens"
+    }
+  ]
+}
+```
+
+### Breadcrumb navigation
+
+Every citation includes a `breadcrumb` showing the path from document to chunk:
+
+```
+Document > Topic > Concept > Chunk
+```
+
+This helps agents understand the context and source of each piece of information.
+
+### Flat mode (legacy)
+
+If you need the v0.1.0 behavior (no hierarchy, larger chunks), use the `--flat` flag:
+
+```bash
+cite context "query" --flat
+```
 
 ## Demo
 
@@ -207,7 +263,7 @@ confidence_threshold = 0.70
 |---|---|---|
 | `public_packaged_demo` | Disabled | Safe public demo with bundled sample documents. Shows a banner: _"Demo uses sample documents. Public uploads are disabled."_ |
 | `local_private_demo` | Enabled | Developer evaluation with private documents. Shows a no-sensitive-data warning and provider disclosure. Original files, extracted text, chunks, embeddings, and metadata are stored in CLI-managed local storage. |
-| `production` | Blocked | Requires compliance checklist completion before real uploads are enabled. See [Legal and Privacy Compliance](docs/prd/12-legal-privacy-compliance.md). |
+| `production` | Blocked | Requires compliance checklist completion before real uploads are enabled. See [Legal and Privacy Compliance](openspec/prd/12-legal-privacy-compliance.md). |
 
 ## Storage paths
 
@@ -241,13 +297,13 @@ cite refresh
 ## Privacy and compliance
 
 - **Chilean privacy law**: This product accounts for Ley 19.628 (current baseline for personal data processing) and Ley 21.719 (modernized regime with deferred entry into force). The system treats ingestion, embeddings, graph metadata, retrieval context, context packs, traces, logs, and citations as personal-data processing surfaces.
-- **Designed with Chilean privacy requirements in mind.** This is not a legal-compliance certification. Before handling real personal data in production, review the [production compliance checklist](docs/prd/12-legal-privacy-compliance.md#production-compliance-checklist) with a qualified legal professional.
+- **Designed with Chilean privacy requirements in mind.** This is not a legal-compliance certification. Before handling real personal data in production, review the [production compliance checklist](openspec/prd/12-legal-privacy-compliance.md#production-compliance-checklist) with a qualified legal professional.
 - **Provider disclosure**: Document snippets, query text, or embeddings may be sent to your configured AI provider. The CLI displays a disclosure banner on retrieval commands when a real external provider is active. Use `--no-banner` to suppress.
 - **Data minimization**: Only chunks needed for the requested context are sent to providers, not full documents.
 - **Local storage**: MVP local storage relies on operator-controlled device/OS/filesystem protections. Does not promise encryption at rest.
 - **Logs**: The CLI avoids storing full document text, full prompts, secrets, raw filenames, provider error payloads, query text, citation text, chunk text, or raw personal data in logs.
 
-For the full privacy and compliance documentation, see [docs/prd/12-legal-privacy-compliance.md](docs/prd/12-legal-privacy-compliance.md).
+For the full privacy and compliance documentation, see [openspec/prd/12-legal-privacy-compliance.md](openspec/prd/12-legal-privacy-compliance.md).
 
 ## Development
 
@@ -273,8 +329,10 @@ cargo fmt
 
 | Version | Date | Highlights |
 |---|---|---|
+| v0.2.3 | 2026-06-02 | Trace provenance, offline trace retrieval, CLI overrides (`--data-dir`, `--runtime-mode`), docs→openspec rename |
+| v0.2.2 | 2026-05-29 | Code quality: removed unwrap() in production, refactored build_context, newtype wrappers, 40+ doc comments |
 | v0.2.1 | 2026-05-28 | rustfmt CI fix |
-| v0.2.0 | 2026-05-29 | `cite setup` wizard, TOML config, `install.sh`, enhanced health diagnostics |
+| v0.2.0 | 2026-05-29 | Hierarchical graph, `cite setup` wizard, TOML config, `install.sh`, topic/concept filters |
 | v0.1.0 | 2026-05-28 | Initial release — ingest, search, context, evaluate, 12 CLI commands |
 
 For the full changelog, see [CHANGELOG.md](CHANGELOG.md).

@@ -21,6 +21,21 @@ impl std::fmt::Display for RuntimeMode {
     }
 }
 
+impl std::str::FromStr for RuntimeMode {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "public_packaged_demo" => Ok(Self::PublicPackagedDemo),
+            "local_private_demo" => Ok(Self::LocalPrivateDemo),
+            "production" => Ok(Self::Production),
+            _ => Err(format!(
+                "Invalid runtime mode '{value}'. Expected one of: public_packaged_demo, local_private_demo, production"
+            )),
+        }
+    }
+}
+
 /// Full configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
@@ -292,12 +307,7 @@ impl EnvOverrides {
         Self {
             runtime_mode: std::env::var("CITE_RUNTIME_MODE")
                 .ok()
-                .and_then(|v| match v.as_str() {
-                    "public_packaged_demo" => Some(RuntimeMode::PublicPackagedDemo),
-                    "local_private_demo" => Some(RuntimeMode::LocalPrivateDemo),
-                    "production" => Some(RuntimeMode::Production),
-                    _ => None,
-                }),
+                .and_then(|v| v.parse::<RuntimeMode>().ok()),
             data_dir: std::env::var("CITE_DATA_DIR").ok().map(PathBuf::from),
             cache_dir: std::env::var("CITE_CACHE_DIR").ok().map(PathBuf::from),
             embedding_provider: std::env::var("CITE_EMBEDDING_PROVIDER").ok(),
@@ -455,5 +465,27 @@ mod tests {
         assert_eq!(config.ingest.min_chunk_chars, 30);
         assert_eq!(config.ingest.max_chunk_chars, 200);
         assert!(!config.ingest.build_hierarchy);
+    }
+
+    #[test]
+    fn runtime_mode_from_str_accepts_supported_values() {
+        assert_eq!(
+            "public_packaged_demo".parse::<RuntimeMode>().unwrap(),
+            RuntimeMode::PublicPackagedDemo
+        );
+        assert_eq!(
+            "local_private_demo".parse::<RuntimeMode>().unwrap(),
+            RuntimeMode::LocalPrivateDemo
+        );
+        assert_eq!(
+            "production".parse::<RuntimeMode>().unwrap(),
+            RuntimeMode::Production
+        );
+    }
+
+    #[test]
+    fn runtime_mode_from_str_rejects_invalid_value() {
+        let err = "prod".parse::<RuntimeMode>().unwrap_err();
+        assert!(err.contains("Invalid runtime mode"));
     }
 }

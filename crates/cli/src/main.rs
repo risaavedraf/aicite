@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
-use common::ExitCode;
-use config::Config;
-use std::process;
+use common::{CiteError, ExitCode};
+use config::{Config, RuntimeMode};
+use std::{path::PathBuf, process};
 
 mod commands;
 mod output;
@@ -71,13 +71,22 @@ fn main() {
     let cli = Cli::parse();
 
     let config_path = cli.config.as_deref().map(std::path::Path::new);
-    let config = match Config::load_from(config_path) {
+    let mut config = match Config::load_from(config_path) {
         Ok(config) => config,
         Err(e) => {
             eprintln!("Configuration error: {e}");
             process::exit(ExitCode::Validation as i32);
         }
     };
+
+    if let Err(e) = apply_cli_overrides(
+        &mut config,
+        cli.data_dir.as_deref(),
+        cli.runtime_mode.as_deref(),
+    ) {
+        eprintln!("Configuration error: {e}");
+        process::exit(ExitCode::Validation as i32);
+    }
 
     // Show provider disclosure banner for real (non-eval) providers
     if !cli.no_banner && !cli.json && is_retrieval_command(&cli.command) {
@@ -152,5 +161,77 @@ fn show_provider_disclosure(config: &Config) {
             "⚠ Provider disclosure: Document snippets, query text, or embeddings may be sent\n  to your configured AI provider ({provider_id} / {}).\n  See README for privacy details.\n",
             config.embedding.model
         );
+    }
+}
+
+fn apply_cli_overrides(
+    config: &mut Config,
+    data_dir: Option<&str>,
+    runtime_mode: Option<&str>,
+) -> Result<(), CiteError> {
+    if let Some(dir) = data_dir {
+        config.paths.data_dir = Some(PathBuf::from(dir));
+    }
+
+    if let Some(mode) = runtime_mode {
+        config.runtime.mode = parse_runtime_mode(mode)?;
+    }
+
+    Ok(())
+}
+
+fn parse_runtime_mode(value: &str) -> Result<RuntimeMode, CiteError> {
+    value.parse::<RuntimeMode>().map_err(|_| CiteError::ConfigError {
+        message: format!(
+            "Invalid --runtime-mode '{value}'. Expected one of: public_packaged_demo, local_private_demo, production"
+        ),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{apply_cli_overrides, parse_runtime_mode};
+    use config::{Config, RuntimeMode};
+    use std::path::PathBuf;
+
+    #[test]
+    fn parse_runtime_mode_accepts_supported_values() {
+        assert!(matches!(
+            parse_runtime_mode("public_packaged_demo").unwrap(),
+            RuntimeMode::PublicPackagedDemo
+        ));
+        assert!(matches!(
+            parse_runtime_mode("local_private_demo").unwrap(),
+            RuntimeMode::LocalPrivateDemo
+        ));
+        assert!(matches!(
+            parse_runtime_mode("production").unwrap(),
+            RuntimeMode::Production
+        ));
+    }
+
+    #[test]
+    fn apply_cli_overrides_sets_data_dir_and_runtime_mode() {
+        let mut config = Config::load_from(None).unwrap();
+        let expected_dir = PathBuf::from("/tmp/cite-test-dir");
+
+        apply_cli_overrides(
+            &mut config,
+            Some(expected_dir.to_string_lossy().as_ref()),
+            Some("production"),
+        )
+        .unwrap();
+
+        assert_eq!(config.paths.data_dir, Some(expected_dir));
+        assert!(matches!(config.runtime.mode, RuntimeMode::Production));
+    }
+
+    #[test]
+    fn apply_cli_overrides_rejects_invalid_runtime_mode() {
+        let mut config = Config::load_from(None).unwrap();
+
+        let err = apply_cli_overrides(&mut config, None, Some("prod")).unwrap_err();
+
+        assert!(format!("{err}").contains("Invalid --runtime-mode"));
     }
 }

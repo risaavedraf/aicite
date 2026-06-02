@@ -27,7 +27,7 @@ pub struct CommandContext {
 impl CommandContext {
     /// Open database and create an embedding provider from config.
     ///
-    /// Use this for commands that need vector search (search, retrieve, context, trace, ingest).
+    /// Use this for commands that need vector search (search, retrieve, context, ingest).
     pub fn open(config: &Config, json: bool) -> Result<Self, i32> {
         let data_dir = resolve_data_dir(config);
         let db = storage::Database::open(&data_dir).map_err(|e| {
@@ -46,7 +46,7 @@ impl CommandContext {
 
     /// Open database only, without creating a provider.
     ///
-    /// Use this for commands that only need database access (get, list, retry, refresh, read).
+    /// Use this for commands that only need database access (get, list, retry, refresh, read, trace).
     pub fn open_db_only(config: &Config, json: bool) -> Result<Self, i32> {
         let data_dir = resolve_data_dir(config);
         let db = storage::Database::open(&data_dir).map_err(|e| {

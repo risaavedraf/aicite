@@ -186,6 +186,7 @@ fn persist_trace(
     query_id: &str,
     context_pack_id: &str,
     k: u32,
+    provider: &dyn EmbeddingProvider,
     config: &RetrievalConfig,
     latency_ms: u64,
 ) -> Result<(), CiteError> {
@@ -238,6 +239,8 @@ fn persist_trace(
             evidence_floor: Some(config.evidence_floor),
             confidence_threshold: Some(config.confidence_threshold),
             ranking_method: Some(RANKING_METHOD_DEFAULT.into()),
+            embedding_model_registry_id: Some(provider.model_id().into()),
+            provider: Some(provider.provider_id().into()),
             latency_ms: Some(latency_ms),
         },
         &trace_citations,
@@ -306,6 +309,7 @@ pub fn build_context(
         &query_id,
         &context_pack_id,
         k,
+        provider,
         config,
         latency_ms,
     )?;
@@ -401,11 +405,7 @@ pub fn read_context(db: &Database, selector: ReadSelector) -> Result<ReadRespons
 // ---------------------------------------------------------------------------
 
 /// Fetch trace envelope for a completed context/retrieval request.
-pub fn get_trace(
-    db: &Database,
-    provider: &dyn EmbeddingProvider,
-    trace_id: &str,
-) -> Result<TraceResponse, CiteError> {
+pub fn get_trace(db: &Database, trace_id: &str) -> Result<TraceResponse, CiteError> {
     let envelope = db.get_trace_envelope(trace_id)?;
 
     let doc_ids: Vec<String> = envelope
@@ -434,8 +434,11 @@ pub fn get_trace(
         context_pack_id: envelope.header.context_pack_id,
         timestamp: envelope.header.created_at,
         schema_version: SCHEMA_VERSION.into(),
-        embedding_model_registry_id: provider.model_id().into(),
-        provider: provider.provider_id().into(),
+        embedding_model_registry_id: envelope
+            .header
+            .embedding_model_registry_id
+            .unwrap_or_else(|| "unknown".into()),
+        provider: envelope.header.provider.unwrap_or_else(|| "unknown".into()),
         document_ids: doc_ids,
         citation_ids,
         retrieval_top_k: envelope.header.top_k,
@@ -780,6 +783,8 @@ mod tests {
                 evidence_floor: Some(0.5),
                 confidence_threshold: Some(0.7),
                 ranking_method: None,
+                embedding_model_registry_id: Some("stored-model".into()),
+                provider: Some("stored-provider".into()),
                 latency_ms: None,
             },
             &[],
@@ -809,7 +814,7 @@ mod tests {
         };
         let ctx =
             build_context(&db, &provider, &cfg(), &rl_cfg(), "query", None, None, None).unwrap();
-        let trace = get_trace(&db, &provider, &ctx.trace_id).unwrap();
+        let trace = get_trace(&db, &ctx.trace_id).unwrap();
 
         assert_eq!(trace.schema_version, "context-v1");
         assert!(trace.user_visible_disclaimer_shown);
@@ -821,10 +826,7 @@ mod tests {
     #[test]
     fn test_trace_not_found() {
         let db = test_db();
-        let provider = FakeProvider {
-            vector: vec![1.0, 0.0],
-        };
-        let err = get_trace(&db, &provider, "missing-trace").unwrap_err();
+        let err = get_trace(&db, "missing-trace").unwrap_err();
         assert!(matches!(err, CiteError::TraceNotFound { .. }));
     }
 

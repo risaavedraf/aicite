@@ -12,20 +12,12 @@ pub struct TraceArgs {
 }
 
 pub fn execute(args: &TraceArgs, config: &Config, json: bool) -> i32 {
-    let ctx = match CommandContext::open(config, json) {
+    let ctx = match CommandContext::open_db_only(config, json) {
         Ok(ctx) => ctx,
         Err(code) => return code,
     };
-    let db = &ctx.db;
-    let provider = match ctx.provider.as_ref() {
-        Some(p) => p,
-        None => {
-            eprintln!("Error: embedding provider not configured");
-            return ExitCode::Validation as i32;
-        }
-    };
 
-    match context::get_trace(db, provider.as_ref(), &args.trace_id) {
+    match context::get_trace(&ctx.db, &args.trace_id) {
         Ok(response) => {
             if json {
                 print_json(&response);
@@ -71,5 +63,63 @@ pub fn execute(args: &TraceArgs, config: &Config, json: bool) -> i32 {
             }
             e.exit_code() as i32
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use common::types::TraceHeaderInput;
+    use std::path::PathBuf;
+    use storage::Database;
+
+    fn unique_temp_dir(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "cite-{name}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ))
+    }
+
+    #[test]
+    fn trace_command_uses_db_only_context() {
+        let data_dir = unique_temp_dir("trace-db-only");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        let db = Database::open(&data_dir).unwrap();
+        db.persist_trace_with_citations(
+            &TraceHeaderInput {
+                trace_id: "trace-offline".into(),
+                query_id: Some("qry-offline".into()),
+                context_pack_id: Some("ctx-offline".into()),
+                request_type: "context".into(),
+                document_ids: Some("doc-1".into()),
+                citation_ids: None,
+                top_k: Some(3),
+                evidence_floor: Some(0.5),
+                confidence_threshold: Some(0.7),
+                ranking_method: Some("vector_cosine_v1".into()),
+                embedding_model_registry_id: Some("historic-model".into()),
+                provider: Some("historic-provider".into()),
+                latency_ms: Some(42),
+            },
+            &[],
+        )
+        .unwrap();
+        drop(db);
+
+        let mut config = Config::load_from(None).unwrap();
+        config.paths.data_dir = Some(data_dir.clone());
+        config.embedding.provider = "openai-compatible".into();
+        config.ingest.embedding_endpoint = Some("http://invalid-provider-endpoint".into());
+
+        let args = TraceArgs {
+            trace_id: "trace-offline".into(),
+        };
+
+        assert_eq!(execute(&args, &config, true), ExitCode::Success as i32);
+
+        let _ = std::fs::remove_dir_all(data_dir);
     }
 }

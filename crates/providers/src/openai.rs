@@ -22,7 +22,18 @@ impl OpenAICompatibleProvider {
     /// - `endpoint`: API URL (must be HTTPS)
     /// - `model`: model ID (e.g. `"text-embedding-3-small"`)
     /// - `api_key`: API key for bearer authentication
-    pub fn new(endpoint: &str, model: &str, api_key: &str) -> Result<Self, CiteError> {
+    pub fn new(
+        endpoint: &str,
+        model: &str,
+        api_key: &str,
+        timeout_secs: u64,
+    ) -> Result<Self, CiteError> {
+        if api_key.is_empty() {
+            return Err(CiteError::ConfigError {
+                message: "API key must not be empty. Set the CITE_API_KEY environment variable or add api_key to config.".to_string(),
+            });
+        }
+
         if !endpoint.starts_with("https://") {
             return Err(CiteError::ConfigError {
                 message: format!("Embedding endpoint must use HTTPS, got: {}", endpoint),
@@ -30,7 +41,7 @@ impl OpenAICompatibleProvider {
         }
 
         let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
+            .timeout(std::time::Duration::from_secs(timeout_secs))
             .default_headers({
                 let mut headers = reqwest::header::HeaderMap::new();
                 headers.insert(
@@ -140,6 +151,7 @@ mod tests {
             "https://api.openai.com/v1/embeddings",
             "text-embedding-3-small",
             "sk-test-key",
+            30,
         );
         assert!(result.is_ok());
     }
@@ -150,6 +162,7 @@ mod tests {
             "http://api.openai.com/v1/embeddings",
             "text-embedding-3-small",
             "sk-test-key",
+            30,
         );
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -166,6 +179,7 @@ mod tests {
             "https://api.openai.com/v1/embeddings",
             "text-embedding-3-small",
             "sk-test-key",
+            30,
         )
         .unwrap();
         assert_eq!(provider.model_id(), "text-embedding-3-small");
@@ -177,9 +191,31 @@ mod tests {
             "https://api.openai.com/v1/embeddings",
             "text-embedding-3-small",
             "sk-test-key",
+            30,
         )
         .unwrap();
         assert_eq!(provider.provider_id(), "openai-compatible");
+    }
+
+    #[test]
+    fn test_provider_rejects_empty_key() {
+        let result = OpenAICompatibleProvider::new(
+            "https://api.openai.com/v1/embeddings",
+            "text-embedding-3-small",
+            "",
+            30,
+        );
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CiteError::ConfigError { message } => {
+                assert!(
+                    message.contains("must not be empty"),
+                    "Unexpected message: {}",
+                    message
+                );
+            }
+            other => panic!("Expected ConfigError, got: {:?}", other),
+        }
     }
 
     #[test]
@@ -189,6 +225,7 @@ mod tests {
             "https://localhost:1/nonexistent",
             "test-model",
             "test-key",
+            30,
         )
         .unwrap();
 

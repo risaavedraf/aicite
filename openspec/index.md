@@ -94,8 +94,9 @@ Inbox for external documents and ideas brought into the project.
 
 ## Reports
 
-Code quality and structure review reports.
+Code quality, structure, and compliance review reports.
 
 | Document | Purpose |
 |---|---|
 | [Code Review Pending Items](reports/code-review-pending-items.md) | Pending items from code review |
+

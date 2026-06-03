@@ -142,21 +142,32 @@ pub fn build_hierarchy(
     }
 
     // Build sorted boundaries: (char_offset, topic_idx, Option<concept_idx>)
+    // Use sequential heading consumption to avoid duplicate heading assignment.
     let mut boundaries: Vec<(usize, usize, Option<usize>)> = Vec::new();
 
+    let mut heading_idx = 0usize;
     for (t_idx, topic_with_concepts) in topics.iter().enumerate() {
-        if let Some(heading) = headings
-            .iter()
-            .find(|h| h.level == 2 && h.title == topic_with_concepts.topic.name)
-        {
-            boundaries.push((heading.char_offset, t_idx, None));
-            for (c_idx, concept_with_chunks) in topic_with_concepts.concepts.iter().enumerate() {
-                if let Some(h) = headings
-                    .iter()
-                    .find(|h| h.level == 3 && h.title == concept_with_chunks.concept.name)
-                {
+        // Advance heading_idx to find the next H2 matching this topic
+        while heading_idx < headings.len() {
+            let h = &headings[heading_idx];
+            if h.level == 2 && h.title == topic_with_concepts.topic.name {
+                boundaries.push((h.char_offset, t_idx, None));
+                heading_idx += 1;
+                break;
+            }
+            heading_idx += 1;
+        }
+        // Match concepts (H3) from current position
+        let mut concept_heading_idx = heading_idx;
+        for (c_idx, concept_with_chunks) in topic_with_concepts.concepts.iter().enumerate() {
+            while concept_heading_idx < headings.len() {
+                let h = &headings[concept_heading_idx];
+                if h.level == 3 && h.title == concept_with_chunks.concept.name {
                     boundaries.push((h.char_offset, t_idx, Some(c_idx)));
+                    concept_heading_idx += 1;
+                    break;
                 }
+                concept_heading_idx += 1;
             }
         }
     }
@@ -283,5 +294,42 @@ mod tests {
         }
         let unique: std::collections::HashSet<&str> = ids.iter().copied().collect();
         assert_eq!(ids.len(), unique.len());
+    }
+
+    #[test]
+    fn test_duplicate_h2_headings_assigned_correctly() {
+        // Two H2 "Overview" headings at different offsets
+        let headings = vec![
+            HeadingSpan {
+                level: 2,
+                title: "Overview".to_string(),
+                char_offset: 0,
+            },
+            HeadingSpan {
+                level: 2,
+                title: "API".to_string(),
+                char_offset: 100,
+            },
+            HeadingSpan {
+                level: 2,
+                title: "Overview".to_string(),
+                char_offset: 200,
+            },
+        ];
+        // Chunks at offsets 10, 110, 210
+        let result = build_hierarchy("doc_dup", &headings, &[10, 110, 210]);
+
+        // Should create 3 topics (two "Overview" and one "API")
+        assert_eq!(result.topics.len(), 3);
+        assert_eq!(result.topics[0].topic.name, "Overview");
+        assert_eq!(result.topics[1].topic.name, "API");
+        assert_eq!(result.topics[2].topic.name, "Overview");
+
+        // First chunk (offset 10) → first "Overview"
+        assert_eq!(result.topics[0].topic.chunk_count, 1);
+        // Second chunk (offset 110) → "API"
+        assert_eq!(result.topics[1].topic.chunk_count, 1);
+        // Third chunk (offset 210) → second "Overview"
+        assert_eq!(result.topics[2].topic.chunk_count, 1);
     }
 }

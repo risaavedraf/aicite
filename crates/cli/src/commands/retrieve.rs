@@ -77,7 +77,17 @@ pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
         Err(code) => return code,
     };
     let db = &ctx.db;
-    let provider = ctx.provider.as_ref().unwrap();
+    let provider = match ctx.provider() {
+        Ok(p) => p,
+        Err(e) => {
+            if json {
+                print_json(&e.to_json_response());
+            } else {
+                eprintln!("Error: {e}");
+            }
+            return e.exit_code() as i32;
+        }
+    };
 
     let mut retrieval_config = config.retrieval.clone();
     if args.flat {
@@ -89,7 +99,7 @@ pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
 
     match retrieve::retrieve(
         db,
-        provider.as_ref(),
+        provider,
         &retrieval_config,
         &config.rate_limit,
         &args.query,

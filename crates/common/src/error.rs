@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// All errors in the AI Cite system
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, PartialEq, thiserror::Error)]
 pub enum CiteError {
     #[error("Unsupported file type: {file_type}")]
     UnsupportedFileType { file_type: String },
@@ -176,5 +176,21 @@ mod tests {
 
         assert_eq!(details["retry_after_seconds"], 5);
         assert_eq!(details["lock_name"], "ingest_pipeline");
+    }
+
+    #[test]
+    fn test_cite_error_partial_eq() {
+        let a = CiteError::ConfigError {
+            message: "no key".to_string(),
+        };
+        let b = CiteError::ConfigError {
+            message: "no key".to_string(),
+        };
+        assert_eq!(a, b);
+
+        let c = CiteError::ConfigError {
+            message: "different".to_string(),
+        };
+        assert_ne!(a, c);
     }
 }

@@ -32,6 +32,9 @@ Thumbs.db
 .pi-lens/
 .atl/
 
+# Reportes internos (no subir a GitHub)
+openspec/reports/revision-*/
+
 # Temp files
 *.tmp
 temp_*

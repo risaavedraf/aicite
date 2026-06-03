@@ -22,14 +22,20 @@ impl GeminiProvider {
     ///
     /// - `model`: model ID (e.g. `"gemini-embedding-001"`, `"gemini-embedding-2"`)
     /// - `api_key`: Google AI API key (get one free at https://aistudio.google.com/apikey)
-    pub fn new(model: &str, api_key: &str) -> Result<Self, CiteError> {
+    pub fn new(model: &str, api_key: &str, timeout_secs: u64) -> Result<Self, CiteError> {
+        if api_key.is_empty() {
+            return Err(CiteError::ConfigError {
+                message: "API key must not be empty. Set the CITE_API_KEY environment variable or add api_key to config.".to_string(),
+            });
+        }
+
         let endpoint = format!(
             "https://generativelanguage.googleapis.com/v1beta/models/{}:embedContent",
             model
         );
 
         let client = Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
+            .timeout(std::time::Duration::from_secs(timeout_secs))
             .default_headers({
                 let mut headers = reqwest::header::HeaderMap::new();
                 headers.insert(
@@ -142,7 +148,7 @@ mod tests {
 
     #[test]
     fn test_provider_creation() {
-        let result = GeminiProvider::new("gemini-embedding-001", "test-api-key");
+        let result = GeminiProvider::new("gemini-embedding-001", "test-api-key", 30);
         assert!(result.is_ok());
         let provider = result.unwrap();
         assert_eq!(provider.model_id(), "gemini-embedding-001");
@@ -152,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_provider_endpoint_format() {
-        let provider = GeminiProvider::new("gemini-embedding-2", "key").unwrap();
+        let provider = GeminiProvider::new("gemini-embedding-2", "key", 30).unwrap();
         assert_eq!(
             provider.endpoint,
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent"
@@ -160,9 +166,25 @@ mod tests {
     }
 
     #[test]
+    fn test_provider_rejects_empty_key() {
+        let result = GeminiProvider::new("gemini-embedding-001", "", 30);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CiteError::ConfigError { message } => {
+                assert!(
+                    message.contains("must not be empty"),
+                    "Unexpected message: {}",
+                    message
+                );
+            }
+            other => panic!("Expected ConfigError, got: {:?}", other),
+        }
+    }
+
+    #[test]
     fn test_embed_invalid_key_returns_error() {
         // Use an obviously invalid key to test error handling
-        let provider = GeminiProvider::new("gemini-embedding-001", "invalid-key").unwrap();
+        let provider = GeminiProvider::new("gemini-embedding-001", "invalid-key", 30).unwrap();
         let result = provider.embed("hello world");
         assert!(result.is_err());
         match result.unwrap_err() {

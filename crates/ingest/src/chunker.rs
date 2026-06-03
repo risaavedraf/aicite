@@ -22,12 +22,12 @@ pub struct PageText {
 /// - `pages`: extracted text per page (order matters)
 /// - `chunk_size_chars`: target maximum chunk size in characters
 /// - `chunk_overlap_chars`: overlap between consecutive chunks in characters
-/// - `min_chunk_size_chars`: minimum chunk size; smaller chunks are dropped (except the last)
+/// - `min_chunk_chars`: minimum chunk size; smaller chunks are dropped (except the last)
 pub fn chunk_text(
     pages: &[PageText],
     chunk_size_chars: usize,
     chunk_overlap_chars: usize,
-    min_chunk_size_chars: usize,
+    min_chunk_chars: usize,
 ) -> Result<Vec<ChunkInput>, CiteError> {
     if chunk_size_chars == 0 {
         return Err(CiteError::InvalidParameter {
@@ -75,7 +75,7 @@ pub fn chunk_text(
 
         // 4. Determine if this chunk should be kept
         let is_last = end >= total_chars;
-        if trimmed.len() >= min_chunk_size_chars || is_last {
+        if trimmed.chars().count() >= min_chunk_chars || is_last {
             // Only keep non-empty trimmed text
             if !trimmed.is_empty() {
                 let page = resolve_page(&char_page_map, start, end - 1);

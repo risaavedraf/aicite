@@ -178,7 +178,9 @@ fn ingest_internal(
             }
             Err(e) => {
                 // Failure — clean up partial data and mark failed
-                let _ = cleanup_partial(db, &document_id);
+                if let Err(cleanup_err) = cleanup_partial(db, &document_id) {
+                    eprintln!("Warning: cleanup failed for {document_id}: {cleanup_err}");
+                }
                 let error_info = ErrorInfo {
                     code: e.code().to_string(),
                     message: e.message(),
@@ -233,7 +235,7 @@ fn run_pipeline(
         &pages,
         config.chunk_size_chars,
         config.chunk_overlap_chars,
-        config.min_chunk_size_chars,
+        config.min_chunk_chars,
     )?;
 
     if chunk_inputs.is_empty() {
@@ -286,9 +288,13 @@ fn run_pipeline(
 /// Clean up partial data from a failed ingestion
 fn cleanup_partial(db: &Database, document_id: &str) -> Result<(), CiteError> {
     // Delete embeddings first (FK dependency)
-    let _ = db.delete_embeddings_for_document(document_id);
+    if let Err(e) = db.delete_embeddings_for_document(document_id) {
+        eprintln!("Warning: failed to delete embeddings for {document_id}: {e}");
+    }
     // Delete chunks
-    let _ = db.delete_chunks_for_document(document_id);
+    if let Err(e) = db.delete_chunks_for_document(document_id) {
+        eprintln!("Warning: failed to delete chunks for {document_id}: {e}");
+    }
     Ok(())
 }
 

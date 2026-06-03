@@ -270,8 +270,8 @@ pub fn retrieve(
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-fn rate_limit_key(provider: &dyn EmbeddingProvider) -> String {
-    provider.provider_id().to_string()
+pub(crate) fn rate_limit_key(provider: &dyn EmbeddingProvider) -> String {
+    format!("{}:{}", provider.provider_id(), provider.model_id())
 }
 
 fn enforce_rate_limit(
@@ -676,6 +676,16 @@ mod tests {
                 retry_after_seconds: _
             }
         ));
+    }
+
+    #[test]
+    fn test_rate_limit_key_includes_model_id() {
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        // FakeProvider has provider_id "fake" and model_id "fake-model"
+        let key = rate_limit_key(&provider);
+        assert_eq!(key, "fake:fake-model");
     }
 
     // -----------------------------------------------------------------------

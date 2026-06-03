@@ -14,11 +14,7 @@ pub fn extract_headings(markdown: &str) -> Vec<HeadingSpan> {
         // Toggle code blocks
         if trimmed.starts_with("```") {
             in_code_block = !in_code_block;
-            char_offset += line.len() + 1; // +1 for newline
-            continue;
-        }
-
-        if !in_code_block && trimmed.starts_with('#') {
+        } else if !in_code_block && trimmed.starts_with('#') {
             // Count heading level
             let level = trimmed.chars().take_while(|&c| c == '#').count();
             let title = trimmed[level..].trim().to_string();
@@ -32,7 +28,7 @@ pub fn extract_headings(markdown: &str) -> Vec<HeadingSpan> {
             }
         }
 
-        char_offset += line.len() + 1; // +1 for newline
+        char_offset += line.chars().count() + 1; // +1 for newline
     }
 
     headings
@@ -109,5 +105,40 @@ Final content."#;
         // "## First" = 8 chars, "\n" = 1, "" = 0, "\n" = 1, "Some text" = 9, "\n" = 1, "" = 0, "\n" = 1
         // Total offset = 8 + 1 + 0 + 1 + 9 + 1 + 0 + 1 = 21
         assert_eq!(headings[1].char_offset, 21);
+    }
+
+    #[test]
+    fn test_extract_headings_utf8_offsets() {
+        let md = "## 🎉\n\nSome text\n\n## 日本語";
+        let headings = extract_headings(md);
+        assert_eq!(headings.len(), 2);
+        assert_eq!(headings[0].title, "🎉");
+        assert_eq!(headings[0].char_offset, 0);
+        // "## 🎉" = 4 chars, then "\n\nSome text\n\n" = 13 chars, total = 17
+        assert_eq!(headings[1].title, "日本語");
+        assert_eq!(headings[1].char_offset, 17);
+    }
+
+    #[test]
+    fn test_extract_headings_accented_offsets() {
+        let md = "## Café\n\ncontent\n\n## Résumé";
+        let headings = extract_headings(md);
+        assert_eq!(headings.len(), 2);
+        assert_eq!(headings[0].title, "Café");
+        assert_eq!(headings[0].char_offset, 0);
+        // "## Café" = 7 chars, then "\n\ncontent\n\n" = 11 chars, total = 18
+        assert_eq!(headings[1].title, "Résumé");
+        assert_eq!(headings[1].char_offset, 18);
+    }
+
+    #[test]
+    fn test_indented_code_fence_toggled() {
+        // Indented code fences should still be detected and toggle the state
+        let md = "## Real\n\n    ```rust\n## Inside Fenced Block\n    ```\n\n## After Block";
+        let headings = extract_headings(md);
+        // "## Inside Fenced Block" is inside a code block so should be ignored
+        assert_eq!(headings.len(), 2);
+        assert_eq!(headings[0].title, "Real");
+        assert_eq!(headings[1].title, "After Block");
     }
 }

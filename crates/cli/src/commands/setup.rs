@@ -216,7 +216,7 @@ fn test_provider_connection(
 
     let result = match provider {
         "gemini" => {
-            let p = GeminiProvider::new("text-embedding-004", api_key)
+            let p = GeminiProvider::new("text-embedding-004", api_key, 30)
                 .map_err(|e| format!("Failed to create provider: {e}"))?;
             p.embed("test connection")
         }
@@ -225,6 +225,7 @@ fn test_provider_connection(
                 "https://api.openai.com/v1/embeddings",
                 "text-embedding-3-small",
                 api_key,
+                30,
             )
             .map_err(|e| format!("Failed to create provider: {e}"))?;
             p.embed("test connection")

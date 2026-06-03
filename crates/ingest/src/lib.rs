@@ -57,7 +57,7 @@ pub fn ingest_document(
             &pages,
             config.chunk_size_chars,
             config.chunk_overlap_chars,
-            config.min_chunk_size_chars,
+            config.min_chunk_chars,
         )?
     };
 

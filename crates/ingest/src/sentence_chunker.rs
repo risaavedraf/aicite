@@ -32,13 +32,13 @@ pub fn chunk_by_sentence(text: &str, min_chars: usize) -> Vec<SentenceChunk> {
             // Starting a new chunk
             current_offset_start = sentence.offset_start;
             current_text = sentence_text.to_string();
-        } else if current_text.len() < min_chars {
+        } else if current_text.chars().count() < min_chars {
             // Current chunk too short — must merge with next sentence
             current_text.push(' ');
             current_text.push_str(sentence_text);
         } else {
             // Current chunk is big enough to stand alone — flush it
-            let offset_end = current_offset_start + current_text.len();
+            let offset_end = current_offset_start + current_text.chars().count();
             chunks.push(SentenceChunk {
                 text: current_text.clone(),
                 offset_start: current_offset_start,
@@ -51,7 +51,7 @@ pub fn chunk_by_sentence(text: &str, min_chars: usize) -> Vec<SentenceChunk> {
 
     // Flush remaining
     if !current_text.is_empty() {
-        let offset_end = current_offset_start + current_text.len();
+        let offset_end = current_offset_start + current_text.chars().count();
         chunks.push(SentenceChunk {
             text: current_text,
             offset_start: current_offset_start,
@@ -222,5 +222,39 @@ mod tests {
         for chunk in &chunks {
             assert!(!chunk.text.is_empty());
         }
+    }
+
+    #[test]
+    fn test_sentence_chunker_multibyte_offsets() {
+        let text = "Café con leche. Más café.";
+        let chunks = chunk_by_sentence(text, 5);
+        // Verify offsets don't exceed char count (not byte count)
+        for chunk in &chunks {
+            assert!(
+                chunk.offset_end <= text.chars().count(),
+                "offset_end {} exceeds char count {}",
+                chunk.offset_end,
+                text.chars().count()
+            );
+        }
+        // "Café con leche." = 15 chars, "Más café." = 9 chars
+        // offset_end should use chars, not bytes (bytes would be 17 and 11)
+        assert_eq!(chunks.len(), 2);
+        assert_eq!(chunks[0].text, "Café con leche.");
+        assert_eq!(chunks[0].offset_start, 0);
+        assert_eq!(chunks[0].offset_end, 15); // 15 chars, not 17 bytes
+        assert_eq!(chunks[1].text, "Más café.");
+        assert_eq!(chunks[1].offset_end, 24); // 15+9=24 chars, not 15+11=26 bytes
+    }
+
+    #[test]
+    fn test_sentence_chunker_multibyte_merge_threshold() {
+        // Short multibyte sentences that need merging
+        let text = "¡Hola! ¿Qué tal?";
+        let chunks = chunk_by_sentence(text, 20);
+        // "¡Hola!" (6 chars) < 20, merge with "¿Qué tal?" (10 chars)
+        assert_eq!(chunks.len(), 1);
+        assert!(chunks[0].text.contains("¡Hola!"));
+        assert!(chunks[0].text.contains("¿Qué tal?"));
     }
 }

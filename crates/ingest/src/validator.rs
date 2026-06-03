@@ -93,8 +93,8 @@ pub fn sanitize_display_name(name: &str) -> String {
     if trimmed.is_empty() {
         return "document".to_string();
     }
-    if trimmed.len() > 255 {
-        trimmed[..255].to_string()
+    if trimmed.chars().count() > 255 {
+        trimmed.chars().take(255).collect::<String>()
     } else {
         trimmed.to_string()
     }
@@ -307,6 +307,26 @@ mod tests {
         let long_name = "a".repeat(300);
         let result = sanitize_display_name(&long_name);
         assert_eq!(result.len(), 255);
+    }
+
+    #[test]
+    fn test_derive_display_name_truncate_multibyte() {
+        // 300 emoji characters — byte length is 1200, char length is 300
+        let long_emoji = "🎉".repeat(300);
+        let path = PathBuf::from("/some/path/document.txt");
+        let result = derive_display_name(&path, Some(&long_emoji), false);
+        assert_eq!(result.chars().count(), 255);
+        assert!(std::str::from_utf8(result.as_bytes()).is_ok());
+    }
+
+    #[test]
+    fn test_derive_display_name_truncate_cjk() {
+        // 260 CJK characters
+        let long_cjk = "日本".repeat(130); // 260 chars
+        let path = PathBuf::from("/some/path/document.txt");
+        let result = derive_display_name(&path, Some(&long_cjk), false);
+        assert_eq!(result.chars().count(), 255);
+        assert!(std::str::from_utf8(result.as_bytes()).is_ok());
     }
 
     #[test]

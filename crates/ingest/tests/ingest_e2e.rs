@@ -33,7 +33,7 @@ fn test_ingest_txt_file_end_to_end() {
         &pages,
         config.chunk_size_chars,
         config.chunk_overlap_chars,
-        config.min_chunk_size_chars,
+        config.min_chunk_chars,
     )
     .unwrap();
 
@@ -72,7 +72,7 @@ fn test_ingest_md_file_end_to_end() {
         &pages,
         config.chunk_size_chars,
         config.chunk_overlap_chars,
-        config.min_chunk_size_chars,
+        config.min_chunk_chars,
     )
     .unwrap();
 

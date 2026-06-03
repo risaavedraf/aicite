@@ -86,7 +86,8 @@ impl Database {
                 [],
                 |row| row.get(0),
             )
-            .ok();
+            .optional()
+            .map_err(storage_err)?;
 
         // Supersede previous snapshot if it exists
         if let Some(ref prev_id) = previous_snapshot_id {
@@ -340,5 +341,13 @@ mod tests {
         let db = Database::open_memory().unwrap();
         let result = db.activate_snapshot("nonexistent");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_activate_snapshot_returns_none_when_no_pointer() {
+        let db = Database::open_memory().unwrap();
+        // No snapshot_pointer row exists; reading it via optional() should return None
+        let active = db.get_active_snapshot_id().unwrap();
+        assert!(active.is_none());
     }
 }

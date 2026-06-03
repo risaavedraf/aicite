@@ -93,8 +93,6 @@ pub struct IngestConfig {
     pub chunk_size_chars: usize,
     /// Overlap between chunks in characters (default: 200)
     pub chunk_overlap_chars: usize,
-    /// Minimum chunk size in characters (default: 100)
-    pub min_chunk_size_chars: usize,
     /// Maximum retry attempts for failed ingestion (default: 3)
     pub max_retry_count: u32,
     /// Embedding API timeout in seconds (default: 30)
@@ -107,7 +105,7 @@ pub struct IngestConfig {
     /// Minimum chunk length in chars before merge (default: 30)
     #[serde(default = "default_min_chunk_chars")]
     pub min_chunk_chars: usize,
-    /// Maximum chunk length in chars (default: 200)
+    /// Maximum chunk length in chars (default: 1500)
     #[serde(default = "default_max_chunk_chars")]
     pub max_chunk_chars: usize,
     /// Extract topics/concepts hierarchy during ingest (default: false)
@@ -120,7 +118,7 @@ fn default_min_chunk_chars() -> usize {
 }
 
 fn default_max_chunk_chars() -> usize {
-    200
+    1500
 }
 
 fn default_use_hierarchy() -> bool {
@@ -133,7 +131,6 @@ impl Default for IngestConfig {
             max_file_size_bytes: 50 * 1024 * 1024,
             chunk_size_chars: 1000,
             chunk_overlap_chars: 200,
-            min_chunk_size_chars: 100,
             max_retry_count: 3,
             embedding_timeout_secs: 30,
             embedding_endpoint: None,
@@ -463,7 +460,7 @@ mod tests {
         assert_eq!(config.ingest.chunk_overlap_chars, 200);
         assert!(!config.ingest.sentence_chunking);
         assert_eq!(config.ingest.min_chunk_chars, 30);
-        assert_eq!(config.ingest.max_chunk_chars, 200);
+        assert_eq!(config.ingest.max_chunk_chars, 1500);
         assert!(!config.ingest.build_hierarchy);
     }
 
@@ -487,5 +484,20 @@ mod tests {
     fn runtime_mode_from_str_rejects_invalid_value() {
         let err = "prod".parse::<RuntimeMode>().unwrap_err();
         assert!(err.contains("Invalid runtime mode"));
+    }
+
+    #[test]
+    fn test_default_max_chunk_chars_is_1500() {
+        assert_eq!(IngestConfig::default().max_chunk_chars, 1500);
+    }
+
+    #[test]
+    fn test_env_embedding_timeout_overridden() {
+        // SAFETY: Tests run in parallel but this env var is only read here.
+        // We use a unique prefix to avoid interference.
+        std::env::set_var("CITE_EMBEDDING_TIMEOUT", "60");
+        let config = Config::load().unwrap();
+        assert_eq!(config.ingest.embedding_timeout_secs, 60);
+        std::env::remove_var("CITE_EMBEDDING_TIMEOUT");
     }
 }

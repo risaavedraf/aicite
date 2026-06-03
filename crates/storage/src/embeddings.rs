@@ -155,20 +155,27 @@ impl Database {
                     document_id: row.get(1).map_err(storage_err)?,
                     display_name: row.get(2).map_err(storage_err)?,
                     section_id: row.get(3).map_err(storage_err)?,
-                    chunk_index: row.get::<_, i64>(4).map_err(storage_err)? as u32,
+                    chunk_index: u32::try_from(row.get::<_, i64>(4).map_err(storage_err)?)
+                        .map_err(|e| storage_err(format!("chunk_index overflow: {e}")))?,
                     text: row.get(5).map_err(storage_err)?,
                     page: row
                         .get::<_, Option<i64>>(6)
                         .map_err(storage_err)?
-                        .map(|v| v as u32),
+                        .map(u32::try_from)
+                        .transpose()
+                        .map_err(|e| storage_err(format!("page overflow: {e}")))?,
                     offset_start: row
                         .get::<_, Option<i64>>(7)
                         .map_err(storage_err)?
-                        .map(|v| v as u32),
+                        .map(u32::try_from)
+                        .transpose()
+                        .map_err(|e| storage_err(format!("offset_start overflow: {e}")))?,
                     offset_end: row
                         .get::<_, Option<i64>>(8)
                         .map_err(storage_err)?
-                        .map(|v| v as u32),
+                        .map(u32::try_from)
+                        .transpose()
+                        .map_err(|e| storage_err(format!("offset_end overflow: {e}")))?,
                     vector,
                 },
                 topic_id: row.get(10).map_err(storage_err)?,
@@ -219,20 +226,27 @@ impl Database {
                 document_id: row.get(1).map_err(storage_err)?,
                 display_name: row.get(2).map_err(storage_err)?,
                 section_id: row.get(3).map_err(storage_err)?,
-                chunk_index: row.get::<_, i64>(4).map_err(storage_err)? as u32,
+                chunk_index: u32::try_from(row.get::<_, i64>(4).map_err(storage_err)?)
+                    .map_err(|e| storage_err(format!("chunk_index overflow: {e}")))?,
                 text: row.get(5).map_err(storage_err)?,
                 page: row
                     .get::<_, Option<i64>>(6)
                     .map_err(storage_err)?
-                    .map(|v| v as u32),
+                    .map(u32::try_from)
+                    .transpose()
+                    .map_err(|e| storage_err(format!("page overflow: {e}")))?,
                 offset_start: row
                     .get::<_, Option<i64>>(7)
                     .map_err(storage_err)?
-                    .map(|v| v as u32),
+                    .map(u32::try_from)
+                    .transpose()
+                    .map_err(|e| storage_err(format!("offset_start overflow: {e}")))?,
                 offset_end: row
                     .get::<_, Option<i64>>(8)
                     .map_err(storage_err)?
-                    .map(|v| v as u32),
+                    .map(u32::try_from)
+                    .transpose()
+                    .map_err(|e| storage_err(format!("offset_end overflow: {e}")))?,
                 vector,
             });
         }

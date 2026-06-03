@@ -55,6 +55,15 @@ impl CommandContext {
         })?;
         Ok(Self { db, provider: None })
     }
+
+    /// Get the embedding provider, returning an error if none was configured.
+    pub fn provider(&self) -> Result<&dyn EmbeddingProvider, common::CiteError> {
+        self.provider
+            .as_deref()
+            .ok_or_else(|| common::CiteError::ConfigError {
+                message: "No embedding provider configured".to_string(),
+            })
+    }
 }
 
 fn handle_command_error(e: &common::CiteError, json: bool) {
@@ -91,11 +100,19 @@ pub fn resolve_api_key(config: &Config) -> Option<String> {
 /// - `gemini`: Google Gemini API
 /// - `openai-compatible` (default): Any OpenAI-compatible API
 pub fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, common::CiteError> {
-    let api_key = resolve_api_key(config).unwrap_or_default();
+    let api_key = resolve_api_key(config).ok_or_else(|| common::CiteError::ConfigError {
+        message:
+            "No API key configured. Set the CITE_API_KEY environment variable or run `cite setup`."
+                .to_string(),
+    })?;
 
     match config.embedding.provider.as_str() {
         "gemini" => {
-            let provider = GeminiProvider::new(&config.embedding.model, &api_key)?;
+            let provider = GeminiProvider::new(
+                &config.embedding.model,
+                &api_key,
+                config.ingest.embedding_timeout_secs,
+            )?;
             Ok(Box::new(provider))
         }
         _ => {
@@ -105,8 +122,12 @@ pub fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, co
                 .as_deref()
                 .unwrap_or("https://api.openai.com/v1/embeddings");
 
-            let provider =
-                OpenAICompatibleProvider::new(endpoint, &config.embedding.model, &api_key)?;
+            let provider = OpenAICompatibleProvider::new(
+                endpoint,
+                &config.embedding.model,
+                &api_key,
+                config.ingest.embedding_timeout_secs,
+            )?;
             Ok(Box::new(provider))
         }
     }

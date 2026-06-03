@@ -62,8 +62,28 @@ pub fn execute(args: &IngestArgs, config: &Config, json: bool) -> i32 {
         Ok(ctx) => ctx,
         Err(code) => return code,
     };
+
+    if let Err(e) = engine::runtime_guard::check_ingest_allowed(&config.runtime.mode) {
+        if json {
+            print_json(&e.to_json_response());
+        } else {
+            eprintln!("Error: {e}");
+        }
+        return e.exit_code() as i32;
+    }
+
     let db = &ctx.db;
-    let provider = ctx.provider.as_ref().unwrap();
+    let provider = match ctx.provider() {
+        Ok(p) => p,
+        Err(e) => {
+            if json {
+                print_json(&e.to_json_response());
+            } else {
+                eprintln!("Error: {e}");
+            }
+            return e.exit_code() as i32;
+        }
+    };
 
     let production_mode = config.runtime.mode == config::RuntimeMode::Production;
 
@@ -98,7 +118,7 @@ pub fn execute(args: &IngestArgs, config: &Config, json: bool) -> i32 {
     }
 
     if args.next {
-        match ingest::ingest_next(db, provider.as_ref(), &config.ingest, production_mode) {
+        match ingest::ingest_next(db, provider, &config.ingest, production_mode) {
             Ok(ingest::IngestNextResult::Empty) => {
                 let output = NextIngestOutput {
                     status: "empty_queue".to_string(),
@@ -155,7 +175,7 @@ pub fn execute(args: &IngestArgs, config: &Config, json: bool) -> i32 {
 
     match ingest::ingest(
         db,
-        provider.as_ref(),
+        provider,
         &config.ingest,
         path,
         args.display_name.as_deref(),

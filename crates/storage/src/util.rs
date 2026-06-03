@@ -34,20 +34,27 @@ pub(crate) fn row_to_chunk(row: &rusqlite::Row<'_>) -> Result<Chunk, CiteError> 
         chunk_id: row.get("chunk_id").map_err(storage_err)?,
         document_id: row.get("document_id").map_err(storage_err)?,
         section_id: row.get("section_id").map_err(storage_err)?,
-        chunk_index: row.get::<_, i64>("chunk_index").map_err(storage_err)? as u32,
+        chunk_index: u32::try_from(row.get::<_, i64>("chunk_index").map_err(storage_err)?)
+            .map_err(|e| storage_err(format!("chunk_index overflow: {e}")))?,
         text: row.get("text").map_err(storage_err)?,
         page: row
             .get::<_, Option<i64>>("page")
             .map_err(storage_err)?
-            .map(|v| v as u32),
+            .map(u32::try_from)
+            .transpose()
+            .map_err(|e| storage_err(format!("page overflow: {e}")))?,
         offset_start: row
             .get::<_, Option<i64>>("offset_start")
             .map_err(storage_err)?
-            .map(|v| v as u32),
+            .map(u32::try_from)
+            .transpose()
+            .map_err(|e| storage_err(format!("offset_start overflow: {e}")))?,
         offset_end: row
             .get::<_, Option<i64>>("offset_end")
             .map_err(storage_err)?
-            .map(|v| v as u32),
+            .map(u32::try_from)
+            .transpose()
+            .map_err(|e| storage_err(format!("offset_end overflow: {e}")))?,
         created_at: parse_dt(&created_at_str)?,
     })
 }

@@ -31,3 +31,37 @@ pub fn check_ingest_allowed(mode: &RuntimeMode) -> Result<(), CiteError> {
         }),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_check_ingest_allowed_local_demo() {
+        assert!(check_ingest_allowed(&RuntimeMode::LocalPrivateDemo).is_ok());
+    }
+
+    #[test]
+    fn test_check_ingest_allowed_production() {
+        let result = check_ingest_allowed(&RuntimeMode::Production);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CiteError::RuntimeModeForbidden { message } => {
+                assert!(message.contains("production"));
+            }
+            other => panic!("Expected RuntimeModeForbidden, got: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_check_ingest_allowed_public_demo() {
+        let result = check_ingest_allowed(&RuntimeMode::PublicPackagedDemo);
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            CiteError::RuntimeModeForbidden { message } => {
+                assert!(message.contains("public_packaged_demo"));
+            }
+            other => panic!("Expected RuntimeModeForbidden, got: {:?}", other),
+        }
+    }
+}

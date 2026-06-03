@@ -356,7 +356,7 @@ fn build_fixtures() -> Vec<GoldenFixture> {
     ]
 }
 
-pub fn execute(_args: &EvaluateArgs, _config: &Config, json: bool) -> i32 {
+pub fn execute(args: &EvaluateArgs, _config: &Config, _json: bool) -> i32 {
     let db = Database::open_memory().unwrap_or_else(|e| {
         eprintln!("Failed to create database: {e}");
         std::process::exit(ExitCode::Internal as i32);
@@ -383,7 +383,7 @@ pub fn execute(_args: &EvaluateArgs, _config: &Config, json: bool) -> i32 {
     // Run evaluation
     let report = run_evaluation(&db, &provider, &config, &rate_limit, &fixtures, 0.80);
 
-    if json {
+    if args.json {
         let output = EvalOutput {
             total: report.total,
             passed: report.passed,

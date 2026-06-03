@@ -34,7 +34,7 @@ fn extract_plain_text(path: &Path) -> Result<ExtractionResult, CiteError> {
         message: format!("Failed to read file {}: {}", path.display(), e),
     })?;
 
-    let total_chars = content.len();
+    let total_chars = content.chars().count();
 
     if content.is_empty() {
         return Ok(ExtractionResult {
@@ -71,7 +71,7 @@ fn extract_pdf_text(path: &Path) -> Result<ExtractionResult, CiteError> {
             eprintln!("Warning: Failed to extract text from page {page_num}: {e}");
             String::new()
         });
-        total_chars += text.len();
+        total_chars += text.chars().count();
         pages.push(PageText {
             page: page_num,
             text,
@@ -175,6 +175,29 @@ mod tests {
 
         assert_eq!(result.pages.len(), 0);
         assert_eq!(result.total_chars, 0);
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_extract_plain_text_non_ascii_char_count() {
+        // Japanese: 6 chars, 18 bytes
+        let path = create_temp_file("japanese.txt", "日本語テスト".as_bytes());
+        let result = extract_text(&path, &FileType::Txt).unwrap();
+
+        assert_eq!(result.total_chars, 6);
+        assert_eq!(result.pages.len(), 1);
+
+        let _ = fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_extract_plain_text_accented_char_count() {
+        // "élégant café" = 12 chars
+        let path = create_temp_file("accented.txt", "élégant café".as_bytes());
+        let result = extract_text(&path, &FileType::Txt).unwrap();
+
+        assert_eq!(result.total_chars, 12);
 
         let _ = fs::remove_file(&path);
     }

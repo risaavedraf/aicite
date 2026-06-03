@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.2.4 (2026-06-02)
+
+### Critical fixes
+
+- **UTF-8 bytes-vs-chars confusion** — Fixed `str::len()` (byte count) being used instead of `chars().count()` (character count) in 5 files across `common`, `graph`, and `ingest` crates. This caused runtime panics on non-ASCII filenames, corrupted chunk offsets for multi-byte text (Japanese, emoji, accented), and inflated `total_chars` metadata. Added `char_len()` and `char_truncate()` helpers in `common` crate.
+- **FK enforcement disabled** — Added `PRAGMA foreign_keys = ON` in `Database::open()` and `Database::open_memory()`. Foreign key constraints in schema were previously decorative, allowing orphan rows.
+- **heading_parser double-increment bug** — Fixed `char_offset` being incremented twice for lines inside code blocks, causing incorrect offsets for all documents with fenced code blocks.
+
+### Security
+
+- **Empty API key rejection** — Providers (Gemini, OpenAI-compatible) now reject empty API keys at construction with a clear `ConfigError` message. CLI `create_provider` replaced `.unwrap_or_default()` with actionable error mentioning `CITE_API_KEY`.
+- **Production mode guard wired** — `check_ingest_allowed()` is now called in the CLI ingest command, blocking ingest in `Production` and `PublicPackagedDemo` modes. Previously defined but never called (dead code).
+- **Composite rate limit key** — Rate limiting now uses `provider_id:model_id` instead of just `provider_id`, giving each model its own rate limit bucket per FR-109.
+
+### Improvements
+
+- **Config field consolidation** — Removed confusing duplicate `min_chunk_size_chars` field, consolidated into `min_chunk_chars`. Timeout config (`embedding_timeout_secs`) now wired to provider constructors.
+- **Silenced error elimination** — Replaced `.ok()` with `.optional()` in `snapshots.rs` for proper DB error handling. Cleanup failures in engine now logged to stderr.
+- **Integer cast safety** — Replaced `as u32` casts with `u32::try_from()` in `storage/src/util.rs` and `storage/src/embeddings.rs` to prevent silent truncation.
+- **Provider unwrap consistency** — Added `CommandContext::provider()` helper returning `Result`, replacing `.unwrap()` in 3 CLI commands.
+- **Graph robustness** — Fixed duplicate heading boundary matching in `hierarchy.rs` using sequential consumption instead of `find()`.
+- **CiteError PartialEq** — Added `PartialEq` derive to `CiteError` enum for cleaner test assertions.
+- **Unused deps removed** — Removed `tokio` and `tracing` from `providers/Cargo.toml` (never used).
+
+### Quality
+
+- 308 tests pass, 0 clippy warnings, clean formatting.
+- Full SDD artifacts in `openspec/changes/error-remediation/`.
+- Error tracking in `openspec/reports/error-tracking.md`.
+
 ## v0.2.3 (2026-06-02)
 
 ### New features

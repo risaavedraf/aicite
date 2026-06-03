@@ -329,6 +329,7 @@ cargo fmt
 
 | Version | Date | Highlights |
 |---|---|---|
+| v0.2.4 | 2026-06-02 | Error remediation: UTF-8 fixes (non-ASCII support), FK enforcement, API key validation, production guard, rate limit compliance, config consolidation, 308 tests |
 | v0.2.3 | 2026-06-02 | Trace provenance, offline trace retrieval, CLI overrides (`--data-dir`, `--runtime-mode`), docs→openspec rename |
 | v0.2.2 | 2026-05-29 | Code quality: removed unwrap() in production, refactored build_context, newtype wrappers, 40+ doc comments |
 | v0.2.1 | 2026-05-28 | rustfmt CI fix |

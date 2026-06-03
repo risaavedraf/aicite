@@ -15,8 +15,8 @@
 | ↳ PR-1 (data integrity) | 7 directos + side-effects | ✅ COMPLETO |
 | ↳ PR-2 (security) | 4 directos | ✅ COMPLETO |
 | ↳ PR-3 (robustness) | 14 directos | ✅ COMPLETO |
-| **Second pass (T3+T4)** | **78** | 🔲 NO INICIADO |
-| ↳ +11 casts fuera de scope | 11 | discoverados en verify |
+| **Second pass (T3+T4)** | **78** | 🛠️ APPLY IN PROGRESS — Waves 1-2 / PR-1 and PR-2a applied; PR-2b+ pending |
+| ↳ +11 casts fuera de scope | 11 | included in planned PR-3 cast-safety theme; implementation pending |
 
 ---
 
@@ -190,7 +190,9 @@ Estos errores NO están incluidos en el SDD actual. Se resolverán en un segundo
 | **PR-1** | 1 (UTF-8) + 2 (FK) | 7+bonus | ~274 ins / ~108 del | ✅ COMPLETO |
 | **PR-2** | 3 (Guard) + 4 (API Key) + 5 (Rate Limit) | 4 | ~37 | ✅ COMPLETO — verify PASS |
 | **PR-3** | 6-11 (Config + robustness) | 13 | ~21 files | ✅ COMPLETO — verify PASS |
-| **Second pass** | T3+T4 + C9 | 78 | TBD | 🔲 NO INICIADO |
+| **Second pass PR-1** | CLI DRY + retrieval validation | M1/M3 partial, M4 partial | 342 command-code changed lines | 🛠️ APPLIED — fresh review PASS, verify gate passed locally, final SDD verify pending |
+| **Second pass PR-2a** | Golden fixtures + evaluation provider | M13/M14 partial, L4 partial; M24 deferred | 369 scoped code changed lines | 🛠️ APPLIED — verify gate passed locally, final SDD verify pending |
+| **Second pass PR-2b+** | Deterministic tests/types/storage/dead-code/docs + casts | remaining T3/T4 + 11 casts | 5 planned PRs | 🔲 PENDING |
 
 ---
 
@@ -212,9 +214,10 @@ Estos errores NO están incluidos en el SDD actual. Se resolverán en un segundo
 
 ## Para la próxima sesión
 
-1. **Evaluar second pass** para los 78 errores restantes (T3+T4) + 11 casts fuera de scope
-2. Los artefactos SDD completos están en `openspec/changes/error-remediation/`
-3. Verify report completo en `openspec/changes/error-remediation/verify-report.md`
+1. Continue `error-remediation-v2` with PR-2b (deterministic test infrastructure and edge cases) after reviewing PR-2a.
+2. First-pass artefactos SDD completos están en `openspec/changes/error-remediation/`.
+3. Second-pass tasks/progress están en `openspec/changes/error-remediation-v2/tasks.md` and `apply-progress.md`.
+4. Verify report completo en `openspec/changes/error-remediation/verify-report.md`.
 
 ---
 

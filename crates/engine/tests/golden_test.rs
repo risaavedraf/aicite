@@ -8,9 +8,9 @@ mod fixtures;
 use common::types::ResultKind;
 use config::{IngestConfig, RateLimitConfig, RetrievalConfig};
 use engine::context::build_context;
+use engine::golden_provider::GoldenProvider;
 use engine::ingest;
 use fixtures::{load_fixtures, GoldenFixture};
-use providers::eval::EvalProvider;
 use providers::EmbeddingProvider;
 use std::path::PathBuf;
 use storage::Database;
@@ -47,9 +47,9 @@ fn ingest_config() -> IngestConfig {
 }
 
 /// Ingest all golden corpus documents and return the DB with chunks + embeddings.
-fn setup_corpus() -> (Database, EvalProvider) {
+fn setup_corpus() -> (Database, GoldenProvider) {
     let db = test_db();
-    let provider = EvalProvider;
+    let provider = GoldenProvider::new();
     let config = ingest_config();
     let dir = corpus_dir();
 
@@ -93,7 +93,7 @@ fn citations_contain_text(citations: &[common::types::Citation], expected: &str)
 /// Run a single fixture and return pass/fail with reason.
 fn evaluate_fixture(
     db: &Database,
-    provider: &EvalProvider,
+    provider: &GoldenProvider,
     config: &RetrievalConfig,
     rl_config: &RateLimitConfig,
     fixture: &GoldenFixture,
@@ -103,7 +103,7 @@ fn evaluate_fixture(
         provider,
         config,
         rl_config,
-        fixture.query,
+        &fixture.query,
         None,
         None,
         None,
@@ -112,19 +112,12 @@ fn evaluate_fixture(
     match result {
         Ok(response) => {
             // Check result_kind
-            let expected_kind = match fixture.expected.result_kind {
-                "context" => ResultKind::Context,
-                "no_results" => ResultKind::NoResults,
-                "insufficient_context" => ResultKind::InsufficientContext,
-                other => return (false, format!("Unknown expected result_kind: {}", other)),
-            };
-
-            if response.result_kind != expected_kind {
+            if response.result_kind != fixture.expected.result_kind {
                 return (
                     false,
                     format!(
                         "result_kind mismatch: expected {:?}, got {:?}",
-                        expected_kind, response.result_kind
+                        fixture.expected.result_kind, response.result_kind
                     ),
                 );
             }
@@ -173,7 +166,7 @@ fn evaluate_fixture(
         }
         Err(e) => {
             // For no_results fixtures, some errors are acceptable
-            if fixture.expected.result_kind == "no_results" {
+            if fixture.expected.result_kind == ResultKind::NoResults {
                 match &e {
                     common::CiteError::DocumentNotReady { .. } => {
                         (true, "passed (no ready documents)".to_string())
@@ -267,7 +260,7 @@ fn test_golden_corpus_ingestion() {
 
 #[test]
 fn test_golden_provider_determinism() {
-    let provider = EvalProvider;
+    let provider = GoldenProvider::new();
     let query = "What is the API gateway?";
 
     let v1 = provider.embed(query).unwrap();

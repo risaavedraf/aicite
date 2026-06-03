@@ -1,7 +1,8 @@
 use clap::Args;
-use common::ExitCode;
+use common::{CiteError, ExitCode};
 use config::Config;
 
+use super::exit_for_error;
 use crate::output::print_json;
 
 #[derive(Args)]
@@ -38,16 +39,20 @@ fn execute_non_interactive(args: &SetupArgs, config: &Config, json: bool) -> i32
     let provider = match &args.provider {
         Some(p) => p.clone(),
         None => {
-            eprintln!("Error: --provider is required in non-interactive mode");
-            return ExitCode::Validation as i32;
+            let err = CiteError::InvalidParameter {
+                message: "--provider is required in non-interactive mode".to_string(),
+            };
+            return exit_for_error(&err, json);
         }
     };
 
     let api_key = match &args.api_key {
         Some(k) => k.clone(),
         None => {
-            eprintln!("Error: --api-key is required in non-interactive mode");
-            return ExitCode::Validation as i32;
+            let err = CiteError::InvalidParameter {
+                message: "--api-key is required in non-interactive mode".to_string(),
+            };
+            return exit_for_error(&err, json);
         }
     };
 
@@ -146,17 +151,23 @@ fn execute_interactive(config: &Config, json: bool) -> i32 {
     };
 
     // API key input (masked)
-    let api_key: String = Password::with_theme(&dialoguer::theme::ColorfulTheme::default())
+    let api_key = match Password::with_theme(&dialoguer::theme::ColorfulTheme::default())
         .with_prompt("API key")
         .with_confirmation("Confirm API key", "Keys don't match")
         .interact()
-        .unwrap_or_default();
-
-    let api_key = match api_key {
-        k if !k.is_empty() => k,
-        _ => {
-            eprintln!("Error: API key cannot be empty");
-            return ExitCode::Validation as i32;
+    {
+        Ok(k) if !k.is_empty() => k,
+        Ok(_) => {
+            let err = CiteError::InvalidParameter {
+                message: "API key cannot be empty".to_string(),
+            };
+            return exit_for_error(&err, json);
+        }
+        Err(e) => {
+            let err = CiteError::InvalidParameter {
+                message: format!("Failed to read API key: {e}"),
+            };
+            return exit_for_error(&err, json);
         }
     };
 

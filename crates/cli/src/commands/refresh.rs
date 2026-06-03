@@ -2,7 +2,7 @@ use common::ExitCode;
 use config::Config;
 use serde::Serialize;
 
-use super::CommandContext;
+use super::{exit_for_error, CommandContext};
 use crate::output::print_json;
 
 #[derive(Serialize)]
@@ -40,13 +40,6 @@ pub fn execute(config: &Config, json: bool) -> i32 {
             }
             ExitCode::Success as i32
         }
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            e.exit_code() as i32
-        }
+        Err(e) => exit_for_error(&e, json),
     }
 }

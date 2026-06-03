@@ -3,7 +3,7 @@ use common::{CiteError, ExitCode, ReadSelector};
 use config::Config;
 use engine::context;
 
-use super::CommandContext;
+use super::{exit_for_error, CommandContext};
 use crate::output::print_json;
 
 #[derive(Args)]
@@ -28,14 +28,7 @@ pub struct ReadArgs {
 pub fn execute(args: &ReadArgs, config: &Config, json: bool) -> i32 {
     let selector = match build_selector(args) {
         Ok(s) => s,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
-        }
+        Err(e) => return exit_for_error(&e, json),
     };
 
     let ctx = match CommandContext::open_db_only(config, json) {
@@ -71,14 +64,7 @@ pub fn execute(args: &ReadArgs, config: &Config, json: bool) -> i32 {
 
             ExitCode::Success as i32
         }
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            e.exit_code() as i32
-        }
+        Err(e) => exit_for_error(&e, json),
     }
 }
 

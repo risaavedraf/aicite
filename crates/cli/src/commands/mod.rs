@@ -66,12 +66,50 @@ impl CommandContext {
     }
 }
 
+/// Render a command error using the canonical CLI JSON/text shape and return its exit code.
+pub fn exit_for_error(e: &common::CiteError, json: bool) -> i32 {
+    handle_command_error(e, json);
+    e.exit_code() as i32
+}
+
 fn handle_command_error(e: &common::CiteError, json: bool) {
     if json {
         crate::output::print_json(&e.to_json_response());
     } else {
         eprintln!("Error: {e}");
     }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct RetrievalScopeArgs<'a> {
+    pub hierarchy_override: Option<bool>,
+    pub topic_filter: Option<&'a str>,
+    pub concept_filter: Option<&'a str>,
+}
+
+/// Validate shared retrieval-scope flags for search, retrieve, and context commands.
+pub fn validate_retrieval_scope<'a>(
+    flat: bool,
+    topic: Option<&'a str>,
+    concept: Option<&'a str>,
+) -> Result<RetrievalScopeArgs<'a>, common::CiteError> {
+    if flat && (topic.is_some() || concept.is_some()) {
+        return Err(common::CiteError::InvalidParameter {
+            message: "--flat cannot be combined with --topic or --concept.".to_string(),
+        });
+    }
+
+    if topic.is_some() && concept.is_some() {
+        return Err(common::CiteError::InvalidParameter {
+            message: "--topic and --concept cannot be used together.".to_string(),
+        });
+    }
+
+    Ok(RetrievalScopeArgs {
+        hierarchy_override: flat.then_some(false),
+        topic_filter: topic,
+        concept_filter: concept,
+    })
 }
 
 /// Resolve the data directory from config or platform default.
@@ -130,5 +168,71 @@ pub fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, co
             )?;
             Ok(Box::new(provider))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use common::ExitCode;
+
+    #[test]
+    fn invalid_retrieval_scope_rejects_flat_with_topic() {
+        let err = validate_retrieval_scope(true, Some("security"), None).unwrap_err();
+        assert_eq!(err.exit_code(), ExitCode::Validation);
+        assert_eq!(
+            err,
+            common::CiteError::InvalidParameter {
+                message: "--flat cannot be combined with --topic or --concept.".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn invalid_retrieval_scope_rejects_flat_with_concept() {
+        let err = validate_retrieval_scope(true, None, Some("auth")).unwrap_err();
+        assert_eq!(err.exit_code(), ExitCode::Validation);
+        assert_eq!(
+            err,
+            common::CiteError::InvalidParameter {
+                message: "--flat cannot be combined with --topic or --concept.".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn invalid_retrieval_scope_rejects_topic_with_concept() {
+        let err = validate_retrieval_scope(false, Some("security"), Some("auth")).unwrap_err();
+        assert_eq!(err.exit_code(), ExitCode::Validation);
+        assert_eq!(
+            err,
+            common::CiteError::InvalidParameter {
+                message: "--topic and --concept cannot be used together.".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn valid_retrieval_scope_preserves_filters() {
+        let scope = validate_retrieval_scope(false, Some("security"), None).unwrap();
+        assert_eq!(scope.hierarchy_override, None);
+        assert_eq!(scope.topic_filter, Some("security"));
+        assert_eq!(scope.concept_filter, None);
+    }
+
+    #[test]
+    fn valid_retrieval_scope_flat_disables_hierarchy() {
+        let scope = validate_retrieval_scope(true, None, None).unwrap();
+        assert_eq!(scope.hierarchy_override, Some(false));
+        assert_eq!(scope.topic_filter, None);
+        assert_eq!(scope.concept_filter, None);
+    }
+
+    #[test]
+    fn exit_for_error_returns_error_exit_code() {
+        let err = common::CiteError::InvalidParameter {
+            message: "bad flags".to_string(),
+        };
+        assert_eq!(exit_for_error(&err, true), ExitCode::Validation as i32);
     }
 }

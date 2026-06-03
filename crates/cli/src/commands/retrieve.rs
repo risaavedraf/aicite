@@ -4,7 +4,7 @@ use config::Config;
 use engine::retrieve;
 use serde::Serialize;
 
-use super::CommandContext;
+use super::{exit_for_error, validate_retrieval_scope, CommandContext};
 use crate::output::{print_json, to_compact_retrieve};
 
 #[derive(Args)]
@@ -62,15 +62,11 @@ struct RetrieveResultItem {
 }
 
 pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
-    // Validate flag combinations
-    if args.flat && (args.topic.is_some() || args.concept.is_some()) {
-        eprintln!("Error: --flat cannot be combined with --topic or --concept.");
-        return common::ExitCode::Validation as i32;
-    }
-    if args.topic.is_some() && args.concept.is_some() {
-        eprintln!("Error: --topic and --concept cannot be used together.");
-        return common::ExitCode::Validation as i32;
-    }
+    let scope =
+        match validate_retrieval_scope(args.flat, args.topic.as_deref(), args.concept.as_deref()) {
+            Ok(scope) => scope,
+            Err(e) => return exit_for_error(&e, json),
+        };
 
     let ctx = match CommandContext::open(config, json) {
         Ok(ctx) => ctx,
@@ -79,23 +75,13 @@ pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
     let db = &ctx.db;
     let provider = match ctx.provider() {
         Ok(p) => p,
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            return e.exit_code() as i32;
-        }
+        Err(e) => return exit_for_error(&e, json),
     };
 
     let mut retrieval_config = config.retrieval.clone();
-    if args.flat {
-        retrieval_config.use_hierarchy = false;
+    if let Some(use_hierarchy) = scope.hierarchy_override {
+        retrieval_config.use_hierarchy = use_hierarchy;
     }
-
-    let topic_filter = args.topic.as_deref();
-    let concept_filter = args.concept.as_deref();
 
     match retrieve::retrieve(
         db,
@@ -104,8 +90,8 @@ pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
         &config.rate_limit,
         &args.query,
         args.k,
-        topic_filter,
-        concept_filter,
+        scope.topic_filter,
+        scope.concept_filter,
     ) {
         Ok(hits) => {
             if json {
@@ -156,13 +142,6 @@ pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
 
             ExitCode::Success as i32
         }
-        Err(e) => {
-            if json {
-                print_json(&e.to_json_response());
-            } else {
-                eprintln!("Error: {e}");
-            }
-            e.exit_code() as i32
-        }
+        Err(e) => exit_for_error(&e, json),
     }
 }

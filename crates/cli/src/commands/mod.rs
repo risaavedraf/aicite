@@ -112,6 +112,65 @@ pub fn validate_retrieval_scope<'a>(
     })
 }
 
+/// Resolve the data directory from config or platform default.
+pub fn resolve_data_dir(config: &Config) -> PathBuf {
+    config.paths.data_dir.clone().unwrap_or_else(|| {
+        dirs::data_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("cite")
+    })
+}
+
+/// Resolve the API key from environment variables and config.
+///
+/// Precedence: CITE_EMBEDDING_API_KEY > GEMINI_API_KEY > OPENAI_API_KEY > config file api_key
+pub fn resolve_api_key(config: &Config) -> Option<String> {
+    std::env::var("CITE_EMBEDDING_API_KEY")
+        .or_else(|_| std::env::var("GEMINI_API_KEY"))
+        .or_else(|_| std::env::var("OPENAI_API_KEY"))
+        .ok()
+        .or_else(|| config.embedding.api_key.clone())
+}
+
+/// Create an embedding provider based on config.
+///
+/// Supported providers:
+/// - `gemini`: Google Gemini API
+/// - `openai-compatible` (default): Any OpenAI-compatible API
+pub fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, common::CiteError> {
+    let api_key = resolve_api_key(config).ok_or_else(|| common::CiteError::ConfigError {
+        message:
+            "No API key configured. Set the CITE_API_KEY environment variable or run `cite setup`."
+                .to_string(),
+    })?;
+
+    match config.embedding.provider.as_str() {
+        "gemini" => {
+            let provider = GeminiProvider::new(
+                &config.embedding.model,
+                &api_key,
+                config.ingest.embedding_timeout_secs,
+            )?;
+            Ok(Box::new(provider))
+        }
+        _ => {
+            let endpoint = config
+                .ingest
+                .embedding_endpoint
+                .as_deref()
+                .unwrap_or("https://api.openai.com/v1/embeddings");
+
+            let provider = OpenAICompatibleProvider::new(
+                endpoint,
+                &config.embedding.model,
+                &api_key,
+                config.ingest.embedding_timeout_secs,
+            )?;
+            Ok(Box::new(provider))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,64 +234,5 @@ mod tests {
             message: "bad flags".to_string(),
         };
         assert_eq!(exit_for_error(&err, true), ExitCode::Validation as i32);
-    }
-}
-
-/// Resolve the data directory from config or platform default.
-pub fn resolve_data_dir(config: &Config) -> PathBuf {
-    config.paths.data_dir.clone().unwrap_or_else(|| {
-        dirs::data_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("cite")
-    })
-}
-
-/// Resolve the API key from environment variables and config.
-///
-/// Precedence: CITE_EMBEDDING_API_KEY > GEMINI_API_KEY > OPENAI_API_KEY > config file api_key
-pub fn resolve_api_key(config: &Config) -> Option<String> {
-    std::env::var("CITE_EMBEDDING_API_KEY")
-        .or_else(|_| std::env::var("GEMINI_API_KEY"))
-        .or_else(|_| std::env::var("OPENAI_API_KEY"))
-        .ok()
-        .or_else(|| config.embedding.api_key.clone())
-}
-
-/// Create an embedding provider based on config.
-///
-/// Supported providers:
-/// - `gemini`: Google Gemini API
-/// - `openai-compatible` (default): Any OpenAI-compatible API
-pub fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, common::CiteError> {
-    let api_key = resolve_api_key(config).ok_or_else(|| common::CiteError::ConfigError {
-        message:
-            "No API key configured. Set the CITE_API_KEY environment variable or run `cite setup`."
-                .to_string(),
-    })?;
-
-    match config.embedding.provider.as_str() {
-        "gemini" => {
-            let provider = GeminiProvider::new(
-                &config.embedding.model,
-                &api_key,
-                config.ingest.embedding_timeout_secs,
-            )?;
-            Ok(Box::new(provider))
-        }
-        _ => {
-            let endpoint = config
-                .ingest
-                .embedding_endpoint
-                .as_deref()
-                .unwrap_or("https://api.openai.com/v1/embeddings");
-
-            let provider = OpenAICompatibleProvider::new(
-                endpoint,
-                &config.embedding.model,
-                &api_key,
-                config.ingest.embedding_timeout_secs,
-            )?;
-            Ok(Box::new(provider))
-        }
     }
 }

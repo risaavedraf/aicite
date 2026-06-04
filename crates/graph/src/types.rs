@@ -22,16 +22,6 @@ pub struct Concept {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SemanticLink {
-    pub link_id: String,
-    pub source_chunk_id: String,
-    pub target_chunk_id: String,
-    pub similarity_score: f64,
-    pub link_type: String,
-    pub created_at: String,
-}
-
 #[derive(Debug, Clone)]
 pub struct HeadingSpan {
     pub level: usize,

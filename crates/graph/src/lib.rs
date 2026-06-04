@@ -16,17 +16,4 @@ pub mod hierarchy;
 pub mod types;
 
 pub use hierarchy::{ConceptWithChunks, HierarchyResult, TopicWithConcepts};
-pub use types::{Concept, HeadingSpan, SemanticLink, Topic};
-
-/// Top-level graph container for document/section/chunk relationships.
-///
-/// Currently acts as a namespace; future iterations may hold an in-memory
-/// graph index or adjacency structures.
-///
-/// # Examples
-///
-/// ```
-/// use graph::Graph;
-/// let _g = Graph;
-/// ```
-pub struct Graph;
+pub use types::{Concept, HeadingSpan, Topic};

@@ -11,5 +11,4 @@ providers = { workspace = true }
 config = { workspace = true }
 retrieval = { workspace = true }
 uuid = { workspace = true }
-tracing = { workspace = true }
 chrono = { workspace = true }

@@ -120,6 +120,27 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> Option<f32> {
     Some((dot / (norm_a.sqrt() * norm_b.sqrt())) as f32)
 }
 
+impl From<ChunkEmbeddingRecord> for ScoredChunk {
+    fn from(c: ChunkEmbeddingRecord) -> Self {
+        ScoredChunk {
+            chunk_id: c.chunk_id,
+            document_id: c.document_id,
+            display_name: c.display_name,
+            section_id: c.section_id,
+            chunk_index: c.chunk_index,
+            text: c.text,
+            page: c.page,
+            offset_start: c.offset_start,
+            offset_end: c.offset_end,
+            score: 0.0,
+            topic_id: None,
+            topic_name: None,
+            concept_id: None,
+            concept_name: None,
+        }
+    }
+}
+
 /// Rank candidate chunks by cosine similarity to a query embedding and
 /// return the top `k` results in descending score order.
 ///
@@ -158,22 +179,9 @@ pub fn rank_by_similarity(
         .iter()
         .filter_map(|candidate| {
             let score = cosine_similarity(query_vector, &candidate.vector)?;
-            Some(ScoredChunk {
-                chunk_id: candidate.chunk_id.clone(),
-                document_id: candidate.document_id.clone(),
-                display_name: candidate.display_name.clone(),
-                section_id: candidate.section_id.clone(),
-                chunk_index: candidate.chunk_index,
-                text: candidate.text.clone(),
-                page: candidate.page,
-                offset_start: candidate.offset_start,
-                offset_end: candidate.offset_end,
-                score,
-                topic_id: None,
-                topic_name: None,
-                concept_id: None,
-                concept_name: None,
-            })
+            let mut chunk: ScoredChunk = candidate.clone().into();
+            chunk.score = score;
+            Some(chunk)
         })
         .collect();
 

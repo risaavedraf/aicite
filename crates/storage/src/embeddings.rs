@@ -28,16 +28,61 @@ pub struct HierarchicalChunkEmbedding {
     pub concept_name: Option<String>,
 }
 
-fn decode_vector_blob(blob: &[u8]) -> Option<Vec<f32>> {
+fn decode_vector_blob(blob: &[u8]) -> Result<Vec<f32>, CiteError> {
     if !blob.len().is_multiple_of(4) {
-        return None;
+        return Err(CiteError::StorageError {
+            message: format!(
+                "Corrupt vector blob: length {} is not a multiple of 4",
+                blob.len()
+            ),
+        });
     }
 
-    Some(
-        blob.chunks_exact(4)
-            .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
-            .collect(),
-    )
+    Ok(blob
+        .chunks_exact(4)
+        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect())
+}
+
+/// Map a database row (columns 0..=9) into a [`ChunkEmbeddingRecord`].
+///
+/// Expected column order:
+///   0 chunk_id, 1 document_id, 2 display_name, 3 section_id,
+///   4 chunk_index (i64), 5 text, 6 page (Option<i64>),
+///   7 offset_start (Option<i64>), 8 offset_end (Option<i64>),
+///   9 vector (blob).
+fn row_to_chunk_embedding(row: &rusqlite::Row<'_>) -> Result<ChunkEmbeddingRecord, CiteError> {
+    let blob: Vec<u8> = row.get(9).map_err(storage_err)?;
+    let vector = decode_vector_blob(&blob)?;
+
+    Ok(ChunkEmbeddingRecord {
+        chunk_id: row.get(0).map_err(storage_err)?,
+        document_id: row.get(1).map_err(storage_err)?,
+        display_name: row.get(2).map_err(storage_err)?,
+        section_id: row.get(3).map_err(storage_err)?,
+        chunk_index: u32::try_from(row.get::<_, i64>(4).map_err(storage_err)?)
+            .map_err(|e| storage_err(format!("chunk_index overflow: {e}")))?,
+        text: row.get(5).map_err(storage_err)?,
+        page: row
+            .get::<_, Option<i64>>(6)
+            .map_err(storage_err)?
+            .map(u32::try_from)
+            .transpose()
+            .map_err(|e| storage_err(format!("page overflow: {e}")))?,
+        offset_start: row
+            .get::<_, Option<i64>>(7)
+            .map_err(storage_err)?
+            .map(u32::try_from)
+            .transpose()
+            .map_err(|e| storage_err(format!("offset_start overflow: {e}")))?,
+        offset_end: row
+            .get::<_, Option<i64>>(8)
+            .map_err(storage_err)?
+            .map(u32::try_from)
+            .transpose()
+            .map_err(|e| storage_err(format!("offset_end overflow: {e}")))?,
+        vector,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -144,40 +189,8 @@ impl Database {
         let mut out = Vec::new();
 
         while let Some(row) = rows.next().map_err(storage_err)? {
-            let blob: Vec<u8> = row.get(9).map_err(storage_err)?;
-            let Some(vector) = decode_vector_blob(&blob) else {
-                continue;
-            };
-
             out.push(HierarchicalChunkEmbedding {
-                chunk: ChunkEmbeddingRecord {
-                    chunk_id: row.get(0).map_err(storage_err)?,
-                    document_id: row.get(1).map_err(storage_err)?,
-                    display_name: row.get(2).map_err(storage_err)?,
-                    section_id: row.get(3).map_err(storage_err)?,
-                    chunk_index: u32::try_from(row.get::<_, i64>(4).map_err(storage_err)?)
-                        .map_err(|e| storage_err(format!("chunk_index overflow: {e}")))?,
-                    text: row.get(5).map_err(storage_err)?,
-                    page: row
-                        .get::<_, Option<i64>>(6)
-                        .map_err(storage_err)?
-                        .map(u32::try_from)
-                        .transpose()
-                        .map_err(|e| storage_err(format!("page overflow: {e}")))?,
-                    offset_start: row
-                        .get::<_, Option<i64>>(7)
-                        .map_err(storage_err)?
-                        .map(u32::try_from)
-                        .transpose()
-                        .map_err(|e| storage_err(format!("offset_start overflow: {e}")))?,
-                    offset_end: row
-                        .get::<_, Option<i64>>(8)
-                        .map_err(storage_err)?
-                        .map(u32::try_from)
-                        .transpose()
-                        .map_err(|e| storage_err(format!("offset_end overflow: {e}")))?,
-                    vector,
-                },
+                chunk: row_to_chunk_embedding(row)?,
                 topic_id: row.get(10).map_err(storage_err)?,
                 topic_name: row.get(11).map_err(storage_err)?,
                 concept_id: row.get(12).map_err(storage_err)?,
@@ -216,39 +229,7 @@ impl Database {
         let mut out = Vec::new();
 
         while let Some(row) = rows.next().map_err(storage_err)? {
-            let blob: Vec<u8> = row.get(9).map_err(storage_err)?;
-            let Some(vector) = decode_vector_blob(&blob) else {
-                continue;
-            };
-
-            out.push(ChunkEmbeddingRecord {
-                chunk_id: row.get(0).map_err(storage_err)?,
-                document_id: row.get(1).map_err(storage_err)?,
-                display_name: row.get(2).map_err(storage_err)?,
-                section_id: row.get(3).map_err(storage_err)?,
-                chunk_index: u32::try_from(row.get::<_, i64>(4).map_err(storage_err)?)
-                    .map_err(|e| storage_err(format!("chunk_index overflow: {e}")))?,
-                text: row.get(5).map_err(storage_err)?,
-                page: row
-                    .get::<_, Option<i64>>(6)
-                    .map_err(storage_err)?
-                    .map(u32::try_from)
-                    .transpose()
-                    .map_err(|e| storage_err(format!("page overflow: {e}")))?,
-                offset_start: row
-                    .get::<_, Option<i64>>(7)
-                    .map_err(storage_err)?
-                    .map(u32::try_from)
-                    .transpose()
-                    .map_err(|e| storage_err(format!("offset_start overflow: {e}")))?,
-                offset_end: row
-                    .get::<_, Option<i64>>(8)
-                    .map_err(storage_err)?
-                    .map(u32::try_from)
-                    .transpose()
-                    .map_err(|e| storage_err(format!("offset_end overflow: {e}")))?,
-                vector,
-            });
+            out.push(row_to_chunk_embedding(row)?);
         }
 
         Ok(out)
@@ -466,6 +447,36 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].vector, vec![1.5, 2.5, 3.5]);
         assert_eq!(rows[0].display_name, "doc-ready.txt");
+    }
+
+    #[test]
+    fn test_corrupt_vector_blob_returns_error() {
+        let db = Database::open_memory().unwrap();
+        insert_parent_doc(&db, "doc-corrupt");
+        db.update_document_status("doc-corrupt", DocumentStatus::Ready, None)
+            .unwrap();
+        insert_chunks_for_doc(&db, "doc-corrupt", 2);
+
+        // Insert one valid embedding and one with a corrupt (odd-length) blob
+        db.insert_embeddings(&[("doc-corrupt-c0".to_string(), vec![1.0, 2.0], "m", "p")])
+            .unwrap();
+
+        // Manually insert a corrupt 3-byte blob (not a multiple of 4)
+        let conn = db.conn();
+        conn.execute(
+            "INSERT INTO embeddings (chunk_id, vector, model_id, provider_id) VALUES (?1, ?2, ?3, ?4)",
+            rusqlite::params!["doc-corrupt-c1", vec![0u8, 1u8, 2u8], "m", "p"],
+        )
+        .unwrap();
+
+        // The call should now return an error instead of silently skipping
+        let result = db.list_ready_chunk_embeddings();
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("Corrupt vector blob"),
+            "expected corrupt blob error, got: {msg}"
+        );
     }
 
     // -----------------------------------------------------------------------

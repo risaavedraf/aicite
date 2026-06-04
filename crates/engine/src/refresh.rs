@@ -55,7 +55,9 @@ pub fn refresh_corpus(db: &Database) -> Result<RefreshResult, CiteError> {
 
     Ok(RefreshResult {
         snapshot_id,
-        document_count: ready_docs.len() as u32,
+        document_count: u32::try_from(ready_docs.len()).map_err(|e| CiteError::StorageError {
+            message: format!("document_count overflow: {e}"),
+        })?,
         previous_snapshot_id: activate_result.previous_snapshot_id,
     })
 }

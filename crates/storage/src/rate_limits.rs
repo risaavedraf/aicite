@@ -20,7 +20,20 @@ impl Database {
         window_seconds: u32,
     ) -> Result<RateLimitDecision, CiteError> {
         let now_epoch = Utc::now().timestamp();
-        self.check_and_increment_rate_limit_at(route, key, max_requests, window_seconds, now_epoch)
+        let result = self.check_and_increment_rate_limit_at(
+            route,
+            key,
+            max_requests,
+            window_seconds,
+            now_epoch,
+        )?;
+
+        // Best-effort pruning of stale rate-limit rows after a successful
+        // rate-limit check.  Failure must not propagate to the caller.
+        let max_age = (window_seconds as i64) * 2;
+        let _ = self.prune_stale_rate_limits(max_age);
+
+        Ok(result)
     }
 
     pub fn check_and_increment_rate_limit_at(
@@ -77,6 +90,20 @@ impl Database {
         tx.commit().map_err(storage_err)?;
         Ok(RateLimitDecision::Allowed)
     }
+
+    /// Remove rate-limit counter rows whose window has expired.
+    /// Keeps the table from growing unboundedly over time.
+    pub fn prune_stale_rate_limits(&self, max_age_seconds: i64) -> Result<u64, CiteError> {
+        let cutoff = Utc::now().timestamp() - max_age_seconds;
+        let count = self
+            .conn
+            .execute(
+                "DELETE FROM rate_limit_counters WHERE window_start_epoch < ?1",
+                params![cutoff],
+            )
+            .map_err(storage_err)?;
+        Ok(count as u64)
+    }
 }
 
 #[cfg(test)]
@@ -132,6 +159,67 @@ mod tests {
                 .unwrap(),
             RateLimitDecision::Allowed
         );
+    }
+
+    #[test]
+    fn test_prune_removes_stale_windows() {
+        let db = Database::open_memory().unwrap();
+        let key = "local:test-provider";
+        let route = "search";
+        let window: i64 = 60;
+
+        // Insert a counter at a very old timestamp
+        let old_now = 1_000_000_000;
+        assert_eq!(
+            db.check_and_increment_rate_limit_at(route, key, 10, window as u32, old_now)
+                .unwrap(),
+            RateLimitDecision::Allowed
+        );
+
+        // Prune anything older than 24 hours
+        let pruned = db.prune_stale_rate_limits(86_400).unwrap();
+        assert!(pruned >= 1, "expected stale rows to be pruned");
+
+        // The counter should be gone — re-inserting at the same window should count as fresh
+        // (request_count resets because the row was deleted)
+        let conn = db.conn();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM rate_limit_counters WHERE key = ?1 AND route = ?2",
+                rusqlite::params![key, route],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 0, "stale rows should have been deleted");
+    }
+
+    #[test]
+    fn test_prune_keeps_recent_windows() {
+        let db = Database::open_memory().unwrap();
+        let key = "local:test-provider";
+        let route = "search";
+        let window: u32 = 60;
+        let now = Utc::now().timestamp();
+
+        assert_eq!(
+            db.check_and_increment_rate_limit_at(route, key, 10, window, now)
+                .unwrap(),
+            RateLimitDecision::Allowed
+        );
+
+        // Prune anything older than 24 hours — should not remove the row we just inserted
+        let pruned = db.prune_stale_rate_limits(86_400).unwrap();
+        assert_eq!(pruned, 0, "recent rows should not be pruned");
+
+        let conn = db.conn();
+        let count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM rate_limit_counters WHERE key = ?1 AND route = ?2",
+                rusqlite::params![key, route],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1, "recent row should still exist");
     }
 
     #[test]

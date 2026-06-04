@@ -1,6 +1,6 @@
 # Error Tracking Report — aiharness
 
-**Fecha:** 2026-06-02
+**Fecha:** 2026-06-04
 **SDD Change:** error-remediation
 **Fuente:** `openspec/changes/error-remediation/` (proposal, spec, design, tasks, apply-progress)
 
@@ -15,8 +15,8 @@
 | ↳ PR-1 (data integrity) | 7 directos + side-effects | ✅ COMPLETO |
 | ↳ PR-2 (security) | 4 directos | ✅ COMPLETO |
 | ↳ PR-3 (robustness) | 14 directos | ✅ COMPLETO |
-| **Second pass (T3+T4)** | **78** | 🛠️ APPLY IN PROGRESS — Waves 1-2 / PR-1 and PR-2a applied; PR-2b+ pending |
-| ↳ +11 casts fuera de scope | 11 | included in planned PR-3 cast-safety theme; implementation pending |
+| **Second pass (T3+T4)** | **78** | ✅ COMPLETO — 6 PRs applied, verify PASS |
+| ↳ +11 casts fuera de scope | 11 | ✅ COMPLETO — replaced with checked helpers |
 
 ---
 
@@ -190,36 +190,54 @@ Estos errores NO están incluidos en el SDD actual. Se resolverán en un segundo
 | **PR-1** | 1 (UTF-8) + 2 (FK) | 7+bonus | ~274 ins / ~108 del | ✅ COMPLETO |
 | **PR-2** | 3 (Guard) + 4 (API Key) + 5 (Rate Limit) | 4 | ~37 | ✅ COMPLETO — verify PASS |
 | **PR-3** | 6-11 (Config + robustness) | 13 | ~21 files | ✅ COMPLETO — verify PASS |
-| **Second pass PR-1** | CLI DRY + retrieval validation | M1/M3 partial, M4 partial | 342 command-code changed lines | 🛠️ APPLIED — fresh review PASS, verify gate passed locally, final SDD verify pending |
-| **Second pass PR-2a** | Golden fixtures + evaluation provider | M13/M14 partial, L4 partial; M24 deferred | 369 scoped code changed lines | 🛠️ APPLIED — verify gate passed locally, final SDD verify pending |
-| **Second pass PR-2b+** | Deterministic tests/types/storage/dead-code/docs + casts | remaining T3/T4 + 11 casts | 5 planned PRs | 🔲 PENDING |
+| **Second pass PR-1** | CLI DRY + retrieval validation | M1/M3/M4 partial | 342 changed lines | ✅ COMPLETO |
+| **Second pass PR-2a** | Golden fixtures + evaluation provider | M13/M14/L4 partial | 369 changed lines | ✅ COMPLETO |
+| **Second pass PR-2b** | Deterministic test infrastructure | M12/M21/M25/M26/M34 | 202 ins / 3 del | ✅ COMPLETO |
+| **Second pass PR-3** | Cast safety + type consistency | 11 casts, M7/M8/M11/M18 | 43 ins / 16 del | ✅ COMPLETO |
+| **Second pass PR-4** | Storage/engine correctness | M27/M28/M30 | 200 ins / 91 del | ✅ COMPLETO |
+| **Second pass PR-5** | Dead code cleanup | M15/M16/M19/M20/L1/L3 | 1 ins / 88 del | ✅ COMPLETO |
+| **Second pass PR-6** | Naming/docs/UX | M5/M6/M9/M10 | 37 ins / 13 del | ✅ COMPLETO |
 
 ---
 
-## Verify Report
+## Second Pass Verify Report
 
 **Status:** ✅ PASS
-**Tests:** 308 passed, 0 failed, 13 ignored
+**Tests:** 297 passed, 0 failed, 13 ignored (2 network + 11 doctests)
 **Clippy:** 0 warnings
 **Format:** clean
+**Casts:** 0 unchecked `as u32` outside tests
 
-**Deviations from design (5 minor — all improvements):**
-1. heading_parser code-block double-increment fix (discovered during PR-1)
-2. Task 3.15 indented code fence — confirmed false alarm
-3. setup.rs had unlisted provider constructor calls needing timeout param
-4. Chunker param renamed to match consolidated config field
-5. min_chunk_chars default adjusted 100→30
+**Branch:** `refactor/error-remediation-v2-waves-1-2`
 
-**Discovery:** 11 unchecked `as u32` casts remain in `documents.rs`, `traces.rs`, `rate_limits.rs` — out of scope for this pass, recommended for follow-up.
+### Commits
+```
+c329610 fix: setup saves model, improve config docs and deprecation warning
+213ee99 chore: remove dead code, unused structs, and stale dependency
+48b0ffc fix(storage): rate-limit pruning, shared row mapper, corrupt blob errors
+f09b06f fix(storage): replace unchecked as u32 casts with checked helpers
+46d88ac test: add deterministic edge-case tests and ignore network tests
+06692e6 fix(cli): move tests after command helpers
+f6c2a3a refactor(error-remediation): apply v2 remediation waves
+```
 
-## Para la próxima sesión
+### Deferred items
 
-1. Continue `error-remediation-v2` with PR-2b (deterministic test infrastructure and edge cases) after reviewing PR-2a.
-2. First-pass artefactos SDD completos están en `openspec/changes/error-remediation/`.
-3. Second-pass tasks/progress están en `openspec/changes/error-remediation-v2/tasks.md` and `apply-progress.md`.
-4. Verify report completo en `openspec/changes/error-remediation/verify-report.md`.
+| Item | Reason |
+|------|--------|
+| C9/M33 newtype migration | ~50 files, separate SDD `id-newtype-migration` |
+| Snapshot pointer `updated_at` | No column exists, migration out of scope |
+| H7 snapshot activation rollback | Architecture change, separate SDD |
+| H19 ScoredChunk full dedup | `From` impl added, full API redesign deferred |
+
+## Summary
+
+Both passes of error-remediation are complete:
+- **First pass:** 35 T1+T2 errors fixed in 3 PRs
+- **Second pass:** 78 T3+T4 errors + 11 casts addressed in 6 PRs
+- **Total:** 113 errors cataloged, ~95 fixed, ~18 deferred (newtypes, architecture)
 
 ---
 
-*Última actualización: 2026-06-02 (verify PASS)*
+*Última actualización: 2026-06-04 (second pass verify PASS)*
 *Generado por: SDD error-remediation verify phase*

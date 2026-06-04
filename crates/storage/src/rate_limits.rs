@@ -2,7 +2,7 @@ use chrono::Utc;
 use common::CiteError;
 use rusqlite::{params, OptionalExtension};
 
-use crate::util::{format_dt, storage_err};
+use crate::util::{format_dt, i64_to_u32, storage_err};
 use crate::Database;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,7 +56,10 @@ impl Database {
 
         if current_count.unwrap_or(0) >= max_requests as i64 {
             tx.commit().map_err(storage_err)?;
-            let retry_after = ((window_start_epoch + window) - now_epoch).max(1) as u32;
+            let retry_after = i64_to_u32(
+                "retry_after",
+                ((window_start_epoch + window) - now_epoch).max(1),
+            )?;
             return Ok(RateLimitDecision::Blocked {
                 retry_after_seconds: retry_after,
             });

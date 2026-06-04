@@ -11,7 +11,7 @@ use common::types::{Document, DocumentStatus, ErrorInfo, FileType};
 use common::CiteError;
 use rusqlite::{params, Row};
 
-use crate::util::{format_dt, parse_dt, storage_err};
+use crate::util::{format_dt, i64_to_u32, parse_dt, storage_err, usize_to_u32};
 use crate::Database;
 
 // ---------------------------------------------------------------------------
@@ -95,9 +95,9 @@ fn row_to_document(row: &Row<'_>) -> Result<Document, CiteError> {
         file_type: parse_file_type(&file_type_str)?,
         file_size_bytes: file_size_bytes as u64,
         status: parse_status(&status_str)?,
-        chunk_count: chunk_count as u32,
-        retry_count: retry_count as u32,
-        max_retry_count: max_retry_count as u32,
+        chunk_count: i64_to_u32("chunk_count", chunk_count)?,
+        retry_count: i64_to_u32("retry_count", retry_count)?,
+        max_retry_count: i64_to_u32("max_retry_count", max_retry_count)?,
         next_retry_at,
         error,
         created_at: parse_dt(&created_at_str)?,
@@ -527,7 +527,7 @@ impl Database {
             )
             .map_err(storage_err)?;
 
-        Ok(n as u32)
+        usize_to_u32("document_count", n)
     }
 }
 

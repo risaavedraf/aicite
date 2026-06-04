@@ -9,6 +9,20 @@ pub fn storage_err(e: impl std::fmt::Display) -> CiteError {
     }
 }
 
+/// Convert `i64` to `u32`, returning [`CiteError::StorageError`] on negative or overflow.
+pub(crate) fn i64_to_u32(field: &str, value: i64) -> Result<u32, CiteError> {
+    u32::try_from(value).map_err(|_| CiteError::StorageError {
+        message: format!("{field}: value {value} out of range for u32"),
+    })
+}
+
+/// Convert `usize` to `u32`, returning [`CiteError::StorageError`] on overflow.
+pub(crate) fn usize_to_u32(field: &str, value: usize) -> Result<u32, CiteError> {
+    u32::try_from(value).map_err(|_| CiteError::StorageError {
+        message: format!("{field}: value {value} out of range for u32"),
+    })
+}
+
 /// Format a DateTime<Utc> as SQLite-compatible datetime string.
 pub fn format_dt(dt: &DateTime<Utc>) -> String {
     dt.format("%Y-%m-%d %H:%M:%S").to_string()

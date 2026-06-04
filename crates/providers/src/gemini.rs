@@ -182,6 +182,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires network access to embedding provider"]
     fn test_embed_invalid_key_returns_error() {
         // Use an obviously invalid key to test error handling
         let provider = GeminiProvider::new("gemini-embedding-001", "invalid-key", 30).unwrap();

@@ -120,6 +120,27 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> Option<f32> {
     Some((dot / (norm_a.sqrt() * norm_b.sqrt())) as f32)
 }
 
+impl From<ChunkEmbeddingRecord> for ScoredChunk {
+    fn from(c: ChunkEmbeddingRecord) -> Self {
+        ScoredChunk {
+            chunk_id: c.chunk_id,
+            document_id: c.document_id,
+            display_name: c.display_name,
+            section_id: c.section_id,
+            chunk_index: c.chunk_index,
+            text: c.text,
+            page: c.page,
+            offset_start: c.offset_start,
+            offset_end: c.offset_end,
+            score: 0.0,
+            topic_id: None,
+            topic_name: None,
+            concept_id: None,
+            concept_name: None,
+        }
+    }
+}
+
 /// Rank candidate chunks by cosine similarity to a query embedding and
 /// return the top `k` results in descending score order.
 ///
@@ -141,7 +162,7 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> Option<f32> {
 /// # Examples
 ///
 /// ```ignore
-/// // Requires ChunkEmbeddingRecord from storage::embeddings
+/// // Ignored: requires ChunkEmbeddingRecord from storage crate
 /// use retrieval::rank_by_similarity;
 ///
 /// let query = vec![1.0, 0.0, 0.0];
@@ -158,22 +179,9 @@ pub fn rank_by_similarity(
         .iter()
         .filter_map(|candidate| {
             let score = cosine_similarity(query_vector, &candidate.vector)?;
-            Some(ScoredChunk {
-                chunk_id: candidate.chunk_id.clone(),
-                document_id: candidate.document_id.clone(),
-                display_name: candidate.display_name.clone(),
-                section_id: candidate.section_id.clone(),
-                chunk_index: candidate.chunk_index,
-                text: candidate.text.clone(),
-                page: candidate.page,
-                offset_start: candidate.offset_start,
-                offset_end: candidate.offset_end,
-                score,
-                topic_id: None,
-                topic_name: None,
-                concept_id: None,
-                concept_name: None,
-            })
+            let mut chunk: ScoredChunk = candidate.clone().into();
+            chunk.score = score;
+            Some(chunk)
         })
         .collect();
 
@@ -253,5 +261,83 @@ mod tests {
         let ranked = rank_by_similarity(&query, &candidates, 10);
         assert_eq!(ranked.len(), 1);
         assert_eq!(ranked[0].chunk_id, "ok");
+    }
+
+    // --- 2b.2: Edge-case tests for cosine_similarity ---
+
+    #[test]
+    fn test_cosine_similarity_opposite_vectors() {
+        let sim = cosine_similarity(&[1.0, 0.0], &[-1.0, 0.0]).unwrap();
+        assert!((sim - (-1.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_cosine_similarity_orthogonal_vectors() {
+        let sim = cosine_similarity(&[1.0, 0.0, 0.0], &[0.0, 1.0, 0.0]).unwrap();
+        assert!((sim - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_cosine_similarity_one_dimensional_vectors() {
+        // Same direction, different magnitudes → 1.0
+        let sim = cosine_similarity(&[5.0], &[3.0]).unwrap();
+        assert!((sim - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_cosine_similarity_empty_vectors() {
+        assert!(cosine_similarity(&[], &[]).is_none());
+    }
+
+    #[test]
+    fn test_cosine_similarity_different_lengths() {
+        assert!(cosine_similarity(&[1.0, 2.0], &[1.0, 2.0, 3.0]).is_none());
+    }
+
+    // --- 2b.2: Edge-case tests for rank_by_similarity ---
+
+    #[test]
+    fn test_rank_empty_candidates() {
+        let query = vec![1.0, 0.0, 0.0];
+        let ranked = rank_by_similarity(&query, &[], 10);
+        assert!(ranked.is_empty());
+    }
+
+    #[test]
+    fn test_rank_k_greater_than_candidates() {
+        let query = vec![1.0, 0.0, 0.0];
+        let candidates = vec![
+            candidate("a", vec![1.0, 0.0, 0.0], "first"),
+            candidate("b", vec![0.0, 1.0, 0.0], "second"),
+        ];
+        let ranked = rank_by_similarity(&query, &candidates, 10);
+        assert_eq!(ranked.len(), 2);
+    }
+
+    #[test]
+    fn test_rank_all_invalid_candidates() {
+        let query = vec![1.0, 0.0];
+        let candidates = vec![
+            candidate("zero", vec![0.0, 0.0], "zero-norm"),
+            candidate("mismatch", vec![1.0, 0.0, 0.0], "dim-mismatch"),
+        ];
+        let ranked = rank_by_similarity(&query, &candidates, 10);
+        assert!(ranked.is_empty());
+    }
+
+    #[test]
+    fn test_rank_deterministic_tie_behavior() {
+        let query = vec![1.0, 0.0, 0.0];
+        let candidates = vec![
+            candidate("x", vec![1.0, 0.0, 0.0], "twin-x"),
+            candidate("y", vec![1.0, 0.0, 0.0], "twin-y"),
+        ];
+        // Run twice to verify determinism
+        let first = rank_by_similarity(&query, &candidates, 10);
+        let second = rank_by_similarity(&query, &candidates, 10);
+        assert_eq!(first.len(), 2);
+        assert_eq!(second.len(), 2);
+        assert_eq!(first[0].chunk_id, second[0].chunk_id);
+        assert_eq!(first[1].chunk_id, second[1].chunk_id);
     }
 }

@@ -6,6 +6,3 @@ pub mod recovery;
 pub mod refresh;
 pub mod retrieve;
 pub mod runtime_guard;
-
-/// Engine orchestrates retrieval, ingestion, and context pack assembly
-pub struct Engine;

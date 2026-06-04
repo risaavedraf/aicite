@@ -82,29 +82,6 @@ pub fn to_compact_context(resp: &ContextResponse) -> CompactContextResponse {
     }
 }
 
-/// Consuming transform: ContextResponse -> compact format, avoids cloning string fields.
-/// Available for callers that own the data and want to avoid cloning.
-#[allow(dead_code)]
-pub fn into_compact_context(resp: ContextResponse) -> CompactContextResponse {
-    CompactContextResponse {
-        result_kind: resp.result_kind,
-        trace_id: resp.trace_id,
-        citations: resp
-            .citations
-            .into_iter()
-            .map(|c| {
-                let snippet = truncate_to(&c.text, MAX_SNIPPET_CHARS);
-                CompactCitation {
-                    id: c.citation_id,
-                    source: c.display_name,
-                    snippet,
-                    score: c.score,
-                }
-            })
-            .collect(),
-    }
-}
-
 /// Transform search hits to compact format.
 pub fn to_compact_search(hits: &[Hit]) -> CompactSearchOutput {
     CompactSearchOutput {
@@ -120,26 +97,6 @@ pub fn to_compact_search(hits: &[Hit]) -> CompactSearchOutput {
     }
 }
 
-/// Consuming transform: Hit Vec -> compact format, avoids cloning string fields.
-/// Available for callers that own the data and want to avoid cloning.
-#[allow(dead_code)]
-pub fn into_compact_search(hits: Vec<Hit>) -> CompactSearchOutput {
-    CompactSearchOutput {
-        results: hits
-            .into_iter()
-            .map(|h| {
-                let preview = h.preview();
-                CompactSearchItem {
-                    id: h.chunk_id,
-                    source: h.display_name,
-                    score: h.score,
-                    preview,
-                }
-            })
-            .collect(),
-    }
-}
-
 /// Transform retrieve hits to compact format.
 pub fn to_compact_retrieve(hits: &[Hit]) -> CompactRetrieveOutput {
     CompactRetrieveOutput {
@@ -150,23 +107,6 @@ pub fn to_compact_retrieve(hits: &[Hit]) -> CompactRetrieveOutput {
                 source: h.display_name.clone(),
                 score: h.score,
                 text: h.text.clone(),
-            })
-            .collect(),
-    }
-}
-
-/// Consuming transform: Hit Vec -> compact retrieve format, avoids cloning string fields.
-/// Available for callers that own the data and want to avoid cloning.
-#[allow(dead_code)]
-pub fn into_compact_retrieve(hits: Vec<Hit>) -> CompactRetrieveOutput {
-    CompactRetrieveOutput {
-        results: hits
-            .into_iter()
-            .map(|h| CompactRetrieveItem {
-                id: h.chunk_id,
-                source: h.display_name,
-                score: h.score,
-                text: h.text,
             })
             .collect(),
     }

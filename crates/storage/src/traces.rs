@@ -5,7 +5,7 @@ use common::types::{
 use common::CiteError;
 use rusqlite::params;
 
-use crate::util::{parse_dt, row_to_chunk, storage_err};
+use crate::util::{i64_to_u32, parse_dt, row_to_chunk, storage_err, usize_to_u32};
 use crate::Database;
 
 impl Database {
@@ -150,15 +150,18 @@ impl Database {
                 page: row
                     .get::<_, Option<i64>>(5)
                     .map_err(storage_err)?
-                    .map(|v| v as u32),
+                    .map(|v| i64_to_u32("page", v))
+                    .transpose()?,
                 offset_start: row
                     .get::<_, Option<i64>>(6)
                     .map_err(storage_err)?
-                    .map(|v| v as u32),
+                    .map(|v| i64_to_u32("offset_start", v))
+                    .transpose()?,
                 offset_end: row
                     .get::<_, Option<i64>>(7)
                     .map_err(storage_err)?
-                    .map(|v| v as u32),
+                    .map(|v| i64_to_u32("offset_end", v))
+                    .transpose()?,
                 text: row.get(8).map_err(storage_err)?,
                 score: row.get(9).map_err(storage_err)?,
                 confidence_label: row.get(10).map_err(storage_err)?,
@@ -259,7 +262,8 @@ impl Database {
                 top_k: row
                     .get::<_, Option<i64>>(6)
                     .map_err(storage_err)?
-                    .map(|v| v as u32),
+                    .map(|v| i64_to_u32("top_k", v))
+                    .transpose()?,
                 evidence_floor: row.get(7).map_err(storage_err)?,
                 confidence_threshold: row.get(8).map_err(storage_err)?,
                 ranking_method: row.get(9).map_err(storage_err)?,
@@ -312,15 +316,18 @@ impl Database {
                 page: row
                     .get::<_, Option<i64>>(5)
                     .map_err(storage_err)?
-                    .map(|v| v as u32),
+                    .map(|v| i64_to_u32("page", v))
+                    .transpose()?,
                 offset_start: row
                     .get::<_, Option<i64>>(6)
                     .map_err(storage_err)?
-                    .map(|v| v as u32),
+                    .map(|v| i64_to_u32("offset_start", v))
+                    .transpose()?,
                 offset_end: row
                     .get::<_, Option<i64>>(7)
                     .map_err(storage_err)?
-                    .map(|v| v as u32),
+                    .map(|v| i64_to_u32("offset_end", v))
+                    .transpose()?,
                 text: row.get(8).map_err(storage_err)?,
                 score: row.get(9).map_err(storage_err)?,
                 confidence_label: row.get(10).map_err(storage_err)?,
@@ -329,7 +336,10 @@ impl Database {
 
         let excluded_non_ready_document_ids = self.list_non_ready_document_ids()?;
         let context_metadata = ContextMetadataScaffold {
-            excluded_non_ready_document_count: excluded_non_ready_document_ids.len() as u32,
+            excluded_non_ready_document_count: usize_to_u32(
+                "excluded_non_ready_document_count",
+                excluded_non_ready_document_ids.len(),
+            )?,
             excluded_non_ready_document_ids,
         };
 

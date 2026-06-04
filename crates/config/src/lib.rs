@@ -47,17 +47,20 @@ pub struct Config {
     pub ingest: IngestConfig,
 }
 
+/// Configuration for runtime behavior and mode.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     pub mode: RuntimeMode,
 }
 
+/// Paths for data storage and caching.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PathsConfig {
     pub data_dir: Option<PathBuf>,
     pub cache_dir: Option<PathBuf>,
 }
 
+/// Embedding provider configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingConfig {
     pub provider: String,
@@ -67,6 +70,7 @@ pub struct EmbeddingConfig {
     pub api_key: Option<String>,
 }
 
+/// Retrieval ranking and filtering parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetrievalConfig {
     pub top_k: u32,
@@ -78,6 +82,7 @@ pub struct RetrievalConfig {
     pub use_hierarchy: bool,
 }
 
+/// API rate limiting configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateLimitConfig {
     pub max_requests: u32,
@@ -298,7 +303,7 @@ impl EnvOverrides {
         // Deprecation notice if both are set
         if std::env::var("CITE_EMBEDDING_API_KEY").is_ok() && std::env::var("CITE_API_KEY").is_ok()
         {
-            eprintln!("⚠ Deprecation: CITE_API_KEY is redundant when CITE_EMBEDDING_API_KEY is set. CITE_API_KEY will be ignored.");
+            eprintln!("⚠ Deprecation: CITE_API_KEY is accepted as a fallback but deprecated. Use CITE_EMBEDDING_API_KEY instead. When both are set, CITE_API_KEY is ignored.");
         }
 
         Self {
@@ -447,6 +452,11 @@ fn default_config_path() -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    // Static mutex to serialize tests that read/write CITE_* env vars.
+    // Env vars are process-global and not thread-safe to mutate concurrently.
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_defaults() {
@@ -493,11 +503,137 @@ mod tests {
 
     #[test]
     fn test_env_embedding_timeout_overridden() {
-        // SAFETY: Tests run in parallel but this env var is only read here.
-        // We use a unique prefix to avoid interference.
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         std::env::set_var("CITE_EMBEDDING_TIMEOUT", "60");
         let config = Config::load().unwrap();
         assert_eq!(config.ingest.embedding_timeout_secs, 60);
         std::env::remove_var("CITE_EMBEDDING_TIMEOUT");
+    }
+
+    // --- 2b.3: Config merge/env/TOML coverage tests ---
+
+    #[test]
+    fn test_env_embedding_provider_overrides_default() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        // CITE_EMBEDDING_PROVIDER should override the default "openai-compatible"
+        let orig = std::env::var("CITE_EMBEDDING_PROVIDER").ok();
+        std::env::set_var("CITE_EMBEDDING_PROVIDER", "custom-provider");
+        let config = Config::load().unwrap();
+        assert_eq!(config.embedding.provider, "custom-provider");
+        // Restore original state
+        match orig {
+            Some(v) => std::env::set_var("CITE_EMBEDDING_PROVIDER", v),
+            None => std::env::remove_var("CITE_EMBEDDING_PROVIDER"),
+        }
+    }
+
+    #[test]
+    fn test_env_invalid_top_k_falls_back_to_default() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        // CITE_TOP_K set to a non-numeric value should be silently ignored
+        let orig = std::env::var("CITE_TOP_K").ok();
+        std::env::set_var("CITE_TOP_K", "not_a_number");
+        let config = Config::load().unwrap();
+        assert_eq!(config.retrieval.top_k, 5); // default
+        match orig {
+            Some(v) => std::env::set_var("CITE_TOP_K", v),
+            None => std::env::remove_var("CITE_TOP_K"),
+        }
+    }
+
+    #[test]
+    fn test_toml_file_loading() {
+        use std::io::Write;
+
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+
+        // Save and clear env vars that would override TOML values (env > file precedence)
+        let orig_provider = std::env::var("CITE_EMBEDDING_PROVIDER").ok();
+        let orig_model = std::env::var("CITE_EMBEDDING_MODEL").ok();
+        let orig_top_k = std::env::var("CITE_TOP_K").ok();
+        std::env::remove_var("CITE_EMBEDDING_PROVIDER");
+        std::env::remove_var("CITE_EMBEDDING_MODEL");
+        std::env::remove_var("CITE_TOP_K");
+
+        let dir = std::env::temp_dir().join("aiharness_pr2b_toml_test");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("test_config.toml");
+
+        let toml_content = "[provider]\ntype = \"gemini\"\nmodel = \"gemini-embedding-001\"\napi_key = \"test-key\"\n\n[retrieval]\ntop_k = 42\nevidence_floor = 0.75\nconfidence_threshold = 0.90\n";
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(toml_content.as_bytes()).unwrap();
+
+        let config = Config::load_from(Some(&path)).unwrap();
+        assert_eq!(config.embedding.provider, "gemini");
+        assert_eq!(config.embedding.model, "gemini-embedding-001");
+        assert_eq!(config.embedding.api_key.as_deref(), Some("test-key"));
+        assert_eq!(config.retrieval.top_k, 42);
+        assert!((config.retrieval.evidence_floor - 0.75).abs() < 1e-10);
+        assert!((config.retrieval.confidence_threshold - 0.90).abs() < 1e-10);
+
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // Restore env vars
+        match orig_provider {
+            Some(v) => std::env::set_var("CITE_EMBEDDING_PROVIDER", v),
+            None => std::env::remove_var("CITE_EMBEDDING_PROVIDER"),
+        }
+        match orig_model {
+            Some(v) => std::env::set_var("CITE_EMBEDDING_MODEL", v),
+            None => std::env::remove_var("CITE_EMBEDDING_MODEL"),
+        }
+        match orig_top_k {
+            Some(v) => std::env::set_var("CITE_TOP_K", v),
+            None => std::env::remove_var("CITE_TOP_K"),
+        }
+    }
+
+    #[test]
+    fn test_missing_toml_returns_defaults() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        // Ensure no CITE_* env vars interfere with default assertions
+        let orig_provider = std::env::var("CITE_EMBEDDING_PROVIDER").ok();
+        let orig_top_k = std::env::var("CITE_TOP_K").ok();
+        let orig_mode = std::env::var("CITE_RUNTIME_MODE").ok();
+        std::env::remove_var("CITE_EMBEDDING_PROVIDER");
+        std::env::remove_var("CITE_TOP_K");
+        std::env::remove_var("CITE_RUNTIME_MODE");
+
+        let config =
+            Config::load_from(Some(std::path::Path::new("/nonexistent/path.toml"))).unwrap();
+        assert_eq!(config.embedding.provider, "openai-compatible");
+        assert_eq!(config.retrieval.top_k, 5);
+        assert_eq!(config.runtime.mode, RuntimeMode::LocalPrivateDemo);
+
+        match orig_provider {
+            Some(v) => std::env::set_var("CITE_EMBEDDING_PROVIDER", v),
+            None => std::env::remove_var("CITE_EMBEDDING_PROVIDER"),
+        }
+        match orig_top_k {
+            Some(v) => std::env::set_var("CITE_TOP_K", v),
+            None => std::env::remove_var("CITE_TOP_K"),
+        }
+        match orig_mode {
+            Some(v) => std::env::set_var("CITE_RUNTIME_MODE", v),
+            None => std::env::remove_var("CITE_RUNTIME_MODE"),
+        }
+    }
+
+    #[test]
+    fn test_runtime_mode_partial_eq() {
+        assert_eq!(RuntimeMode::Production, RuntimeMode::Production);
+        assert_ne!(RuntimeMode::Production, RuntimeMode::LocalPrivateDemo);
+    }
+
+    #[test]
+    fn test_invalid_env_values_fall_back_to_defaults() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("CITE_TOP_K", "not_a_number");
+        let config = Config::load().unwrap();
+        assert_eq!(
+            config.retrieval.top_k, 5,
+            "invalid CITE_TOP_K should fall back to default 5"
+        );
+        std::env::remove_var("CITE_TOP_K");
     }
 }

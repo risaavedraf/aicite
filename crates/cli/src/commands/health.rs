@@ -50,6 +50,9 @@ struct DatabaseHealth {
 
 /// Execute health diagnostics.
 ///
+/// This performs live provider connectivity tests (network calls).
+/// For local-only status, use `--json` and check fields without provider.
+///
 /// `config_path_override` holds the path the user actually loaded (from --config flag or CITE_CONFIG env).
 /// We pass it separately so the health report shows the real resolved path, not a re-derivation.
 pub fn execute(config: &Config, json: bool, config_path_override: Option<&std::path::Path>) -> i32 {

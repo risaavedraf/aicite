@@ -56,6 +56,9 @@ fn execute_non_interactive(args: &SetupArgs, config: &Config, json: bool) -> i32
         }
     };
 
+    // Use config model for the test
+    let model = config.embedding.model.clone();
+
     // Test connection
     let test_result = test_provider_connection(config, &provider, &api_key);
     match test_result {
@@ -64,6 +67,7 @@ fn execute_non_interactive(args: &SetupArgs, config: &Config, json: bool) -> i32
                 print_json(&serde_json::json!({
                     "status": "ok",
                     "provider": provider,
+                    "model": model,
                     "latency_ms": latency_ms
                 }));
             } else {
@@ -84,7 +88,7 @@ fn execute_non_interactive(args: &SetupArgs, config: &Config, json: bool) -> i32
     }
 
     // Save config
-    match save_config(&provider, &api_key) {
+    match save_config(&provider, &api_key, &model) {
         Ok(path) => {
             if json {
                 print_json(&serde_json::json!({
@@ -171,6 +175,9 @@ fn execute_interactive(config: &Config, json: bool) -> i32 {
         }
     };
 
+    // Use config model for the test
+    let model = config.embedding.model.clone();
+
     // Test connection
     println!("\n  Testing connection...");
     let test_result = test_provider_connection(config, &provider, &api_key);
@@ -192,7 +199,7 @@ fn execute_interactive(config: &Config, json: bool) -> i32 {
     }
 
     // Save config
-    match save_config(&provider, &api_key) {
+    match save_config(&provider, &api_key, &model) {
         Ok(path) => {
             if json {
                 print_json(&serde_json::json!({
@@ -214,27 +221,24 @@ fn execute_interactive(config: &Config, json: bool) -> i32 {
     }
 }
 
-fn test_provider_connection(
-    _config: &Config,
-    provider: &str,
-    api_key: &str,
-) -> Result<u64, String> {
+fn test_provider_connection(config: &Config, provider: &str, api_key: &str) -> Result<u64, String> {
     use providers::gemini::GeminiProvider;
     use providers::openai::OpenAICompatibleProvider;
     use providers::EmbeddingProvider;
 
+    let model = &config.embedding.model;
     let start = std::time::Instant::now();
 
     let result = match provider {
         "gemini" => {
-            let p = GeminiProvider::new("text-embedding-004", api_key, 30)
+            let p = GeminiProvider::new(model, api_key, 30)
                 .map_err(|e| format!("Failed to create provider: {e}"))?;
             p.embed("test connection")
         }
         _ => {
             let p = OpenAICompatibleProvider::new(
                 "https://api.openai.com/v1/embeddings",
-                "text-embedding-3-small",
+                model,
                 api_key,
                 30,
             )
@@ -249,7 +253,7 @@ fn test_provider_connection(
     Ok(latency)
 }
 
-fn save_config(provider: &str, api_key: &str) -> Result<String, std::io::Error> {
+fn save_config(provider: &str, api_key: &str, model: &str) -> Result<String, std::io::Error> {
     let config_dir = dirs::config_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
         .join("cite");
@@ -258,8 +262,8 @@ fn save_config(provider: &str, api_key: &str) -> Result<String, std::io::Error> 
 
     let config_path = config_dir.join("config.toml");
     let content = format!(
-        "[provider]\ntype = \"{}\"\napi_key = \"{}\"\n",
-        provider, api_key
+        "[provider]\ntype = \"{}\"\napi_key = \"{}\"\nmodel = \"{}\"\n",
+        provider, api_key, model
     );
 
     std::fs::write(&config_path, content)?;

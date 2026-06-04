@@ -47,17 +47,20 @@ pub struct Config {
     pub ingest: IngestConfig,
 }
 
+/// Configuration for runtime behavior and mode.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeConfig {
     pub mode: RuntimeMode,
 }
 
+/// Paths for data storage and caching.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PathsConfig {
     pub data_dir: Option<PathBuf>,
     pub cache_dir: Option<PathBuf>,
 }
 
+/// Embedding provider configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmbeddingConfig {
     pub provider: String,
@@ -67,6 +70,7 @@ pub struct EmbeddingConfig {
     pub api_key: Option<String>,
 }
 
+/// Retrieval ranking and filtering parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RetrievalConfig {
     pub top_k: u32,
@@ -78,6 +82,7 @@ pub struct RetrievalConfig {
     pub use_hierarchy: bool,
 }
 
+/// API rate limiting configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateLimitConfig {
     pub max_requests: u32,
@@ -298,7 +303,7 @@ impl EnvOverrides {
         // Deprecation notice if both are set
         if std::env::var("CITE_EMBEDDING_API_KEY").is_ok() && std::env::var("CITE_API_KEY").is_ok()
         {
-            eprintln!("⚠ Deprecation: CITE_API_KEY is redundant when CITE_EMBEDDING_API_KEY is set. CITE_API_KEY will be ignored.");
+            eprintln!("⚠ Deprecation: CITE_API_KEY is accepted as a fallback but deprecated. Use CITE_EMBEDDING_API_KEY instead. When both are set, CITE_API_KEY is ignored.");
         }
 
         Self {
@@ -618,5 +623,17 @@ mod tests {
     fn test_runtime_mode_partial_eq() {
         assert_eq!(RuntimeMode::Production, RuntimeMode::Production);
         assert_ne!(RuntimeMode::Production, RuntimeMode::LocalPrivateDemo);
+    }
+
+    #[test]
+    fn test_invalid_env_values_fall_back_to_defaults() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("CITE_TOP_K", "not_a_number");
+        let config = Config::load().unwrap();
+        assert_eq!(
+            config.retrieval.top_k, 5,
+            "invalid CITE_TOP_K should fall back to default 5"
+        );
+        std::env::remove_var("CITE_TOP_K");
     }
 }

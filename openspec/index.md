@@ -27,7 +27,7 @@ The PRD defines the complete product specification, from vision to acceptance cr
 
 ## SDD (Spec-Driven Development)
 
-Phase-by-phase design artifacts, specs, and task breakdowns. All SDD artifacts live in `openspec/changes/`.
+Phase-by-phase design artifacts, specs, and task breakdowns. All SDD artifacts live in `openspec/changes/`, organized by status.
 
 | Document | Purpose |
 |---|---|
@@ -35,7 +35,25 @@ Phase-by-phase design artifacts, specs, and task breakdowns. All SDD artifacts l
 | [Roadmap](changes/roadmap.md) | Phase roadmap and status |
 | [v0.2 Phase Map](changes/v0.2-phase-map.md) | v0.2 phase plan |
 
-Phase artifacts are in `openspec/changes/phase-{N}-{name}/` directories.
+### Active — current work in progress
+
+| Directory | Purpose |
+|---|---|
+| [error-remediation](changes/active/error-remediation/) | First-pass error remediation |
+| [error-remediation-v2](changes/active/error-remediation-v2/) | Second-pass error remediation |
+| [error-remediation-v3](changes/active/error-remediation-v3/) | Verification pass (active) |
+
+### Completed — verified and done
+
+| Directory | Purpose |
+|---|---|
+| [phase-10](changes/completed/phase-10-hierarchical-graph-foundation/) | Hierarchical graph foundation |
+| [phase-11](changes/completed/phase-11-hierarchical-retrieval/) | Hierarchical retrieval |
+| [phase-12](changes/completed/phase-12-agent-ux/) | Agent UX improvements |
+
+### Archive — historical phases
+
+Phases 1–9 and install-setup-ux are in `changes/archive/`. See the [roadmap](changes/roadmap.md) for the full phase history.
 
 ## Guides
 
@@ -87,10 +105,12 @@ Requests for comment, organized by status.
 
 Inbox for external documents and ideas brought into the project.
 
+### Ideas — future explorations
+
 | Document | Purpose |
 |---|---|
-| [CITE + Pi Integration Guide](Improvements/CITE_Pi_Integration.md) | Integration guide (Spanish) |
-| [RAG Benchmark Guide](Improvements/RAG_Benchmark_Guide.md) | Benchmark methodology (Spanish) |
+| [CITE + Pi Integration Guide](improvements/ideas/CITE_Pi_Integration.md) | Integration guide (Spanish) |
+| [RAG Benchmark Guide](improvements/ideas/RAG_Benchmark_Guide.md) | Benchmark methodology (Spanish) |
 
 ## Reports
 
@@ -98,5 +118,9 @@ Code quality, structure, and compliance review reports.
 
 | Document | Purpose |
 |---|---|
-| [Code Review Pending Items](reports/code-review-pending-items.md) | Pending items from code review |
+| [Error Tracking](reports/error-tracking.md) | Error tracking log |
+
+### Archive — historical reviews
+
+Past code reviews and analysis reports are in `reports/archive/revision-repo/`.
 

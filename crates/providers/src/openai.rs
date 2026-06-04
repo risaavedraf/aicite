@@ -219,6 +219,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires network access to embedding provider"]
     fn test_embed_invalid_endpoint_returns_error() {
         // Use a non-existent HTTPS endpoint to test error handling
         let provider = OpenAICompatibleProvider::new(

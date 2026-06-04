@@ -141,7 +141,7 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> Option<f32> {
 /// # Examples
 ///
 /// ```ignore
-/// // Requires ChunkEmbeddingRecord from storage::embeddings
+/// // Ignored: requires ChunkEmbeddingRecord from storage crate
 /// use retrieval::rank_by_similarity;
 ///
 /// let query = vec![1.0, 0.0, 0.0];
@@ -253,5 +253,83 @@ mod tests {
         let ranked = rank_by_similarity(&query, &candidates, 10);
         assert_eq!(ranked.len(), 1);
         assert_eq!(ranked[0].chunk_id, "ok");
+    }
+
+    // --- 2b.2: Edge-case tests for cosine_similarity ---
+
+    #[test]
+    fn test_cosine_similarity_opposite_vectors() {
+        let sim = cosine_similarity(&[1.0, 0.0], &[-1.0, 0.0]).unwrap();
+        assert!((sim - (-1.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_cosine_similarity_orthogonal_vectors() {
+        let sim = cosine_similarity(&[1.0, 0.0, 0.0], &[0.0, 1.0, 0.0]).unwrap();
+        assert!((sim - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_cosine_similarity_one_dimensional_vectors() {
+        // Same direction, different magnitudes → 1.0
+        let sim = cosine_similarity(&[5.0], &[3.0]).unwrap();
+        assert!((sim - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_cosine_similarity_empty_vectors() {
+        assert!(cosine_similarity(&[], &[]).is_none());
+    }
+
+    #[test]
+    fn test_cosine_similarity_different_lengths() {
+        assert!(cosine_similarity(&[1.0, 2.0], &[1.0, 2.0, 3.0]).is_none());
+    }
+
+    // --- 2b.2: Edge-case tests for rank_by_similarity ---
+
+    #[test]
+    fn test_rank_empty_candidates() {
+        let query = vec![1.0, 0.0, 0.0];
+        let ranked = rank_by_similarity(&query, &[], 10);
+        assert!(ranked.is_empty());
+    }
+
+    #[test]
+    fn test_rank_k_greater_than_candidates() {
+        let query = vec![1.0, 0.0, 0.0];
+        let candidates = vec![
+            candidate("a", vec![1.0, 0.0, 0.0], "first"),
+            candidate("b", vec![0.0, 1.0, 0.0], "second"),
+        ];
+        let ranked = rank_by_similarity(&query, &candidates, 10);
+        assert_eq!(ranked.len(), 2);
+    }
+
+    #[test]
+    fn test_rank_all_invalid_candidates() {
+        let query = vec![1.0, 0.0];
+        let candidates = vec![
+            candidate("zero", vec![0.0, 0.0], "zero-norm"),
+            candidate("mismatch", vec![1.0, 0.0, 0.0], "dim-mismatch"),
+        ];
+        let ranked = rank_by_similarity(&query, &candidates, 10);
+        assert!(ranked.is_empty());
+    }
+
+    #[test]
+    fn test_rank_deterministic_tie_behavior() {
+        let query = vec![1.0, 0.0, 0.0];
+        let candidates = vec![
+            candidate("x", vec![1.0, 0.0, 0.0], "twin-x"),
+            candidate("y", vec![1.0, 0.0, 0.0], "twin-y"),
+        ];
+        // Run twice to verify determinism
+        let first = rank_by_similarity(&query, &candidates, 10);
+        let second = rank_by_similarity(&query, &candidates, 10);
+        assert_eq!(first.len(), 2);
+        assert_eq!(second.len(), 2);
+        assert_eq!(first[0].chunk_id, second[0].chunk_id);
+        assert_eq!(first[1].chunk_id, second[1].chunk_id);
     }
 }

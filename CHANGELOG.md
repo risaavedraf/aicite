@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.3.0 (2026-06-05)
+
+### Breaking changes
+
+- **DateTime fields in graph models** — `Topic.created_at` and `Concept.created_at` changed from `String` to `DateTime<Utc>` for type safety and consistency. External serialization format (`%Y-%m-%d %H:%M:%S`) is preserved via custom `sqlite_datetime_serde` module. See `crates/graph/src/types.rs` for migration details.
+- **Removed duplicated ID fields** — `ScoredChunk` and `ChunkEmbeddingRecord` no longer carry string ID fields alongside typed IDs. Use `.id` (typed) with `.as_ref()` for `&str` when needed.
+
+### New features
+
+- **Typed string identifiers** — Introduced `DocumentId`, `ChunkId`, `CitationId`, `TraceId`, `EmbeddingBlobId`, and `SnapshotPointerId` newtypes in `common/src/types.rs`. All derives: `Display`, `From<String>`, `AsRef<str>`, `Serialize`, `Deserialize`, `PartialEq`, `Eq`, `Hash`, `Clone`, `Debug`. Ready for incremental adoption across all crates.
+- **Snapshot pointer timestamp** — New migration `008_snapshot_pointer_updated_at.sql` adds `updated_at` column to `snapshot_pointer` table for tracking update time. Snapshot activation now sets/refreshes this timestamp.
+- **Graph typed IDs** — Graph hierarchy types (`TopicId`, `ConceptId`) now use typed identifiers for compile-time ID safety.
+
+### Improvements
+
+- **DRY fixes (CodeRabbit)** — Consolidated duplicated code paths in CLI commands and engine modules.
+- **Unwrap safety** — Replaced `.unwrap()` calls with proper error handling in `evaluate.rs` and other critical paths.
+- **Integer cast safety** — Replaced `as u32` casts with `u32::try_from()` to prevent silent truncation.
+- **CI stacked PR checks** — Added workflow support for validating stacked pull requests.
+
+### Quality
+
+- All tests pass, 0 clippy warnings, clean formatting.
+- Full SDD artifacts in `openspec/changes/active/error-remediation-v3/`.
+- Judgment Day dual adversarial review completed and approved.
+
 ## v0.2.4 (2026-06-02)
 
 ### Critical fixes

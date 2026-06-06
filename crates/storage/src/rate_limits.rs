@@ -94,6 +94,12 @@ impl Database {
     /// Remove rate-limit counter rows whose window has expired.
     /// Keeps the table from growing unboundedly over time.
     pub fn prune_stale_rate_limits(&self, max_age_seconds: i64) -> Result<u64, CiteError> {
+        if max_age_seconds <= 0 {
+            return Err(CiteError::InvalidParameter {
+                message: "max_age_seconds must be positive".to_string(),
+            });
+        }
+
         let cutoff = Utc::now().timestamp() - max_age_seconds;
         let count = self
             .conn
@@ -220,6 +226,34 @@ mod tests {
             )
             .unwrap();
         assert_eq!(count, 1, "recent row should still exist");
+    }
+
+    #[test]
+    fn test_prune_rejects_non_positive_age_without_deleting_rows() {
+        let db = Database::open_memory().unwrap();
+        let key = "local:test-provider";
+        let route = "search";
+        let window: u32 = 60;
+        let now = Utc::now().timestamp();
+
+        assert_eq!(
+            db.check_and_increment_rate_limit_at(route, key, 10, window, now)
+                .unwrap(),
+            RateLimitDecision::Allowed
+        );
+
+        let err = db.prune_stale_rate_limits(0).unwrap_err();
+        assert!(matches!(err, CiteError::InvalidParameter { .. }));
+
+        let count: i64 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM rate_limit_counters WHERE key = ?1 AND route = ?2",
+                rusqlite::params![key, route],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(count, 1, "invalid prune age must not delete active rows");
     }
 
     #[test]

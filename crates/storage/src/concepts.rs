@@ -1,4 +1,4 @@
-use common::CiteError;
+use common::{CiteError, ConceptId, TopicId};
 use rusqlite::params;
 
 use crate::util::storage_err;
@@ -10,8 +10,8 @@ use crate::Database;
 
 #[derive(Debug, Clone)]
 pub struct ConceptRow {
-    pub concept_id: String,
-    pub topic_id: String,
+    pub concept_id: ConceptId,
+    pub topic_id: TopicId,
     pub name: String,
     pub summary: Option<String>,
     pub chunk_count: i64,
@@ -54,8 +54,8 @@ impl Database {
 
         match rows.next().map_err(storage_err)? {
             Some(row) => Ok(Some(ConceptRow {
-                concept_id: row.get(0).map_err(storage_err)?,
-                topic_id: row.get(1).map_err(storage_err)?,
+                concept_id: row.get::<_, String>(0).map_err(storage_err)?.into(),
+                topic_id: row.get::<_, String>(1).map_err(storage_err)?.into(),
                 name: row.get(2).map_err(storage_err)?,
                 summary: row.get(3).map_err(storage_err)?,
                 chunk_count: row.get(4).map_err(storage_err)?,
@@ -80,8 +80,8 @@ impl Database {
 
         while let Some(row) = rows.next().map_err(storage_err)? {
             result.push(ConceptRow {
-                concept_id: row.get(0).map_err(storage_err)?,
-                topic_id: row.get(1).map_err(storage_err)?,
+                concept_id: row.get::<_, String>(0).map_err(storage_err)?.into(),
+                topic_id: row.get::<_, String>(1).map_err(storage_err)?.into(),
                 name: row.get(2).map_err(storage_err)?,
                 summary: row.get(3).map_err(storage_err)?,
                 chunk_count: row.get(4).map_err(storage_err)?,
@@ -145,8 +145,8 @@ mod tests {
             .unwrap();
 
         let concept = db.get_concept("c1").unwrap().expect("concept missing");
-        assert_eq!(concept.concept_id, "c1");
-        assert_eq!(concept.topic_id, "t1");
+        assert_eq!(concept.concept_id.as_ref(), "c1");
+        assert_eq!(concept.topic_id.as_ref(), "t1");
         assert_eq!(concept.name, "Ownership");
         assert_eq!(concept.summary.as_deref(), Some("Rust ownership model"));
         assert_eq!(concept.chunk_count, 0);
@@ -183,7 +183,33 @@ mod tests {
 
         let concepts = db.list_concepts_by_topic("t1").unwrap();
         assert_eq!(concepts.len(), 2);
-        assert!(concepts.iter().all(|c| c.topic_id == "t1"));
+        assert!(concepts.iter().all(|c| c.topic_id.as_ref() == "t1"));
+    }
+
+    #[test]
+    fn test_concept_row_decodes_ids_as_typed_ids_and_preserves_storage_strings() {
+        let db = Database::open_memory().unwrap();
+        insert_doc(&db, "doc-typed");
+        db.insert_topic("topic-typed", "doc-typed", "Typed Topic", None)
+            .unwrap();
+
+        db.insert_concept("concept-typed", "topic-typed", "Typed Concept", None)
+            .unwrap();
+
+        let concept = db.get_concept("concept-typed").unwrap().unwrap();
+        let (stored_concept_id, stored_topic_id): (String, String) = db
+            .conn()
+            .query_row(
+                "SELECT concept_id, topic_id FROM concepts WHERE concept_id = 'concept-typed'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+
+        assert_eq!(concept.concept_id.as_ref(), "concept-typed");
+        assert_eq!(concept.topic_id.as_ref(), "topic-typed");
+        assert_eq!(stored_concept_id, concept.concept_id.as_ref());
+        assert_eq!(stored_topic_id, concept.topic_id.as_ref());
     }
 
     #[test]

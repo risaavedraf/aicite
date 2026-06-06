@@ -1,5 +1,6 @@
 use crate::types::{Concept, HeadingSpan, Topic};
 use chrono::Utc;
+use common::{ConceptId, DocumentId, TopicId};
 
 /// A topic with its nested concepts and chunk assignments.
 #[derive(Debug, Clone)]
@@ -40,24 +41,24 @@ pub fn build_hierarchy(
     if headings.is_empty() {
         // No headings — single "Untitled" topic with all chunks
         let topic = Topic {
-            topic_id: format!("topic_{}_0", document_id),
-            document_id: document_id.to_string(),
+            topic_id: TopicId::from(format!("topic_{}_0", document_id)),
+            document_id: DocumentId::from(document_id),
             name: "Untitled".to_string(),
             summary: None,
             embedding: None,
             chunk_count: chunk_offsets.len() as i64,
-            created_at: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+            created_at: Utc::now(),
         };
 
         let all_indices: Vec<usize> = (0..chunk_offsets.len()).collect();
         let concept = Concept {
-            concept_id: format!("concept_{}_0_0", document_id),
+            concept_id: ConceptId::from(format!("concept_{}_0_0", document_id)),
             topic_id: topic.topic_id.clone(),
             name: "Default".to_string(),
             summary: None,
             embedding: None,
             chunk_count: all_indices.len() as i64,
-            created_at: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+            created_at: Utc::now(),
         };
 
         return HierarchyResult {
@@ -80,13 +81,13 @@ pub fn build_hierarchy(
         if heading.level == 2 {
             // H2 = Topic
             let topic = Topic {
-                topic_id: format!("topic_{}_{}", document_id, current_topic_idx),
-                document_id: document_id.to_string(),
+                topic_id: TopicId::from(format!("topic_{}_{}", document_id, current_topic_idx)),
+                document_id: DocumentId::from(document_id),
                 name: heading.title.clone(),
                 summary: None,
                 embedding: None,
                 chunk_count: 0,
-                created_at: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                created_at: Utc::now(),
             };
             topics.push(TopicWithConcepts {
                 topic,
@@ -98,18 +99,18 @@ pub fn build_hierarchy(
             // H3 = Concept within current topic
             if let Some(topic) = topics.last_mut() {
                 let concept = Concept {
-                    concept_id: format!(
+                    concept_id: ConceptId::from(format!(
                         "concept_{}_{}_{}",
                         document_id,
                         current_topic_idx - 1,
                         current_concept_idx
-                    ),
+                    )),
                     topic_id: topic.topic.topic_id.clone(),
                     name: heading.title.clone(),
                     summary: None,
                     embedding: None,
                     chunk_count: 0,
-                    created_at: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                    created_at: Utc::now(),
                 };
                 topic.concepts.push(ConceptWithChunks {
                     concept,
@@ -124,8 +125,8 @@ pub fn build_hierarchy(
     // If no H2 headings were found, treat first heading as topic name
     if topics.is_empty() {
         let topic = Topic {
-            topic_id: format!("topic_{}_0", document_id),
-            document_id: document_id.to_string(),
+            topic_id: TopicId::from(format!("topic_{}_0", document_id)),
+            document_id: DocumentId::from(document_id),
             name: headings
                 .first()
                 .map_or("Untitled", |h| &h.title)
@@ -133,7 +134,7 @@ pub fn build_hierarchy(
             summary: None,
             embedding: None,
             chunk_count: 0,
-            created_at: Utc::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+            created_at: Utc::now(),
         };
         topics.push(TopicWithConcepts {
             topic,
@@ -285,15 +286,36 @@ mod tests {
         let headings = make_headings();
         let result = build_hierarchy("doc1", &headings, &[0, 100]);
         let mut ids: Vec<&str> = Vec::new();
-        ids.push(&result.topics[0].topic.topic_id);
-        ids.push(&result.topics[1].topic.topic_id);
+        ids.push(result.topics[0].topic.topic_id.as_ref());
+        ids.push(result.topics[1].topic.topic_id.as_ref());
         for t in &result.topics {
             for c in &t.concepts {
-                ids.push(&c.concept.concept_id);
+                ids.push(c.concept.concept_id.as_ref());
             }
         }
         let unique: std::collections::HashSet<&str> = ids.iter().copied().collect();
         assert_eq!(ids.len(), unique.len());
+    }
+
+    #[test]
+    fn test_graph_ids_are_typed_and_serialize_as_strings() {
+        let headings = make_headings();
+        let result = build_hierarchy("doc1", &headings, &[0, 60]);
+        let topic = &result.topics[0].topic;
+        let concept = &result.topics[0].concepts[0].concept;
+
+        assert_eq!(topic.topic_id.as_ref(), "topic_doc1_0");
+        assert_eq!(topic.document_id.as_ref(), "doc1");
+        assert_eq!(concept.concept_id.as_ref(), "concept_doc1_0_0");
+        assert_eq!(concept.topic_id.as_ref(), topic.topic_id.as_ref());
+
+        let topic_json = serde_json::to_value(topic).expect("topic serializes");
+        assert_eq!(topic_json["topic_id"], "topic_doc1_0");
+        assert_eq!(topic_json["document_id"], "doc1");
+
+        let concept_json = serde_json::to_value(concept).expect("concept serializes");
+        assert_eq!(concept_json["concept_id"], "concept_doc1_0_0");
+        assert_eq!(concept_json["topic_id"], "topic_doc1_0");
     }
 
     #[test]

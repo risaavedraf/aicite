@@ -6,116 +6,154 @@
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::convert::Infallible;
 use std::fmt;
+use std::ops::Deref;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 // ---------------------------------------------------------------------------
 // Newtype wrappers for strongly-typed identifiers
 // ---------------------------------------------------------------------------
 
-/// Strongly-typed document identifier.
-///
-/// Wraps a plain `String` to prevent accidental mixing with other ID types
-/// at compile time. Implements [`Display`](std::fmt::Display), [`From<String>`], and [`AsRef<str>`]
-/// for ergonomic use.
-///
-/// # Examples
-///
-/// ```
-/// use common::types::DocumentId;
-///
-/// let id = DocumentId::from("doc-42".to_string());
-/// assert_eq!(id.as_ref(), "doc-42");
-/// assert_eq!(format!("{id}"), "doc-42");
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct DocumentId(pub String);
+macro_rules! string_id_newtype {
+    (
+        $(#[$meta:meta])*
+        pub struct $name:ident;
+    ) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+        #[serde(transparent)]
+        pub struct $name(pub String);
 
-impl fmt::Display for DocumentId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str(&self.0)
+            }
+        }
+
+        impl From<String> for $name {
+            fn from(value: String) -> Self {
+                Self(value)
+            }
+        }
+
+        impl From<&str> for $name {
+            fn from(value: &str) -> Self {
+                Self(value.to_owned())
+            }
+        }
+
+        impl FromStr for $name {
+            type Err = Infallible;
+
+            fn from_str(value: &str) -> Result<Self, Self::Err> {
+                Ok(Self::from(value))
+            }
+        }
+
+        impl AsRef<str> for $name {
+            fn as_ref(&self) -> &str {
+                &self.0
+            }
+        }
+
+        impl Deref for $name {
+            type Target = str;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+    };
 }
 
-impl From<String> for DocumentId {
-    fn from(value: String) -> Self {
-        Self(value)
-    }
+string_id_newtype! {
+    /// Strongly-typed document identifier.
+    ///
+    /// Wraps a plain `String` to prevent accidental mixing with other ID types
+    /// at compile time. It is transparent at serialization and persistence
+    /// boundaries, while providing typed Rust APIs internally.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use common::types::DocumentId;
+    ///
+    /// let id = DocumentId::from("doc-42");
+    /// assert_eq!(id.as_ref(), "doc-42");
+    /// assert_eq!(format!("{id}"), "doc-42");
+    /// ```
+    pub struct DocumentId;
 }
 
-impl AsRef<str> for DocumentId {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
+string_id_newtype! {
+    /// Strongly-typed chunk identifier.
+    ///
+    /// Wraps a plain `String` to distinguish chunk IDs from document or trace IDs
+    /// at compile time. It preserves the external string representation.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use common::types::ChunkId;
+    ///
+    /// let id = ChunkId::from("chunk-7");
+    /// assert_eq!(id.as_ref(), "chunk-7");
+    /// ```
+    pub struct ChunkId;
 }
 
-/// Strongly-typed chunk identifier.
-///
-/// Wraps a plain `String` to distinguish chunk IDs from document or trace IDs
-/// at compile time.
-///
-/// # Examples
-///
-/// ```
-/// use common::types::ChunkId;
-///
-/// let id = ChunkId::from("chunk-7".to_string());
-/// assert_eq!(id.as_ref(), "chunk-7");
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ChunkId(pub String);
-
-impl fmt::Display for ChunkId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
+string_id_newtype! {
+    /// Strongly-typed topic identifier.
+    ///
+    /// Wraps a plain `String` to distinguish graph topic IDs from document,
+    /// chunk, concept, or trace IDs while preserving string-shaped external data.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use common::types::TopicId;
+    ///
+    /// let id = TopicId::from("topic-doc-1");
+    /// assert_eq!(id.as_ref(), "topic-doc-1");
+    /// ```
+    pub struct TopicId;
 }
 
-impl From<String> for ChunkId {
-    fn from(value: String) -> Self {
-        Self(value)
-    }
+string_id_newtype! {
+    /// Strongly-typed concept identifier.
+    ///
+    /// Wraps a plain `String` to distinguish graph concept IDs from topic and
+    /// other domain identifiers while preserving string-shaped external data.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use common::types::ConceptId;
+    ///
+    /// let id = ConceptId::from("concept-doc-1");
+    /// assert_eq!(id.as_ref(), "concept-doc-1");
+    /// ```
+    pub struct ConceptId;
 }
 
-impl AsRef<str> for ChunkId {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
-}
-
-/// Strongly-typed trace identifier.
-///
-/// Wraps a plain `String` to distinguish trace IDs from other identifiers
-/// at compile time. Traces link retrieval requests back to their citations
-/// and metadata.
-///
-/// # Examples
-///
-/// ```
-/// use common::types::TraceId;
-///
-/// let id = TraceId::from("trace-abc".to_string());
-/// assert_eq!(id.as_ref(), "trace-abc");
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct TraceId(pub String);
-
-impl fmt::Display for TraceId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl From<String> for TraceId {
-    fn from(value: String) -> Self {
-        Self(value)
-    }
-}
-
-impl AsRef<str> for TraceId {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
+string_id_newtype! {
+    /// Strongly-typed trace identifier.
+    ///
+    /// Wraps a plain `String` to distinguish trace IDs from other identifiers
+    /// at compile time. Traces link retrieval requests back to their citations
+    /// and metadata while preserving string-shaped external data.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use common::types::TraceId;
+    ///
+    /// let id = TraceId::from("trace-abc");
+    /// assert_eq!(id.as_ref(), "trace-abc");
+    /// ```
+    pub struct TraceId;
 }
 
 // ---------------------------------------------------------------------------
@@ -238,7 +276,7 @@ pub struct ErrorInfo {
 /// use common::types::{Document, DocumentStatus, FileType};
 ///
 /// let doc = Document {
-///     document_id: "doc-1".to_string(),
+///     document_id: "doc-1".into(),
 ///     display_name: "readme.txt".to_string(),
 ///     file_path: PathBuf::from("/docs/readme.txt"),
 ///     file_type: FileType::Txt,
@@ -297,8 +335,8 @@ pub struct Document {
 /// use common::types::Chunk;
 ///
 /// let chunk = Chunk {
-///     chunk_id: "chunk-1".to_string(),
-///     document_id: "doc-1".to_string(),
+///     chunk_id: "chunk-1".into(),
+///     document_id: "doc-1".into(),
 ///     section_id: None,
 ///     chunk_index: 0,
 ///     text: "Hello, world!".to_string(),
@@ -344,9 +382,9 @@ pub struct Chunk {
 ///
 /// let c = Citation {
 ///     citation_id: "cite-1".to_string(),
-///     document_id: "doc-1".to_string(),
+///     document_id: "doc-1".into(),
 ///     display_name: "readme.txt".to_string(),
-///     chunk_id: "chunk-1".to_string(),
+///     chunk_id: "chunk-1".into(),
 ///     page: Some(1),
 ///     offset: None,
 ///     text: "relevant excerpt".to_string(),
@@ -636,4 +674,69 @@ pub struct EvalReport {
     pub threshold: f64,
     pub overall_pass: bool,
     pub results: Vec<FixtureResult>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ChunkId, ConceptId, DocumentId, TopicId, TraceId};
+    use std::str::FromStr;
+
+    fn assert_string_id_contract<T>(sample: &str, expected_debug_name: &str)
+    where
+        T: From<String>
+            + From<&'static str>
+            + FromStr<Err = std::convert::Infallible>
+            + AsRef<str>
+            + Clone
+            + std::fmt::Debug
+            + std::fmt::Display
+            + std::ops::Deref<Target = str>
+            + PartialEq
+            + serde::Serialize
+            + for<'de> serde::Deserialize<'de>,
+    {
+        let from_string = T::from(sample.to_owned());
+        let from_str_literal = T::from("literal-id");
+        let parsed = T::from_str(sample).expect("string-transparent IDs parse infallibly");
+
+        assert_eq!(from_string, parsed);
+        assert_eq!(from_string.clone(), parsed);
+        assert_eq!(from_string.as_ref(), sample);
+        assert_eq!(&*from_string, sample);
+        assert_eq!(from_string.to_string(), sample);
+        assert_eq!(from_str_literal.as_ref(), "literal-id");
+        assert!(format!("{from_string:?}").contains(expected_debug_name));
+
+        let json = serde_json::to_string(&from_string).expect("ID serializes as JSON string");
+        assert_eq!(json, format!("\"{sample}\""));
+
+        let deserialized: T =
+            serde_json::from_str(&json).expect("ID deserializes from JSON string");
+        assert_eq!(deserialized, from_string);
+    }
+
+    #[test]
+    fn document_id_has_string_transparent_foundation_traits() {
+        assert_string_id_contract::<DocumentId>("doc-42", "DocumentId");
+    }
+
+    #[test]
+    fn chunk_id_has_string_transparent_foundation_traits() {
+        assert_string_id_contract::<ChunkId>("chunk-7", "ChunkId");
+    }
+
+    #[test]
+    fn topic_id_has_string_transparent_foundation_traits() {
+        assert_string_id_contract::<TopicId>("topic-doc-1", "TopicId");
+    }
+
+    #[test]
+    fn concept_id_has_string_transparent_foundation_traits() {
+        assert_string_id_contract::<ConceptId>("concept-doc-1", "ConceptId");
+    }
+
+    #[test]
+    fn trace_id_has_string_transparent_foundation_traits() {
+        assert_string_id_contract::<TraceId>("trace-abc", "TraceId");
+    }
 }

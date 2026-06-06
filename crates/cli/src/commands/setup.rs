@@ -56,11 +56,10 @@ fn execute_non_interactive(args: &SetupArgs, config: &Config, json: bool) -> i32
         }
     };
 
-    // Use config model for the test
-    let model = config.embedding.model.clone();
+    let model = selected_provider_model(config, &provider);
 
     // Test connection
-    let test_result = test_provider_connection(config, &provider, &api_key);
+    let test_result = test_provider_connection(&provider, &model, &api_key);
     match test_result {
         Ok(latency_ms) => {
             if json {
@@ -175,12 +174,11 @@ fn execute_interactive(config: &Config, json: bool) -> i32 {
         }
     };
 
-    // Use config model for the test
-    let model = config.embedding.model.clone();
+    let model = selected_provider_model(config, &provider);
 
     // Test connection
     println!("\n  Testing connection...");
-    let test_result = test_provider_connection(config, &provider, &api_key);
+    let test_result = test_provider_connection(&provider, &model, &api_key);
     match test_result {
         Ok(latency_ms) => {
             println!("  ✓ Embedding test successful ({latency_ms}ms)");
@@ -221,12 +219,23 @@ fn execute_interactive(config: &Config, json: bool) -> i32 {
     }
 }
 
-fn test_provider_connection(config: &Config, provider: &str, api_key: &str) -> Result<u64, String> {
+fn selected_provider_model(config: &Config, provider: &str) -> String {
+    if provider == config.embedding.provider {
+        return config.embedding.model.clone();
+    }
+
+    match provider {
+        "gemini" => "gemini-embedding-001".to_string(),
+        "openai" | "openai-compatible" => "text-embedding-3-small".to_string(),
+        _ => config.embedding.model.clone(),
+    }
+}
+
+fn test_provider_connection(provider: &str, model: &str, api_key: &str) -> Result<u64, String> {
     use providers::gemini::GeminiProvider;
     use providers::openai::OpenAICompatibleProvider;
     use providers::EmbeddingProvider;
 
-    let model = &config.embedding.model;
     let start = std::time::Instant::now();
 
     let result = match provider {
@@ -276,4 +285,33 @@ fn save_config(provider: &str, api_key: &str, model: &str) -> Result<String, std
     }
 
     Ok(config_path.display().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selected_provider_model_uses_provider_default_when_provider_changes() {
+        let mut config =
+            Config::load_from(Some(std::path::Path::new("/nonexistent/setup-test.toml"))).unwrap();
+        config.embedding.provider = "openai-compatible".to_string();
+        config.embedding.model = "text-embedding-3-small".to_string();
+
+        let model = selected_provider_model(&config, "gemini");
+
+        assert_eq!(model, "gemini-embedding-001");
+    }
+
+    #[test]
+    fn selected_provider_model_preserves_existing_model_for_same_provider() {
+        let mut config =
+            Config::load_from(Some(std::path::Path::new("/nonexistent/setup-test.toml"))).unwrap();
+        config.embedding.provider = "gemini".to_string();
+        config.embedding.model = "custom-gemini-model".to_string();
+
+        let model = selected_provider_model(&config, "gemini");
+
+        assert_eq!(model, "custom-gemini-model");
+    }
 }

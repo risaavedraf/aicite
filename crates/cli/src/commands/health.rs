@@ -50,8 +50,9 @@ struct DatabaseHealth {
 
 /// Execute health diagnostics.
 ///
-/// This performs live provider connectivity tests (network calls).
-/// For local-only status, use `--json` and check fields without provider.
+/// This performs live provider connectivity tests (network calls) for both
+/// human and JSON output. JSON changes only the output format; it is not a
+/// local-only mode.
 ///
 /// `config_path_override` holds the path the user actually loaded (from --config flag or CITE_CONFIG env).
 /// We pass it separately so the health report shows the real resolved path, not a re-derivation.
@@ -321,5 +322,51 @@ fn print_health_human(output: &HealthOutput) {
             println!("  Database: error ({})", err);
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct EnvVarGuard {
+        name: &'static str,
+        original: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn remove(name: &'static str) -> Self {
+            let original = std::env::var(name).ok();
+            std::env::remove_var(name);
+            Self { name, original }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match &self.original {
+                Some(value) => std::env::set_var(self.name, value),
+                None => std::env::remove_var(self.name),
+            }
+        }
+    }
+
+    #[test]
+    fn health_output_includes_provider_status_for_json_contract() {
+        let _embedding_key = EnvVarGuard::remove("CITE_EMBEDDING_API_KEY");
+        let _gemini_key = EnvVarGuard::remove("GEMINI_API_KEY");
+        let _openai_key = EnvVarGuard::remove("OPENAI_API_KEY");
+        let config =
+            Config::load_from(Some(std::path::Path::new("/nonexistent/health-test.toml"))).unwrap();
+
+        let output = build_health_output(&config, None);
+
+        assert_eq!(output.provider.provider_id, config.embedding.provider);
+        assert_eq!(output.provider.model, config.embedding.model);
+        assert_eq!(output.provider.status, "skipped");
+        assert_eq!(
+            output.provider.error.as_deref(),
+            Some("no API key configured")
+        );
     }
 }

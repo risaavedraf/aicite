@@ -38,6 +38,7 @@ openspec/reports/revision-*/
 # Temp files
 *.tmp
 temp_*
+tmp/
 *~
 
 skills

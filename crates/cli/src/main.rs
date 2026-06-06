@@ -36,7 +36,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Check CLI runtime and local state health
+    /// Check CLI runtime, storage, and provider health
     Health,
     /// Configure API keys and provider settings
     Setup(commands::setup::SetupArgs),

@@ -1,4 +1,4 @@
-use common::CiteError;
+use common::{ChunkId, CiteError, DocumentId};
 use config::{RateLimitConfig, RetrievalConfig};
 use providers::EmbeddingProvider;
 use retrieval::{rank_by_similarity, ScoredChunk};
@@ -37,8 +37,8 @@ pub struct RetrievalRequest<'a> {
 /// Contains the full chunk text. Use [`Hit::preview`] for a truncated preview.
 #[derive(Debug, Clone)]
 pub struct Hit {
-    pub chunk_id: String,
-    pub document_id: String,
+    pub chunk_id: ChunkId,
+    pub document_id: DocumentId,
     pub display_name: String,
     pub section_id: Option<String>,
     pub chunk_index: u32,
@@ -190,8 +190,8 @@ impl Hit {
             None
         };
         Hit {
-            chunk_id: item.chunk_id,
-            document_id: item.document_id,
+            chunk_id: item.chunk_id_typed,
+            document_id: item.document_id_typed,
             display_name: item.display_name,
             section_id: item.section_id,
             chunk_index: item.chunk_index,
@@ -402,7 +402,7 @@ mod tests {
     fn insert_doc(db: &Database, id: &str, status: DocumentStatus) {
         let now = Utc::now();
         let doc = Document {
-            document_id: id.to_string(),
+            document_id: DocumentId::from(id),
             display_name: format!("{id}.txt"),
             file_path: std::path::Path::new("/tmp/test.txt").to_path_buf(),
             file_type: FileType::Txt,
@@ -427,8 +427,8 @@ mod tests {
         vec: Vec<f32>,
     ) {
         let chunk = Chunk {
-            chunk_id: chunk_id.to_string(),
-            document_id: doc_id.to_string(),
+            chunk_id: ChunkId::from(chunk_id),
+            document_id: DocumentId::from(doc_id),
             section_id: Some("section-a".to_string()),
             chunk_index: 0,
             text: text.to_string(),
@@ -529,7 +529,7 @@ mod tests {
 
         let results = search(&db, &provider, &cfg, &rl_cfg(), "query", None, None, None).unwrap();
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].document_id, "doc-ready");
+        assert_eq!(results[0].document_id.as_ref(), "doc-ready");
         assert!(results[0].preview().contains("ready text"));
     }
 
@@ -568,7 +568,7 @@ mod tests {
         .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].text, "this is the full chunk text");
-        assert_eq!(results[0].chunk_id, "chunk-ready");
+        assert_eq!(results[0].chunk_id.as_ref(), "chunk-ready");
     }
 
     #[test]
@@ -898,7 +898,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].chunk_id, "c-auth-0");
+        assert_eq!(results[0].chunk_id.as_ref(), "c-auth-0");
         assert_eq!(results[0].topic_name.as_deref(), Some("Authentication"));
     }
 
@@ -957,7 +957,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(results.len(), 1);
-        assert_eq!(results[0].chunk_id, "c-jwt-0");
+        assert_eq!(results[0].chunk_id.as_ref(), "c-jwt-0");
         assert_eq!(results[0].concept_name.as_deref(), Some("JWT Tokens"));
     }
 }

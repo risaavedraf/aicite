@@ -458,6 +458,32 @@ mod tests {
     // Env vars are process-global and not thread-safe to mutate concurrently.
     static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
+    struct EnvVarGuard {
+        name: &'static str,
+        original: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn set(name: &'static str, value: &str) -> Self {
+            let original = std::env::var(name).ok();
+            std::env::set_var(name, value);
+            Self { name, original }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match &self.original {
+                Some(value) => std::env::set_var(self.name, value),
+                None => std::env::remove_var(self.name),
+            }
+        }
+    }
+
+    fn isolated_missing_config_path() -> &'static std::path::Path {
+        std::path::Path::new("/nonexistent/aiharness-isolated-config.toml")
+    }
+
     #[test]
     fn test_defaults() {
         let config = Config::defaults();
@@ -504,10 +530,9 @@ mod tests {
     #[test]
     fn test_env_embedding_timeout_overridden() {
         let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        std::env::set_var("CITE_EMBEDDING_TIMEOUT", "60");
-        let config = Config::load().unwrap();
+        let _timeout = EnvVarGuard::set("CITE_EMBEDDING_TIMEOUT", "60");
+        let config = Config::load_from(Some(isolated_missing_config_path())).unwrap();
         assert_eq!(config.ingest.embedding_timeout_secs, 60);
-        std::env::remove_var("CITE_EMBEDDING_TIMEOUT");
     }
 
     // --- 2b.3: Config merge/env/TOML coverage tests ---
@@ -531,14 +556,9 @@ mod tests {
     fn test_env_invalid_top_k_falls_back_to_default() {
         let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         // CITE_TOP_K set to a non-numeric value should be silently ignored
-        let orig = std::env::var("CITE_TOP_K").ok();
-        std::env::set_var("CITE_TOP_K", "not_a_number");
-        let config = Config::load().unwrap();
+        let _top_k = EnvVarGuard::set("CITE_TOP_K", "not_a_number");
+        let config = Config::load_from(Some(isolated_missing_config_path())).unwrap();
         assert_eq!(config.retrieval.top_k, 5); // default
-        match orig {
-            Some(v) => std::env::set_var("CITE_TOP_K", v),
-            None => std::env::remove_var("CITE_TOP_K"),
-        }
     }
 
     #[test]
@@ -628,12 +648,11 @@ mod tests {
     #[test]
     fn test_invalid_env_values_fall_back_to_defaults() {
         let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        std::env::set_var("CITE_TOP_K", "not_a_number");
-        let config = Config::load().unwrap();
+        let _top_k = EnvVarGuard::set("CITE_TOP_K", "not_a_number");
+        let config = Config::load_from(Some(isolated_missing_config_path())).unwrap();
         assert_eq!(
             config.retrieval.top_k, 5,
             "invalid CITE_TOP_K should fall back to default 5"
         );
-        std::env::remove_var("CITE_TOP_K");
     }
 }

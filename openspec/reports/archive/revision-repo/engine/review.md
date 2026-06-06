@@ -309,11 +309,7 @@ let _ = engine::recovery::recover_interrupted_processing(&db)?;
 | `"mock"` | `false` |
 | `"test"` | `false` |
 
-**⚠ Hallazgo CRÍTICO:** `check_ingest_allowed` **nunca es llamada** en el path real de ingest. Confirmado:
-- `engine/src/ingest.rs` no importa ni llama a `runtime_guard`
-- `cli/src/commands/ingest.rs` no llama a `check_ingest_allowed`
-- El CLI pasa `production_mode: bool` al engine, pero esto solo controla `derive_display_name` (sanitización del nombre), NO si el ingest está permitido
-- El único uso real de `runtime_guard` es `is_real_provider` en `main.rs` para mostrar el banner de disclosure del provider
+**⚠ Hallazgo actualizado:** `check_ingest_allowed` sí se invoca en el path CLI actual: `crates/cli/src/commands/ingest.rs` llama `engine::runtime_guard::check_ingest_allowed(&config.runtime.mode)` antes de procesar ingest. El engine sigue sin revalidar el guard dentro de `ingest_next` o `ingest_internal`, así que el riesgo restante es el boundary interno si callers futuros usan `engine::ingest` sin pasar por el CLI. `runtime_guard` también se usa vía `is_real_provider` en `main.rs` para el provider disclosure banner.
 
 ---
 

@@ -11,16 +11,16 @@ Análisis de consistencia entre los PRDs del proyecto y la implementación real,
 
 ## 🔴 Incongruencias detectadas (requieren decisión)
 
-### 1. `check_ingest_allowed` existe pero NO se llama en el path de ingest
+### 1. ✅ Actualizado: `check_ingest_allowed` sí se llama en el path CLI de ingest
 
 **Archivo**: `crates/engine/src/runtime_guard.rs` (fn `check_ingest_allowed`)
 **Archivo**: `crates/cli/src/commands/ingest.rs`
 
-La función `check_ingest_allowed` está definida y tiene tests, pero **nunca es invocada** por el CLI ingest path ni por el engine ingest path. El CLI pasa `production_mode: bool` al engine, pero el engine no usa `check_ingest_allowed` — tiene su propia lógica inline.
+Verificación CR-2 (2026-06-04): el comando `ingest` invoca `engine::runtime_guard::check_ingest_allowed(&config.runtime.mode)` desde `execute()` y maneja el error en salida JSON o humana. Por lo tanto, production/public-demo ingestion está bloqueado en el entrypoint CLI actual.
 
-**Pregunta**: ¿El bloqueo de production en ingest funciona realmente en runtime, o es dead code? Necesitamos verificar si el flag `production_mode` en el engine realmente previene ingest o solo afecta el `display_name`.
+**Riesgo restante:** los entrypoints internos `engine::ingest::ingest`, `ingest_next` e `ingest_internal` no re-ejecutan el guard. Si el engine se usa fuera del CLI, el caller debe aplicar el boundary check o el proyecto debe mover/documentar el enforcement en engine.
 
-**Impacto potencial**: CRITICAL — si production mode no bloquea ingest, un usuario podría ingestar datos reales sin el compliance checklist.
+**Referencia de tests:** `engine/tests/runtime_mode.rs` y tests unitarios de `engine::runtime_guard` ejercitan las variantes de `check_ingest_allowed`.
 
 ---
 

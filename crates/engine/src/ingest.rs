@@ -1,6 +1,7 @@
 use chrono::Utc;
 use common::types::{Chunk, Document, DocumentStatus, ErrorInfo};
 use common::CiteError;
+use common::{ChunkId, DocumentId};
 use config::IngestConfig;
 use ingest::chunker::{self};
 use ingest::extractor::{self};
@@ -16,7 +17,7 @@ const INGEST_LOCK_RETRY_AFTER_SECONDS: u32 = 5;
 /// Result of a successful ingestion
 #[derive(Debug, Clone)]
 pub struct IngestResult {
-    pub document_id: String,
+    pub document_id: DocumentId,
     pub display_name: String,
     pub status: DocumentStatus,
     pub chunk_count: u32,
@@ -141,7 +142,10 @@ fn ingest_internal(
             validator::derive_display_name(path, display_name_override, production_mode);
 
         // 3. Create document record
-        let document_id = format!("doc_{}", &Uuid::new_v4().to_string().replace('-', "")[..12]);
+        let document_id = DocumentId::from(format!(
+            "doc_{}",
+            &Uuid::new_v4().to_string().replace('-', "")[..12]
+        ));
         let doc = Document {
             document_id: document_id.clone(),
             display_name: display_name.clone(),
@@ -247,11 +251,11 @@ fn run_pipeline(
     let chunks: Vec<Chunk> = chunk_inputs
         .iter()
         .map(|ci| Chunk {
-            chunk_id: format!(
+            chunk_id: ChunkId::from(format!(
                 "chunk_{}",
                 &Uuid::new_v4().to_string().replace('-', "")[..12]
-            ),
-            document_id: document_id.to_string(),
+            )),
+            document_id: DocumentId::from(document_id),
             section_id: None,
             chunk_index: ci.chunk_index,
             text: ci.text.clone(),
@@ -272,7 +276,7 @@ fn run_pipeline(
     for chunk in &chunks {
         let vector = provider.embed(&chunk.text)?;
         embeddings.push((
-            chunk.chunk_id.clone(),
+            chunk.chunk_id.to_string(),
             vector,
             provider.model_id(),
             provider.provider_id(),
@@ -409,7 +413,7 @@ mod tests {
         let db = test_db();
         // Insert a pending document
         let doc = Document {
-            document_id: "doc_test1".to_string(),
+            document_id: DocumentId::from("doc_test1"),
             display_name: "test.txt".to_string(),
             file_path: Path::new("/tmp/test.txt").to_path_buf(),
             file_type: common::FileType::Txt,

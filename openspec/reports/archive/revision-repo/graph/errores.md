@@ -7,36 +7,15 @@
 
 ## 🔴 CRITICAL
 
-### 1. `heading_parser.rs:17,35` — `char_offset` usa `line.len()` (bytes) en vez de `line.chars().count()`
+### 1. ✅ RESUELTO: `heading_parser.rs` acumula `char_offset` con caracteres Unicode
 
 **Archivo:** `crates/graph/src/heading_parser.rs`
-**Líneas:** 17 (`char_offset += line.len() + 1`) y 35 (ídem, en el bloque de heading)
 
-**Problema:** `line.len()` devuelve la cantidad de **bytes** UTF-8, no la cantidad de caracteres. El campo se llama `char_offset` y los consumidores (chunkers) producen offsets basados en **caracteres** (`combined.chars().skip(start)`). Para texto no-ASCII (emojis, acentos, CJK, etc.), los offsets de headings divergen de los offsets de chunks.
+**Verificado en CR-2 (2026-06-04):** `extract_headings()` actualiza `char_offset` con `line.chars().count() + 1`, no con `line.len()`. La afirmación anterior de offset byte-based ya es histórica.
 
-**Impacto:** En `ingest/src/lib.rs:94`, `chunk_offsets` provienen del chunker (char-based). En `ingest/src/lib.rs:161`, se comparan con `heading.char_offset` (byte-based). Para texto con multi-byte chars, los chunks se asignan al **tópico/concepto incorrecto**.
+**Impacto actual:** `HeadingSpan.char_offset` vuelve a estar alineado con los offsets character-based usados por chunking/hierarchy para texto no ASCII.
 
-**Ejemplo concreto:**
-```
-## Intro
-café résumé 🎉🎊🎉🎊🎉🎊🎉🎊
-## Details
-```
-- Heading "Details" tiene `char_offset` = `len("## Intro\n") + len("café résumé 🎉🎊...\n") + 1`
-- `line.len()` de la línea con emojis = ~44 bytes, pero ~22 chars
-- El heading "Details" reporta offset ~55 (bytes), pero el chunker reporta offsets en chars (~33)
-- → El chunk que debería caer en "Details" cae en "Intro"
-
-**Fix sugerido:** Cambiar `line.len()` por `line.chars().count()` en ambas líneas:
-```rust
-// Línea 17 (code block):
-char_offset += line.chars().count() + 1;
-
-// Línea 35 (end of loop):
-char_offset += line.chars().count() + 1;
-```
-
-**Nota:** El test `test_char_offsets` usa solo texto ASCII, por lo que no detecta este bug. Agregar un test con texto UTF-8 multi-byte.
+**Seguimiento recomendado:** mantener o ampliar tests UTF-8 multi-byte (por ejemplo `test_char_offsets`) para evitar regresiones en `char_offset`.
 
 ---
 
@@ -158,25 +137,14 @@ if topics.is_empty() {
 
 **Sugerencia:** Eliminar o agregar la funcionalidad prometida en el doc comment ("future iterations may hold an in-memory graph index").
 
-### 8. `heading_parser.rs` tests — `test_char_offsets` solo usa ASCII
+### 8. ✅ RESUELTO: `heading_parser.rs` tests cubren offsets UTF-8
 
 **Archivo:** `crates/graph/src/heading_parser.rs`
-**Líneas:** 107-116
+**Verificado en CR-2 (2026-06-04)**
 
-**Problema:** El test de offsets usa `"## First\n\nSome text\n\n## Second"` (todo ASCII), por lo que `line.len() == line.chars().count()` y el bug CRITICAL #1 no se detecta.
+**Estado actual:** El riesgo original era histórico. El parser ya acumula `char_offset` con `line.chars().count() + 1`, y la suite actual incluye regresiones con texto multi-byte/acento en `test_char_offsets_with_utf8_content` y `test_char_offsets_with_accented_headings`.
 
-**Sugerencia:** Agregar test con texto multi-byte:
-```rust
-#[test]
-fn test_char_offsets_utf8() {
-    let md = "## café\n\nrésumé 🎉\n\n## naïve";
-    let headings = extract_headings(md);
-    // "## café" = 7 chars + 1 newline = 8
-    assert_eq!(headings[0].char_offset, 0);
-    // "résumé 🎉" = 9 chars + 1 newline = 10 → 8 + 10 = 18
-    assert_eq!(headings[1].char_offset, 18);
-}
-```
+**Riesgo restante:** mantener esas pruebas para prevenir regresiones; no se requiere cambio de código en V3 CR-2.
 
 ### 9. `types.rs:36-38` — `HeadingSpan` sin `Serialize/Deserialize`
 

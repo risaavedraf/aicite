@@ -105,8 +105,8 @@ pub fn execute(args: &SearchArgs, config: &Config, json: bool) -> i32 {
                             .map(|h| {
                                 let preview = h.preview();
                                 SearchResultItem {
-                                    chunk_id: h.chunk_id,
-                                    document_id: h.document_id,
+                                    chunk_id: h.chunk_id.to_string(),
+                                    document_id: h.document_id.to_string(),
                                     display_name: h.display_name,
                                     section_id: h.section_id,
                                     chunk_index: h.chunk_index,

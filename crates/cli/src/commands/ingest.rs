@@ -136,7 +136,7 @@ pub fn execute(args: &IngestArgs, config: &Config, json: bool) -> i32 {
             Ok(ingest::IngestNextResult::Ingested(result)) => {
                 let output = NextIngestOutput {
                     status: result.status.to_string(),
-                    document_id: Some(result.document_id),
+                    document_id: Some(result.document_id.to_string()),
                     display_name: Some(result.display_name),
                     chunk_count: Some(result.chunk_count),
                 };
@@ -183,7 +183,7 @@ pub fn execute(args: &IngestArgs, config: &Config, json: bool) -> i32 {
     ) {
         Ok(result) => {
             let output = IngestOutput {
-                document_id: result.document_id,
+                document_id: result.document_id.to_string(),
                 display_name: result.display_name,
                 status: result.status.to_string(),
                 chunk_count: result.chunk_count,

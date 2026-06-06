@@ -78,7 +78,7 @@ Lógica:
 - Itera líneas con `markdown.lines()`
 - Toggle de bloque de código con `trimmed.starts_with("```")`
 - Para cada línea no en bloque de código que empiece con `#`: cuenta nivel, extrae título, registra offset
-- `char_offset` se acumula con `line.len() + 1` (bytes + newline)
+- `char_offset` se acumula con `line.chars().count() + 1` (conteo de Unicode scalar values + newline), no con bytes.
 
 Tests: 5 tests cubren caso básico, sin headings, headings en code blocks, headings vacíos, y offsets.
 

@@ -65,7 +65,7 @@ pub struct CompactRetrieveItem {
 pub fn to_compact_context(resp: &ContextResponse) -> CompactContextResponse {
     CompactContextResponse {
         result_kind: resp.result_kind.clone(),
-        trace_id: resp.trace_id.clone(),
+        trace_id: resp.trace_id.to_string(),
         citations: resp
             .citations
             .iter()
@@ -88,7 +88,7 @@ pub fn to_compact_search(hits: &[Hit]) -> CompactSearchOutput {
         results: hits
             .iter()
             .map(|h| CompactSearchItem {
-                id: h.chunk_id.clone(),
+                id: h.chunk_id.to_string(),
                 source: h.display_name.clone(),
                 score: h.score,
                 preview: h.preview(),
@@ -103,7 +103,7 @@ pub fn to_compact_retrieve(hits: &[Hit]) -> CompactRetrieveOutput {
         results: hits
             .iter()
             .map(|h| CompactRetrieveItem {
-                id: h.chunk_id.clone(),
+                id: h.chunk_id.to_string(),
                 source: h.display_name.clone(),
                 score: h.score,
                 text: h.text.clone(),

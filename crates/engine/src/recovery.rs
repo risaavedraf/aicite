@@ -26,11 +26,12 @@ mod tests {
     use super::*;
     use chrono::Utc;
     use common::types::{Document, DocumentStatus, FileType};
+    use common::DocumentId;
     use std::path::PathBuf;
 
     fn make_doc(id: &str, status: DocumentStatus) -> Document {
         Document {
-            document_id: id.to_string(),
+            document_id: DocumentId::from(id),
             display_name: format!("{id}.txt"),
             file_path: PathBuf::from(format!("/docs/{id}.txt")),
             file_type: FileType::Txt,

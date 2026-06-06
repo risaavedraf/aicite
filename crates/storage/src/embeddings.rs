@@ -1,4 +1,4 @@
-use common::CiteError;
+use common::{ChunkId, CiteError, DocumentId};
 use rusqlite::params;
 
 use crate::util::storage_err;
@@ -8,6 +8,8 @@ use crate::Database;
 pub struct ChunkEmbeddingRecord {
     pub chunk_id: String,
     pub document_id: String,
+    pub chunk_id_typed: ChunkId,
+    pub document_id_typed: DocumentId,
     pub display_name: String,
     pub section_id: Option<String>,
     pub chunk_index: u32,
@@ -55,9 +57,14 @@ fn row_to_chunk_embedding(row: &rusqlite::Row<'_>) -> Result<ChunkEmbeddingRecor
     let blob: Vec<u8> = row.get(9).map_err(storage_err)?;
     let vector = decode_vector_blob(&blob)?;
 
+    let chunk_id: String = row.get(0).map_err(storage_err)?;
+    let document_id: String = row.get(1).map_err(storage_err)?;
+
     Ok(ChunkEmbeddingRecord {
-        chunk_id: row.get(0).map_err(storage_err)?,
-        document_id: row.get(1).map_err(storage_err)?,
+        chunk_id_typed: ChunkId::from(chunk_id.as_str()),
+        document_id_typed: DocumentId::from(document_id.as_str()),
+        chunk_id,
+        document_id,
         display_name: row.get(2).map_err(storage_err)?,
         section_id: row.get(3).map_err(storage_err)?,
         chunk_index: u32::try_from(row.get::<_, i64>(4).map_err(storage_err)?)
@@ -249,7 +256,7 @@ mod tests {
 
     fn insert_parent_doc(db: &Database, id: &str) {
         let doc = Document {
-            document_id: id.to_string(),
+            document_id: id.to_string().into(),
             display_name: format!("{id}.txt"),
             file_path: PathBuf::from(format!("/docs/{id}.txt")),
             file_type: FileType::Txt,
@@ -269,8 +276,8 @@ mod tests {
     fn insert_chunks_for_doc(db: &Database, doc_id: &str, count: u32) {
         let chunks: Vec<Chunk> = (0..count)
             .map(|i| Chunk {
-                chunk_id: format!("{doc_id}-c{i}"),
-                document_id: doc_id.to_string(),
+                chunk_id: format!("{doc_id}-c{i}").into(),
+                document_id: doc_id.to_string().into(),
                 section_id: None,
                 chunk_index: i,
                 text: format!("chunk {i}"),

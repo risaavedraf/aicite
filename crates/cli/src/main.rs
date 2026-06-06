@@ -62,6 +62,10 @@ enum Commands {
     Refresh,
     /// Run golden dataset evaluation to verify retrieval quality
     Evaluate(commands::evaluate::EvaluateArgs),
+    /// Manage project workspaces
+    Workspace(commands::workspace::WorkspaceArgs),
+    /// Verify documentation against current binary
+    CheckDocs(commands::check_docs::CheckDocsArgs),
 }
 
 fn main() {
@@ -121,6 +125,8 @@ fn main() {
         Commands::Trace(args) => commands::trace::execute(&args, &config, cli.json),
         Commands::Refresh => commands::refresh::execute(&config, cli.json),
         Commands::Evaluate(args) => commands::evaluate::execute(&args, &config, cli.json),
+        Commands::Workspace(args) => commands::workspace::execute(&args, &config, cli.json),
+        Commands::CheckDocs(args) => commands::check_docs::execute(&args, &config, cli.json),
     };
 
     process::exit(exit_code);

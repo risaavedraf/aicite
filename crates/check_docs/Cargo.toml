@@ -1,0 +1,10 @@
+[package]
+name = "check_docs"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+common = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+regex = "1"

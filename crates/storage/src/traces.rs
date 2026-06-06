@@ -526,4 +526,42 @@ mod tests {
             .unwrap_err();
         assert!(matches!(chunk_err, CiteError::ChunkNotFound { .. }));
     }
+
+    // -----------------------------------------------------------------------
+    // list_non_ready_document_ids
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_list_non_ready_document_ids() {
+        let db = Database::open_memory().unwrap();
+
+        insert_document(&db, "doc-ready", DocumentStatus::Ready);
+        insert_document(&db, "doc-pending", DocumentStatus::Pending);
+        insert_document(&db, "doc-failed", DocumentStatus::Failed);
+        insert_document(&db, "doc-processing", DocumentStatus::Processing);
+
+        let non_ready = db.list_non_ready_document_ids().unwrap();
+        assert_eq!(non_ready.len(), 3);
+        // Results are sorted by document_id ASC
+        assert_eq!(non_ready[0], "doc-failed");
+        assert_eq!(non_ready[1], "doc-pending");
+        assert_eq!(non_ready[2], "doc-processing");
+    }
+
+    #[test]
+    fn test_list_non_ready_document_ids_empty() {
+        let db = Database::open_memory().unwrap();
+        let non_ready = db.list_non_ready_document_ids().unwrap();
+        assert!(non_ready.is_empty());
+    }
+
+    #[test]
+    fn test_list_non_ready_document_ids_all_ready() {
+        let db = Database::open_memory().unwrap();
+        insert_document(&db, "doc-a", DocumentStatus::Ready);
+        insert_document(&db, "doc-b", DocumentStatus::Ready);
+
+        let non_ready = db.list_non_ready_document_ids().unwrap();
+        assert!(non_ready.is_empty());
+    }
 }

@@ -782,4 +782,89 @@ mod tests {
         let doc = db.get_document("processing").unwrap().unwrap();
         assert_eq!(doc.status, DocumentStatus::Processing);
     }
+
+    // -----------------------------------------------------------------------
+    // list_documents_by_status
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_list_documents_by_status_filters_correctly() {
+        let db = Database::open_memory().unwrap();
+
+        let mut ready = make_doc("doc-ready");
+        ready.status = DocumentStatus::Ready;
+        db.insert_document(&ready).unwrap();
+
+        let mut failed = make_doc("doc-failed");
+        failed.status = DocumentStatus::Failed;
+        db.insert_document(&failed).unwrap();
+
+        db.insert_document(&make_doc("doc-pending")).unwrap();
+
+        let ready_docs = db.list_documents_by_status(DocumentStatus::Ready).unwrap();
+        assert_eq!(ready_docs.len(), 1);
+        assert_eq!(ready_docs[0].document_id, "doc-ready".into());
+
+        let failed_docs = db.list_documents_by_status(DocumentStatus::Failed).unwrap();
+        assert_eq!(failed_docs.len(), 1);
+        assert_eq!(failed_docs[0].document_id, "doc-failed".into());
+
+        let pending_docs = db
+            .list_documents_by_status(DocumentStatus::Pending)
+            .unwrap();
+        assert_eq!(pending_docs.len(), 1);
+        assert_eq!(pending_docs[0].document_id, "doc-pending".into());
+
+        let processing_docs = db
+            .list_documents_by_status(DocumentStatus::Processing)
+            .unwrap();
+        assert!(processing_docs.is_empty());
+    }
+
+    // -----------------------------------------------------------------------
+    // Empty string ID inputs
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_get_document_empty_id() {
+        let db = Database::open_memory().unwrap();
+        let result = db.get_document("");
+        // Should return None (not found), not panic
+        assert!(result.unwrap().is_none());
+    }
+
+    // -----------------------------------------------------------------------
+    // retry boundary: retry_count >= max_retry_count
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_increment_retry_count_beyond_max() {
+        let db = Database::open_memory().unwrap();
+        let mut doc = make_doc("doc-retry");
+        doc.max_retry_count = 3;
+        db.insert_document(&doc).unwrap();
+
+        // Increment up to and beyond max_retry_count
+        db.increment_retry_count("doc-retry").unwrap();
+        db.increment_retry_count("doc-retry").unwrap();
+        db.increment_retry_count("doc-retry").unwrap();
+        db.increment_retry_count("doc-retry").unwrap();
+
+        let fetched = db.get_document("doc-retry").unwrap().unwrap();
+        // increment_retry_count does NOT enforce max — it just increments
+        // This test documents that boundary behavior
+        assert_eq!(fetched.retry_count, 4);
+        assert_eq!(fetched.max_retry_count, 3);
+    }
+
+    #[test]
+    fn test_increment_retry_count_not_found() {
+        let db = Database::open_memory().unwrap();
+        let result = db.increment_retry_count("nonexistent");
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            CiteError::DocumentNotFound { .. }
+        ));
+    }
 }

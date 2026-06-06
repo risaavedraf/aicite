@@ -10,5 +10,6 @@ ingest = { workspace = true }
 providers = { workspace = true }
 config = { workspace = true }
 retrieval = { workspace = true }
+graph = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }

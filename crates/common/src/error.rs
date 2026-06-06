@@ -193,4 +193,280 @@ mod tests {
         };
         assert_ne!(a, c);
     }
+
+    /// Helper: assert that an error variant satisfies the public API contract.
+    fn assert_error_contract(err: &CiteError) {
+        // code() returns non-empty
+        let code = err.code();
+        assert!(!code.is_empty(), "code() must be non-empty for {err:?}");
+
+        // message() returns non-empty
+        let msg = err.message();
+        assert!(!msg.is_empty(), "message() must be non-empty for {err:?}");
+
+        // to_json_response() produces valid JSON with required fields
+        let resp = err.to_json_response();
+        let json = serde_json::to_value(&resp).expect("ErrorResponse must serialize");
+        assert!(json.get("error").is_some(), "JSON must have 'error' key");
+        let body = &json["error"];
+        assert_eq!(body["code"], code, "JSON code must match code()");
+        assert!(
+            body["message"].as_str().is_some(),
+            "JSON message must be a string"
+        );
+    }
+
+    #[test]
+    fn test_cite_error_matrix_all_variants() {
+        let variants: Vec<CiteError> = vec![
+            CiteError::UnsupportedFileType {
+                file_type: "docx".to_string(),
+            },
+            CiteError::FileTooLarge {
+                size_bytes: 999_999,
+                max_bytes: 100_000,
+            },
+            CiteError::FileNotFound {
+                path: "/tmp/missing.txt".into(),
+            },
+            CiteError::DocumentNotFound {
+                document_id: "doc-x".to_string(),
+            },
+            CiteError::DocumentNotReady {
+                document_id: "doc-y".to_string(),
+            },
+            CiteError::TraceNotFound {
+                trace_id: "tr-1".to_string(),
+            },
+            CiteError::CitationNotFound {
+                citation_id: "cite-1".to_string(),
+            },
+            CiteError::ChunkNotFound {
+                chunk_id: "chk-1".to_string(),
+            },
+            CiteError::ConfigError {
+                message: "bad config".to_string(),
+            },
+            CiteError::StorageError {
+                message: "disk full".to_string(),
+            },
+            CiteError::InternalError {
+                message: "oops".to_string(),
+            },
+            CiteError::QueryTooLong {
+                length: 5000,
+                max: 2000,
+            },
+            CiteError::InvalidParameter {
+                message: "bad k".to_string(),
+            },
+            CiteError::PathRejected {
+                message: "traversal".to_string(),
+            },
+            CiteError::RuntimeModeForbidden {
+                message: "read-only".to_string(),
+            },
+            CiteError::RateLimitExceeded {
+                retry_after_seconds: 60,
+            },
+            CiteError::OperationInProgress {
+                message: "busy".to_string(),
+                retry_after_seconds: 5,
+                lock_name: Some("ingest".to_string()),
+            },
+            CiteError::EmbeddingProviderError {
+                message: "api down".to_string(),
+            },
+            CiteError::RetrievalTimeout,
+        ];
+
+        assert_eq!(variants.len(), 19, "must cover all 19 CiteError variants");
+
+        for err in &variants {
+            assert_error_contract(err);
+        }
+    }
+
+    #[test]
+    fn test_cite_error_exit_codes() {
+        use ExitCode::*;
+
+        let cases: Vec<(CiteError, ExitCode)> = vec![
+            (
+                CiteError::UnsupportedFileType {
+                    file_type: "x".into(),
+                },
+                Validation,
+            ),
+            (
+                CiteError::FileTooLarge {
+                    size_bytes: 1,
+                    max_bytes: 0,
+                },
+                Validation,
+            ),
+            (CiteError::FileNotFound { path: "/a".into() }, NotFound),
+            (
+                CiteError::DocumentNotFound {
+                    document_id: "d".into(),
+                },
+                NotFound,
+            ),
+            (
+                CiteError::DocumentNotReady {
+                    document_id: "d".into(),
+                },
+                NotFound,
+            ),
+            (
+                CiteError::TraceNotFound {
+                    trace_id: "t".into(),
+                },
+                NotFound,
+            ),
+            (
+                CiteError::CitationNotFound {
+                    citation_id: "c".into(),
+                },
+                NotFound,
+            ),
+            (
+                CiteError::ChunkNotFound {
+                    chunk_id: "c".into(),
+                },
+                NotFound,
+            ),
+            (
+                CiteError::ConfigError {
+                    message: "e".into(),
+                },
+                Validation,
+            ),
+            (
+                CiteError::StorageError {
+                    message: "e".into(),
+                },
+                Internal,
+            ),
+            (
+                CiteError::InternalError {
+                    message: "e".into(),
+                },
+                Internal,
+            ),
+            (CiteError::QueryTooLong { length: 1, max: 0 }, Validation),
+            (
+                CiteError::InvalidParameter {
+                    message: "e".into(),
+                },
+                Validation,
+            ),
+            (
+                CiteError::PathRejected {
+                    message: "e".into(),
+                },
+                Validation,
+            ),
+            (
+                CiteError::RuntimeModeForbidden {
+                    message: "e".into(),
+                },
+                RuntimeForbidden,
+            ),
+            (
+                CiteError::RateLimitExceeded {
+                    retry_after_seconds: 1,
+                },
+                RateLimitExceeded,
+            ),
+            (
+                CiteError::OperationInProgress {
+                    message: "e".into(),
+                    retry_after_seconds: 1,
+                    lock_name: None,
+                },
+                OperationInProgress,
+            ),
+            (
+                CiteError::EmbeddingProviderError {
+                    message: "e".into(),
+                },
+                Provider,
+            ),
+            (CiteError::RetrievalTimeout, Provider),
+        ];
+
+        for (err, expected_code) in &cases {
+            assert_eq!(
+                err.exit_code(),
+                *expected_code,
+                "exit_code mismatch for {:?}",
+                err
+            );
+        }
+    }
+
+    #[test]
+    fn test_cite_error_codes_unique() {
+        let variants: Vec<CiteError> = vec![
+            CiteError::UnsupportedFileType {
+                file_type: "x".into(),
+            },
+            CiteError::FileTooLarge {
+                size_bytes: 1,
+                max_bytes: 0,
+            },
+            CiteError::FileNotFound { path: "/a".into() },
+            CiteError::DocumentNotFound {
+                document_id: "d".into(),
+            },
+            CiteError::DocumentNotReady {
+                document_id: "d".into(),
+            },
+            CiteError::TraceNotFound {
+                trace_id: "t".into(),
+            },
+            CiteError::CitationNotFound {
+                citation_id: "c".into(),
+            },
+            CiteError::ChunkNotFound {
+                chunk_id: "c".into(),
+            },
+            CiteError::ConfigError {
+                message: "e".into(),
+            },
+            CiteError::StorageError {
+                message: "e".into(),
+            },
+            CiteError::InternalError {
+                message: "e".into(),
+            },
+            CiteError::QueryTooLong { length: 1, max: 0 },
+            CiteError::InvalidParameter {
+                message: "e".into(),
+            },
+            CiteError::PathRejected {
+                message: "e".into(),
+            },
+            CiteError::RuntimeModeForbidden {
+                message: "e".into(),
+            },
+            CiteError::RateLimitExceeded {
+                retry_after_seconds: 1,
+            },
+            CiteError::OperationInProgress {
+                message: "e".into(),
+                retry_after_seconds: 1,
+                lock_name: None,
+            },
+            CiteError::EmbeddingProviderError {
+                message: "e".into(),
+            },
+            CiteError::RetrievalTimeout,
+        ];
+
+        let codes: Vec<&str> = variants.iter().map(|e| e.code()).collect();
+        let unique: std::collections::HashSet<&str> = codes.iter().copied().collect();
+        assert_eq!(codes.len(), unique.len(), "error codes must be unique");
+    }
 }

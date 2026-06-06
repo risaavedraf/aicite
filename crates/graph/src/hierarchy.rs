@@ -354,4 +354,43 @@ mod tests {
         // Third chunk (offset 210) → second "Overview"
         assert_eq!(result.topics[2].topic.chunk_count, 1);
     }
+
+    #[test]
+    fn test_h1_h3_gap_no_h2_creates_topic_from_first_heading() {
+        // H1 → H3 with no H2: H1 and H3 are ignored by build_hierarchy
+        // (only H2/H3 are processed), but the fallback uses the first heading.
+        let headings = vec![
+            HeadingSpan {
+                level: 1,
+                title: "Title".to_string(),
+                char_offset: 0,
+            },
+            HeadingSpan {
+                level: 3,
+                title: "Skipped Concept".to_string(),
+                char_offset: 50,
+            },
+        ];
+        let result = build_hierarchy("doc_gap", &headings, &[0, 60]);
+
+        // No H2 found → fallback creates one topic named after the first heading
+        assert_eq!(result.topics.len(), 1);
+        assert_eq!(result.topics[0].topic.name, "Title");
+        // H3 without a preceding H2 is ignored
+        assert!(result.topics[0].concepts.is_empty());
+        // Both chunks assigned to the fallback topic
+        assert_eq!(result.topics[0].topic.chunk_count, 2);
+    }
+
+    #[test]
+    fn test_empty_markdown_document() {
+        let result = build_hierarchy("doc_empty", &[], &[]);
+
+        assert_eq!(result.topics.len(), 1);
+        assert_eq!(result.topics[0].topic.name, "Untitled");
+        assert_eq!(result.topics[0].topic.chunk_count, 0);
+        assert_eq!(result.topics[0].concepts.len(), 1);
+        assert_eq!(result.topics[0].concepts[0].concept.name, "Default");
+        assert_eq!(result.topics[0].concepts[0].chunk_indices.len(), 0);
+    }
 }

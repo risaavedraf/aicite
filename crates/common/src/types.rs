@@ -678,7 +678,7 @@ pub struct EvalReport {
 
 #[cfg(test)]
 mod tests {
-    use super::{ChunkId, ConceptId, DocumentId, TopicId, TraceId};
+    use super::{ChunkId, ConceptId, DocumentId, FileType, TopicId, TraceId};
     use std::str::FromStr;
 
     fn assert_string_id_contract<T>(sample: &str, expected_debug_name: &str)
@@ -738,5 +738,44 @@ mod tests {
     #[test]
     fn trace_id_has_string_transparent_foundation_traits() {
         assert_string_id_contract::<TraceId>("trace-abc", "TraceId");
+    }
+
+    // -----------------------------------------------------------------------
+    // FileType::from_extension()
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn from_extension_pdf() {
+        assert_eq!(FileType::from_extension("pdf"), Some(FileType::Pdf));
+    }
+
+    #[test]
+    fn from_extension_txt() {
+        assert_eq!(FileType::from_extension("txt"), Some(FileType::Txt));
+    }
+
+    #[test]
+    fn from_extension_md() {
+        assert_eq!(FileType::from_extension("md"), Some(FileType::Md));
+    }
+
+    #[test]
+    fn from_extension_markdown() {
+        assert_eq!(FileType::from_extension("markdown"), Some(FileType::Md));
+    }
+
+    #[test]
+    fn from_extension_unknown() {
+        assert_eq!(FileType::from_extension("docx"), None);
+        assert_eq!(FileType::from_extension("xlsx"), None);
+        assert_eq!(FileType::from_extension(""), None);
+    }
+
+    #[test]
+    fn from_extension_case_insensitive() {
+        assert_eq!(FileType::from_extension("PDF"), Some(FileType::Pdf));
+        assert_eq!(FileType::from_extension("TXT"), Some(FileType::Txt));
+        assert_eq!(FileType::from_extension("MD"), Some(FileType::Md));
+        assert_eq!(FileType::from_extension("Markdown"), Some(FileType::Md));
     }
 }

@@ -1,3 +1,4 @@
+pub mod check_docs;
 pub mod context;
 pub mod evaluate;
 pub mod get;
@@ -11,6 +12,7 @@ pub mod retry;
 pub mod search;
 pub mod setup;
 pub mod trace;
+pub mod workspace;
 
 use config::Config;
 use providers::gemini::GeminiProvider;

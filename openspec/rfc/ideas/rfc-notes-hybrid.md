@@ -25,7 +25,7 @@ Cite currently ingests files and builds a document‑centric hierarchy. Agents, 
 2. Mix notes and documents in retrieval by default, but keep them distinguishable.
 3. Provide a **human‑friendly** format for manual notes.
 4. Provide **agent‑friendly** CLI flags for structured ingestion.
-5. Reuse the existing hierarchy: `Document → Topic → Concept → Chunk`.
+5. Use tags for flexible grouping: documents are containers, chunks carry tags. No hierarchy.
 
 ## Non‑goals
 
@@ -53,9 +53,9 @@ cite note add [--file <path> | --stdin]
 | Flag | Purpose | Notes |
 |---|---|---|
 | `--title` | Display name | Overrides front‑matter `title` |
-| `--topic` | Topic label | Overrides front‑matter `topic` |
-| `--concept` | Concept label | Overrides front‑matter `concept` |
-| `--meta key:data` | Repeated metadata | Appends (no implicit overwrite) |
+| `--tag key:value` | Tag assignment | Repeated; agent assigns freely (e.g. `--tag topic:Auth`) |
+| `--workspace` | Workspace scope | Sets `workspace:<name>` reserved tag |
+| `--to` | Target document | Find or auto-create virtual document |
 | `--file` / `--stdin` | Input body | Mutually exclusive |
 
 #### Example (CLI‑driven)
@@ -63,11 +63,11 @@ cite note add [--file <path> | --stdin]
 ```bash
 cite note add \
   --title "JWT rotation" \
-  --topic "Authentication" \
-  --concept "Token rotation" \
-  --meta "name_project:aicite" \
-  --meta "tag:auth" \
-  --meta "tag:security" \
+  --tag topic:Authentication \
+  --tag concept:Token-rotation \
+  --workspace aicite \
+  --tag tag:auth \
+  --tag tag:security \
   --stdin
 ```
 
@@ -77,18 +77,22 @@ cite note add \
 ---
 title: "JWT rotation"
 meta:
-  - key: name_project
+  - key: workspace
     data: aicite
   - key: tag
     data: auth
   - key: tag
     data: security
-topic: "Authentication"
-concept: "Token rotation"
+  - key: topic
+    data: Authentication
+  - key: concept
+    data: Token-rotation
 ---
 JWT access tokens rotate every 15 minutes.
 Refresh tokens last 7 days.
 ```
+
+Note: `topic` and `concept` are tags in front‑matter, not separate fields. All metadata lives in the `meta` key/data pairs.
 
 ### Metadata model
 
@@ -98,10 +102,13 @@ Refresh tokens last 7 days.
 
 ## Storage changes
 
-### New fields
+### source_kind
 
-- `documents.source_kind` (enum): `document | note | <future>`
-  - Existing documents default to `document`.
+`source_kind` is a reserved tag (not a column) on documents:
+- `source_kind:document` — ingested from physical file
+- `source_kind:note` — created via `note add`
+
+All metadata (workspace, type, session, source_kind) lives in the tags table.
 
 ### New table
 
@@ -124,10 +131,11 @@ document_meta(
 - Outputs include `source_kind` for each result/citation.
 - Future filter: `--source notes|documents|all` (default `all`).
 
-## Chunking + hierarchy
+## Chunking
 
-- Notes use the same sentence‑based chunking (30–200 chars) when hierarchy is enabled.
-- If topic/concept are missing, infer from headings or derive from title.
+- Notes are chunked flat with tags. No hierarchy.
+- Single notes are typically one chunk (atomic).
+- Longer notes (via `doc write`) are chunked by size, tags carried per chunk.
 
 ## Migration + compatibility
 
@@ -154,3 +162,9 @@ document_meta(
 - [Hybrid Notes Ingestion (Architecture)](../../architecture/cite-notes-hybrid.md)
 - [API Contract](../../prd/09-api-contract.md)
 - [System Architecture](../../prd/07-system-architecture.md)
+
+---
+
+## Review Notes
+
+Updated to align with D9: tags replace Topic/Concept hierarchy. `topic_id`/`concept_id` removed; use tags for any grouping. `source_kind` is a reserved tag, not a column. Front‑matter `topic`/`concept` fields moved into `meta` key/data pairs as tags. Chunking section simplified: no hierarchy, tags only.

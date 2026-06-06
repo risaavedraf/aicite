@@ -141,4 +141,19 @@ Final content."#;
         assert_eq!(headings[0].title, "Real");
         assert_eq!(headings[1].title, "After Block");
     }
+
+    #[test]
+    fn test_deep_headings_h4_h5_h6() {
+        let md = "## Topic\n\n#### Deep\n\n##### Deeper\n\n###### Deepest";
+        let headings = extract_headings(md);
+        assert_eq!(headings.len(), 4);
+        assert_eq!(headings[0].level, 2);
+        assert_eq!(headings[0].title, "Topic");
+        assert_eq!(headings[1].level, 4);
+        assert_eq!(headings[1].title, "Deep");
+        assert_eq!(headings[2].level, 5);
+        assert_eq!(headings[2].title, "Deeper");
+        assert_eq!(headings[3].level, 6);
+        assert_eq!(headings[3].title, "Deepest");
+    }
 }

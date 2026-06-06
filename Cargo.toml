@@ -10,6 +10,7 @@ members = [
   "crates/ingest",
   "crates/providers",
   "crates/common",
+  "crates/check_docs",
 ]
 
 [workspace.package]
@@ -29,6 +30,7 @@ ingest = { path = "crates/ingest" }
 providers = { path = "crates/providers" }
 retrieval = { path = "crates/retrieval" }
 cli = { path = "crates/cli" }
+check_docs = { path = "crates/check_docs" }
 
 # External dependencies
 serde = { version = "1", features = ["derive"] }

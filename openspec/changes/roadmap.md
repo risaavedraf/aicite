@@ -153,6 +153,96 @@
 
 ---
 
+### Phase 8: Tag System (v0.3.2) 📋
+**Status**: RFC approved, pending implementation
+
+**What**: Flexible key:value tag system for all entities
+
+**RFC**: `openspec/rfc/active/rfc-tags-and-note-add.md`
+
+**Deliverables**:
+- `tags` table + migration
+- CLI: `tag set`, `tag get`, `tag rm`
+- Integration: `--tag` filter on `search`, `retrieve`, `context`, `list`
+- Auto-tag on `ingest` from path patterns
+- `check-docs` reads `<!-- tag:status=planned -->` from markdown
+
+---
+
+### Phase 9: Pluggable Embedding Providers (v0.3.2) 📋
+**Status**: RFC approved, pending implementation
+
+**What**: Configurable embedding provider system — local and cloud
+
+**RFC**: `openspec/rfc/active/rfc-embedding-providers.md`
+
+**Deliverables**:
+- Ollama provider (HTTP to local Ollama, GPU automatic)
+- `embed_batch` in provider trait (3-10x faster ingestion)
+- Config extension: `device`, `dimensions`, `batch_size`, `endpoint`
+- `cite doctor` — full pipeline diagnostics
+- `cite ingest --reembed` — atomic migration between providers
+- `cite ingest --resume` / `--retry-failed` — resumable ingestion
+- Actionable error messages for all provider errors
+
+---
+
+### Phase 10: Note Add + Agent Knowledge Capture (v0.3.3) 📋
+**Status**: RFC approved, pending implementation
+
+**What**: Agent-facing command to write knowledge directly into Cite
+
+**RFC**: `openspec/rfc/active/rfc-tags-and-note-add.md`
+
+**Deliverables**:
+- `source_type` column on chunks (file vs agent_note)
+- `cite note add` with hierarchy + tags
+- Virtual documents per workspace
+- Auto-create topics/concepts on first note
+
+---
+
+### Phase 11: Local Embedder + ONNX (v0.4.1+) 📋
+**Status**: RFC approved, deferred from v0.4 core
+
+**What**: In-process local embedding with ONNX Runtime and advanced provider setup
+
+**RFC**: `openspec/rfc/active/rfc-embedding-providers.md`
+
+**Deliverables**:
+- ONNX provider with CUDA support
+- HuggingFace API provider
+- `cite setup` interactive wizard
+- GPU/hardware auto-detection
+- Provider recommendation based on hardware
+
+---
+
+## Release slicing recommendation
+
+Do **not** bundle all active RFC content into v0.5.
+
+Recommended framing:
+
+- Keep the roadmap inside the **v0.4 line** as incremental releases: `v0.4.0`, `v0.4.1`, `v0.4.2`, ... up to `v0.4.10` if needed.
+- Reserve **v0.5.0** for the Cite agent-interface milestone: skill/LSP-like bridge, integration contract, and v1 direction.
+
+Suggested high-level slices:
+
+- `v0.4.0`: tags + Ollama/local provider MVP.
+- `v0.4.1`: re-embed/resume/retry-failed, `cite doctor`, actionable errors.
+- `v0.4.2`: `note add` and workspace notes.
+- `v0.4.6+`: semantic chunking / re-ranking.
+- `v0.4.8-v0.4.10`: hybrid search with FTS5 + vector scoring and benchmarks.
+- `v0.5.0`: Cite skill/LSP-like agent interface and v1 direction contract.
+
+Detailed scope artifacts:
+
+- `openspec/rfc/active/release-scope-v0.4-line.md`
+- `openspec/rfc/active/rfc-cite-v1-skill-lsp.md`
+
+---
+
 ## Dependency graph
 
 ```
@@ -163,9 +253,23 @@ Phase 1 (Scaffold)
                             └─→ Phase 5 (Durability)
                                     └─→ Phase 6 (Evaluation)
                                             └─→ Phase 7 (Packaging)
+
+Post-MVP (can be parallelized):
+    Phase 8 (Tags) ← Phase 2
+    Phase 9 (Providers) ← Phase 2
+    Phase 10 (Note Add) ← Phase 8
+    Phase 11 (ONNX) ← Phase 9
+
+Release dependencies:
+    v0.4.0 foundation ← Phase 8 + Phase 9
+    v0.4.1 migration/diagnostics ← stable provider config + storage migration path
+    v0.4.2 notes ← Phase 8 tags
+    v0.4.6+ retrieval quality ← stable v0.4 reembed path + expanded benchmarks
+    v0.4.8-v0.4.10 hybrid search ← FTS5 + vector scoring + quality evidence
+    v0.5.0 agent interface ← stable v0.4.x features + Cite skill + LSP/MCP/JSON contract + v1 direction
 ```
 
-Each phase depends on the previous one. Phases cannot be parallelized.
+Phases 1-7 are sequential (MVP). Phases 8-11 are post-MVP and can be partially parallelized, but release scope should stay reviewable. v0.5 should be saved for the agent-facing interface that points toward Cite v1, not for bundling every active RFC.
 
 ## Estimated scope
 

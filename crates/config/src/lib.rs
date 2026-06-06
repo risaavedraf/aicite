@@ -655,4 +655,63 @@ mod tests {
             "invalid CITE_TOP_K should fall back to default 5"
         );
     }
+
+    #[test]
+    fn test_invalid_toml_syntax_returns_defaults() {
+        use std::io::Write;
+
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+
+        let dir = std::env::temp_dir().join("aiharness_config_test_bad_toml");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("bad.toml");
+
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(b"this is not valid toml [[[").unwrap();
+
+        // Should fall back to defaults (FileConfig::load prints warning, returns None)
+        let config = Config::load_from(Some(&path)).unwrap();
+        assert_eq!(config.embedding.provider, "openai-compatible");
+        assert_eq!(config.retrieval.top_k, 5);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_negative_top_k_in_toml_falls_back() {
+        use std::io::Write;
+
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let orig_top_k = std::env::var("CITE_TOP_K").ok();
+        std::env::remove_var("CITE_TOP_K");
+
+        let dir = std::env::temp_dir().join("aiharness_config_test_neg_toml");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("neg.toml");
+
+        // top_k is u32, so -1 can't deserialize — TOML parse should fail
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(b"[retrieval]\ntop_k = -1\n").unwrap();
+
+        let config = Config::load_from(Some(&path)).unwrap();
+        // TOML parse fails → falls back to defaults
+        assert_eq!(config.retrieval.top_k, 5);
+
+        let _ = std::fs::remove_dir_all(&dir);
+        match orig_top_k {
+            Some(v) => std::env::set_var("CITE_TOP_K", v),
+            None => std::env::remove_var("CITE_TOP_K"),
+        }
+    }
+
+    #[test]
+    fn test_empty_embedding_provider_env_falls_back() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        // Empty string is a valid value — the merge code sets it if present.
+        // This verifies the behavior: empty string overrides the default.
+        let _provider = EnvVarGuard::set("CITE_EMBEDDING_PROVIDER", "");
+        let config = Config::load_from(Some(isolated_missing_config_path())).unwrap();
+        // Empty string is still "Some("")" so it overrides the default
+        assert_eq!(config.embedding.provider, "");
+    }
 }

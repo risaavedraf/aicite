@@ -13,6 +13,7 @@ config = { workspace = true }
 engine = { workspace = true }
 storage = { workspace = true }
 providers = { workspace = true }
+check_docs = { path = "../check_docs" }
 chrono = { workspace = true }
 clap = { workspace = true }
 serde = { workspace = true }
@@ -22,3 +23,4 @@ tracing-subscriber = { workspace = true }
 dirs = { workspace = true }
 dotenvy = { workspace = true }
 dialoguer = { workspace = true }
+walkdir = "2"

@@ -155,8 +155,10 @@ impl Database {
     ///
     /// When `topic_filter` or `concept_filter` is provided, results are
     /// restricted to chunks belonging to that topic or concept respectively.
-    /// Chunks with NULL topic_id/concept_id are included when no filter is
-    /// specified, so the caller still gets flat-only documents in mixed corpora.
+    /// Filters match by **name** (e.g. "Authentication") or by **ID** (e.g.
+    /// "t1"). Chunks with NULL topic_id/concept_id are included when no
+    /// filter is specified, so the caller still gets flat-only documents in
+    /// mixed corpora.
     pub fn list_chunk_embeddings_hierarchical(
         &self,
         topic_filter: Option<&str>,
@@ -184,8 +186,8 @@ impl Database {
             LEFT JOIN topics t ON t.topic_id = c.topic_id
             LEFT JOIN concepts cp ON cp.concept_id = c.concept_id
             WHERE d.status = 'ready'
-              AND (?1 IS NULL OR c.topic_id = ?1)
-              AND (?2 IS NULL OR c.concept_id = ?2)
+              AND (?1 IS NULL OR c.topic_id = ?1 OR t.name = ?1)
+              AND (?2 IS NULL OR c.concept_id = ?2 OR cp.name = ?2)
             ORDER BY d.created_at DESC, c.chunk_index ASC
         ";
 
@@ -594,5 +596,33 @@ mod tests {
             .list_chunk_embeddings_hierarchical(Some("nonexistent"), None)
             .unwrap();
         assert!(rows.is_empty());
+    }
+
+    #[test]
+    fn test_list_chunk_embeddings_hierarchical_topic_filter_by_name() {
+        let db = Database::open_memory().unwrap();
+        setup_hierarchy(&db);
+
+        let rows = db
+            .list_chunk_embeddings_hierarchical(Some("Authentication"), None)
+            .unwrap();
+        assert_eq!(rows.len(), 3); // all 3 belong to topic "Authentication"
+        assert!(rows
+            .iter()
+            .all(|r| r.topic_name.as_deref() == Some("Authentication")));
+    }
+
+    #[test]
+    fn test_list_chunk_embeddings_hierarchical_concept_filter_by_name() {
+        let db = Database::open_memory().unwrap();
+        setup_hierarchy(&db);
+
+        let rows = db
+            .list_chunk_embeddings_hierarchical(None, Some("JWT Tokens"))
+            .unwrap();
+        assert_eq!(rows.len(), 2); // only c0 and c1 belong to concept "JWT Tokens"
+        assert!(rows
+            .iter()
+            .all(|r| r.concept_name.as_deref() == Some("JWT Tokens")));
     }
 }

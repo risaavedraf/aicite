@@ -144,6 +144,12 @@ pub(crate) fn fetch_candidates(
             hier.into_iter().map(|h| h.chunk).collect();
         Ok((flat, Some(meta)))
     } else {
+        // If the caller requested topic/concept filters but no hierarchy data
+        // exists, return empty results — filters cannot be applied without
+        // hierarchy metadata.
+        if topic_filter.is_some() || concept_filter.is_some() {
+            return Ok((Vec::new(), None));
+        }
         Ok((db.list_ready_chunk_embeddings()?, None))
     }
 }

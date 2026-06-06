@@ -256,4 +256,61 @@ mod tests {
         let deleted = db.delete_chunks_for_document("ghost").unwrap();
         assert_eq!(deleted, 0);
     }
+
+    // -----------------------------------------------------------------------
+    // set_chunk_hierarchy direct
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_set_chunk_hierarchy_sets_topic_and_concept() {
+        let db = Database::open_memory().unwrap();
+        insert_parent_doc(&db, "doc-hier");
+
+        let chunks = vec![make_chunk("ch-0", "doc-hier", 0, "text")];
+        db.insert_chunks("doc-hier", &chunks).unwrap();
+
+        // Insert topic and concept
+        db.insert_topic("t1", "doc-hier", "Topic A", None).unwrap();
+        db.insert_concept("c1", "t1", "Concept X", None).unwrap();
+
+        // Set hierarchy on the chunk
+        db.set_chunk_hierarchy("ch-0", "t1", Some("c1")).unwrap();
+
+        // Verify via raw query
+        let (topic_id, concept_id): (Option<String>, Option<String>) = db
+            .conn()
+            .query_row(
+                "SELECT topic_id, concept_id FROM chunks WHERE chunk_id = 'ch-0'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(topic_id.as_deref(), Some("t1"));
+        assert_eq!(concept_id.as_deref(), Some("c1"));
+    }
+
+    #[test]
+    fn test_set_chunk_hierarchy_topic_only() {
+        let db = Database::open_memory().unwrap();
+        insert_parent_doc(&db, "doc-hier");
+
+        let chunks = vec![make_chunk("ch-0", "doc-hier", 0, "text")];
+        db.insert_chunks("doc-hier", &chunks).unwrap();
+
+        db.insert_topic("t1", "doc-hier", "Topic A", None).unwrap();
+
+        // Set hierarchy with concept = None
+        db.set_chunk_hierarchy("ch-0", "t1", None).unwrap();
+
+        let (topic_id, concept_id): (Option<String>, Option<String>) = db
+            .conn()
+            .query_row(
+                "SELECT topic_id, concept_id FROM chunks WHERE chunk_id = 'ch-0'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(topic_id.as_deref(), Some("t1"));
+        assert_eq!(concept_id, None);
+    }
 }

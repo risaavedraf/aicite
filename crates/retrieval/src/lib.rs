@@ -106,6 +106,11 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> Option<f32> {
         return None;
     }
 
+    // Reject NaN/Inf inputs early — they would produce non-finite results.
+    if a.iter().any(|v| !v.is_finite()) || b.iter().any(|v| !v.is_finite()) {
+        return None;
+    }
+
     let mut dot = 0.0f64;
     let mut norm_a = 0.0f64;
     let mut norm_b = 0.0f64;
@@ -403,5 +408,28 @@ mod tests {
         assert_eq!(second.len(), 2);
         assert_eq!(first[0].chunk_id, second[0].chunk_id);
         assert_eq!(first[1].chunk_id, second[1].chunk_id);
+    }
+
+    // --- NaN/Inf safety tests ---
+
+    #[test]
+    fn test_cosine_similarity_nan_returns_none() {
+        assert!(cosine_similarity(&[f32::NAN, 0.0], &[1.0, 0.0]).is_none());
+    }
+
+    #[test]
+    fn test_cosine_similarity_infinity_returns_none() {
+        assert!(cosine_similarity(&[f32::INFINITY, 0.0], &[1.0, 0.0]).is_none());
+    }
+
+    #[test]
+    fn test_cosine_similarity_neg_infinity_returns_none() {
+        assert!(cosine_similarity(&[1.0, 0.0], &[f32::NEG_INFINITY, 0.0]).is_none());
+    }
+
+    #[test]
+    fn test_cosine_similarity_negative_values() {
+        let sim = cosine_similarity(&[-1.0, 0.0], &[1.0, 0.0]).unwrap();
+        assert!((sim - (-1.0)).abs() < 1e-6);
     }
 }

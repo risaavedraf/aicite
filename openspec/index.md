@@ -1,126 +1,96 @@
-# Documentation Index
+# openspec/ — Document Index
 
-Welcome to the AI Cite CLI documentation. This index provides a map to all project documentation.
+Last updated: 2026-06-06
 
-## Product Requirements (PRD)
+---
 
-The PRD defines the complete product specification, from vision to acceptance criteria.
+## Structure
 
-| Document | Purpose |
-|---|---|
-| [PRD Overview](prd/README.md) | PRD document map and MVP north star |
-| [01 — Product Brief](prd/01-product-brief.md) | Product thesis, value proposition, and non-goals |
-| [02 — Users and Problems](prd/02-users-and-problems.md) | Personas, jobs, and user pain points |
-| [03 — MVP Scope](prd/03-mvp-scope.md) | MVP boundary, runtime modes, and deferred scope |
-| [04 — Functional Requirements](prd/04-functional-requirements.md) | CLI, engine, retrieval, and context behavior |
-| [05 — Non-Functional Requirements](prd/05-non-functional-requirements.md) | Quality, security, config, observability |
-| [06 — UX Flows](prd/06-ux-flows.md) | CLI and agent flows |
-| [07 — System Architecture](prd/07-system-architecture.md) | Architecture, process model, module boundaries |
-| [08 — AI Retrieval Design](prd/08-ai-retrieval-design.md) | Vector-first retrieval, context packs, citations |
-| [09 — API Contract](prd/09-api-contract.md) | CLI commands, JSON schemas, errors, exit codes |
-| [10 — Acceptance Criteria](prd/10-acceptance-criteria.md) | Definition of done |
-| [11 — Risks and Open Questions](prd/11-risks-open-questions.md) | Risks, trade-offs, cut lines |
-| [12 — Legal and Privacy](prd/12-legal-privacy-compliance.md) | Privacy surfaces, runtime policies |
-| [13 — AI Ethics](prd/13-ai-ethics-governance.md) | Accountability, provider registry, traces |
-| [14 — Future Native App](prd/14-future-native-app.md) | V2 companion UI |
-| [15 — Market Landscape](prd/15-market-landscape.md) | Market clusters, differentiation |
+```
+openspec/
+├── architecture/          # Architecture decision records
+├── changes/               # SDD change artifacts
+│   ├── active/            # Currently in progress (EMPTY)
+│   ├── completed/         # Implemented and verified
+│   └── archive/           # Old phases (1-9)
+├── guides/                # User-facing guides
+├── improvements/          # Ideas for future work
+├── prd/                   # Product requirements
+├── reports/               # Review and audit reports
+├── rfc/                   # Requests for Comments
+│   ├── active/            # Proposals under discussion
+│   ├── completed/         # Implemented RFCs
+│   └── ideas/             # Future explorations
+└── specs/                 # Formal specifications
+```
 
-## SDD (Spec-Driven Development)
+---
 
-Phase-by-phase design artifacts, specs, and task breakdowns. All SDD artifacts live in `openspec/changes/`, organized by status.
+## Active Work
 
-| Document | Purpose |
-|---|---|
-| [SDD Overview](changes/README.md) | SDD documentation index |
-| [Roadmap](changes/roadmap.md) | Phase roadmap and status |
-| [v0.2 Phase Map](changes/v0.2-phase-map.md) | v0.2 phase plan |
+### RFCs (under discussion)
 
-### Active — current work in progress
+| RFC | Status | Description |
+|-----|--------|-------------|
+| `release-scope-v0.4-line.md` | **Draft** | Release slicing across the v0.4.x line; v0.5 reserved for agent interface/v1 direction |
+| `rfc-cite-v1-skill-lsp.md` | **Draft** | Cite skill/LSP-like bridge and v1 agent-interface direction |
+| `review-comments-v0.5-rfcs.md` | Review notes | Cross-RFC comments for v0.4.x/v0.5 scope decisions |
+| `rfc-embedding-providers.md` | **Draft** | Pluggable embedding providers, reembed, doctor, resumable ingest |
+| `rfc-tags-and-note-add.md` | **Draft** | Tags, note add, and retrieval quality roadmap |
+| `rfc-auto-docs-sync.md` | **Implemented** | Auto-verify docs against binary; Phase 1 complete |
+| `EVALUACION_CITE.md` | Evidence | Full evaluation of Cite CLI v0.3.x |
+| `SESSION_CONTEXT_2026-06-06.md` | Handoff | Session state and known issues |
 
-| Directory | Purpose |
-|---|---|
-| [error-remediation](changes/active/error-remediation/) | First-pass error remediation |
-| [error-remediation-v2](changes/active/error-remediation-v2/) | Second-pass error remediation |
-| [error-remediation-v3](changes/active/error-remediation-v3/) | Verification pass (active) |
+### Changes (in progress)
 
-### Completed — verified and done
+**None** — all changes are completed.
 
-| Directory | Purpose |
-|---|---|
-| [phase-10](changes/completed/phase-10-hierarchical-graph-foundation/) | Hierarchical graph foundation |
-| [phase-11](changes/completed/phase-11-hierarchical-retrieval/) | Hierarchical retrieval |
-| [phase-12](changes/completed/phase-12-agent-ux/) | Agent UX improvements |
+---
 
-### Archive — historical phases
+## Completed Changes
 
-Phases 1–9 and install-setup-ux are in `changes/archive/`. See the [roadmap](changes/roadmap.md) for the full phase history.
+| Change | Date | Description |
+|--------|------|-------------|
+| error-remediation-v3 | 2026-06-05 | UTF-8 fixes, FK enforcement, API key validation |
+| error-remediation-v2 | 2026-06-04 | Second pass error fixes |
+| error-remediation | 2026-06-02 | Initial error remediation (308 tests) |
+| phase-12-agent-ux | 2026-05-28 | Agent UX improvements |
+| phase-11-hierarchical-retrieval | 2026-05-28 | Hierarchical retrieval |
+| phase-10-hierarchical-graph-foundation | 2026-05-28 | Graph hierarchy foundation |
+
+---
 
 ## Guides
 
-User-facing guides for installation, usage, and demos.
+| File | Description | Status |
+|------|-------------|--------|
+| `agent-usage-guide.md` | How agents use CITE | ⚠️ OUTDATED (compact mode) |
+| `installation.md` | Installation instructions | ✅ Current |
+| `demo.md` | Demo walkthrough | ✅ Current |
 
-| Document | Purpose |
-|---|---|
-| [Installation Guide](guides/installation.md) | All install methods: manual, script, package managers |
-| [Agent Usage Guide](guides/agent-usage-guide.md) | How AI agents consume the CLI |
-| [Demo Guide](guides/demo.md) | 5-minute demo tracks: packaged and local |
+---
 
-## Architecture
+## RFCs (ideas — future)
 
-Technical architecture documents and design proposals.
+| RFC | Description |
+|-----|-------------|
+| `rfc-cite-pi-integration.md` | Local embedding model (reduce latency) |
+| `rfc-rag-benchmark-framework.md` | RAG evaluation methodology |
+| `rfc-landing-page.md` | GitHub Pages landing |
 
-| Document | Purpose |
-|---|---|
-| [Rename to Cite](architecture/rename-to-cite.md) | CLI identity and runtime naming policy |
-| [v0.2.0 Hierarchical Graph](architecture/v0.2.0-hierarchical-graph.md) | Proposed hierarchical graph architecture |
-| [Hybrid Notes Ingestion](architecture/cite-notes-hybrid.md) | Notes ingestion design (CLI + front‑matter) |
-| [Front‑Lobe Engine](architecture/front-lobe-engine.md) | Orchestrator that uses Cite as evidence store |
+---
 
-## RFCs
+## Priority for Next Session
 
-Requests for comment, organized by status.
+1. **Review `release-scope-v0.4-line.md`** — confirm the v0.4.x release train and whether v0.5 is unnecessary for now
+2. **Close/move implemented RFCs** — `rfc-auto-docs-sync.md` Phase 1 should leave active scope
+3. **Plan v0.4.0 work units** — tags plus Ollama provider MVP
+4. **Shape v0.5 as Cite Agent Interface** — skill/LSP-like bridge, stable tool contract, and v1 direction after v0.4.x foundations are stable
 
-### Active — pending proposals for this project
+---
 
-| Document | Purpose |
-|---|---|
-| [Hybrid Notes Ingestion](rfc/active/rfc-notes-hybrid.md) | Notes ingestion via CLI + front‑matter |
-| [Front‑Lobe Engine](rfc/active/rfc-front-lobe-engine.md) | Orchestrator that uses Cite as evidence store |
+## Notes
 
-### Completed — implemented RFCs
-
-| Document | Purpose |
-|---|---|
-| [Install & Setup UX](rfc/completed/rfc-install-setup-ux.md) | Installation script and setup wizard (implemented in v0.2.0) |
-
-### Ideas — related projects and future explorations
-
-| Document | Purpose |
-|---|---|
-| [CITE-Pi Integration](rfc/ideas/rfc-cite-pi-integration.md) | Pi extension with local embedding model |
-| [Landing Page](rfc/ideas/rfc-landing-page.md) | Leptos + GitHub Pages landing |
-| [RAG Benchmark Framework](rfc/ideas/rfc-rag-benchmark-framework.md) | Systematic RAG evaluation methodology |
-
-## Improvements
-
-Inbox for external documents and ideas brought into the project.
-
-### Ideas — future explorations
-
-| Document | Purpose |
-|---|---|
-| [CITE + Pi Integration Guide](improvements/ideas/CITE_Pi_Integration.md) | Integration guide (Spanish) |
-| [RAG Benchmark Guide](improvements/ideas/RAG_Benchmark_Guide.md) | Benchmark methodology (Spanish) |
-
-## Reports
-
-Code quality, structure, and compliance review reports.
-
-| Document | Purpose |
-|---|---|
-| [Error Tracking](reports/error-tracking.md) | Error tracking log |
-
-### Archive — historical reviews
-
-Past code reviews and analysis reports are in `reports/archive/revision-repo/`.
-
+- `changes/active/` is now empty — ready for new work
+- All error-remediation work is completed and verified
+- The evaluation (EVALUACION_CITE.md) identified documentation sync as key issue

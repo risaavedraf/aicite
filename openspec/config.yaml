@@ -9,7 +9,7 @@ project:
 
 sdd:
   execution_mode: interactive
-  artifact_store: openspec
+  artifact_store: openspec+engram
   artifact_dir: openspec/changes
   chained_pr_strategy: ask_always
   review_budget_lines: 400

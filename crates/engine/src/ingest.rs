@@ -3,6 +3,8 @@ use common::types::{Chunk, Document, DocumentStatus, ErrorInfo};
 use common::CiteError;
 use common::{ChunkId, DocumentId};
 use config::IngestConfig;
+use graph::heading_parser::extract_headings;
+use graph::hierarchy::build_hierarchy;
 use ingest::chunker::{self};
 use ingest::extractor::{self};
 use ingest::validator;
@@ -285,6 +287,104 @@ fn run_pipeline(
 
     // Store embeddings
     db.insert_embeddings(&embeddings)?;
+
+    // Build hierarchy if enabled and file is markdown
+    if config.build_hierarchy {
+        if matches!(file_type, common::FileType::Md) {
+            // Reconstruct full text from pages for heading extraction
+            let full_text: String = extraction
+                .pages
+                .iter()
+                .map(|p| p.text.as_str())
+                .collect::<Vec<_>>()
+                .join("\n");
+            let headings = extract_headings(&full_text);
+            let chunk_offsets: Vec<usize> = chunk_inputs
+                .iter()
+                .map(|c| c.offset_start as usize)
+                .collect();
+            let hierarchy = build_hierarchy(document_id, &headings, &chunk_offsets);
+
+            let chunk_ids: Vec<String> = chunks.iter().map(|c| c.chunk_id.to_string()).collect();
+
+            // Insert topics and concepts
+            for topic_with_concepts in &hierarchy.topics {
+                db.insert_topic(
+                    &topic_with_concepts.topic.topic_id,
+                    document_id,
+                    &topic_with_concepts.topic.name,
+                    topic_with_concepts.topic.summary.as_deref(),
+                )?;
+
+                for concept_with_chunks in &topic_with_concepts.concepts {
+                    db.insert_concept(
+                        &concept_with_chunks.concept.concept_id,
+                        &topic_with_concepts.topic.topic_id,
+                        &concept_with_chunks.concept.name,
+                        concept_with_chunks.concept.summary.as_deref(),
+                    )?;
+                }
+            }
+
+            // Assign chunks to topics/concepts
+            let mut assigned: Vec<bool> = vec![false; chunk_ids.len()];
+            for topic_with_concepts in &hierarchy.topics {
+                for concept_with_chunks in &topic_with_concepts.concepts {
+                    for &ci in &concept_with_chunks.chunk_indices {
+                        if ci < chunk_ids.len() {
+                            db.set_chunk_hierarchy(
+                                &chunk_ids[ci],
+                                &topic_with_concepts.topic.topic_id,
+                                Some(&concept_with_chunks.concept.concept_id),
+                            )?;
+                            assigned[ci] = true;
+                        }
+                    }
+                }
+            }
+
+            // Assign remaining chunks to topics via heading offsets
+            let mut topic_boundaries: Vec<(usize, String)> = Vec::new();
+            for twc in &hierarchy.topics {
+                if let Some(h) = headings
+                    .iter()
+                    .find(|h| h.level == 2 && h.title == twc.topic.name)
+                {
+                    topic_boundaries.push((h.char_offset, twc.topic.topic_id.to_string()));
+                }
+            }
+            topic_boundaries.sort_by_key(|b| b.0);
+
+            if topic_boundaries.is_empty() && !hierarchy.topics.is_empty() {
+                topic_boundaries.push((0, hierarchy.topics[0].topic.topic_id.to_string()));
+            }
+
+            let mut bp = 0usize;
+            let mut current_topic_id: Option<String> =
+                topic_boundaries.first().map(|b| b.1.clone());
+
+            for (ci, c) in chunk_inputs.iter().enumerate() {
+                let offset = c.offset_start as usize;
+                while bp < topic_boundaries.len() && offset >= topic_boundaries[bp].0 {
+                    current_topic_id = Some(topic_boundaries[bp].1.clone());
+                    bp += 1;
+                }
+                if !assigned[ci] {
+                    if let Some(ref tid) = current_topic_id {
+                        db.set_chunk_hierarchy(&chunk_ids[ci], tid, None)?;
+                    }
+                }
+            }
+        } else {
+            // Non-markdown: single "Untitled" topic
+            let chunk_ids: Vec<String> = chunks.iter().map(|c| c.chunk_id.to_string()).collect();
+            let topic_id = format!("topic_{}_0", document_id);
+            db.insert_topic(&topic_id, document_id, "Untitled", None)?;
+            for chunk_id in &chunk_ids {
+                db.set_chunk_hierarchy(chunk_id, &topic_id, None)?;
+            }
+        }
+    }
 
     Ok(chunk_count)
 }

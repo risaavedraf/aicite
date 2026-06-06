@@ -113,21 +113,18 @@ Use `search` first to explore, `context` when you need to answer.
 
 ## What could be improved
 
-### 1. Compact/snippet mode
+### Already implemented ✅
 
-A `--compact` flag that returns shorter snippets instead of full chunks:
+The following features from the original wishlist are now working:
 
-```json
-{
-  "citation_id": "c1",
-  "snippet": "The API gateway routes all external requests...",
-  "score": 0.725
-}
-```
+- **Compact/Full mode** — `search`, `retrieve`, `context` all support `--full` flag. Default is compact (liviano en tokens). `--full` adds metadata completa.
+- **Snippet field** — Compact mode returns `snippet` (~200 chars) instead of full chunk text.
+- **Hierarchical filtering** — `--topic` and `--concept` filters work with hierarchy data.
+- **Breadcrumb** — `--full` mode shows `document > topic > concept` breadcrumb.
 
-This would reduce token usage by 50-80% for agents that don't need full chunk text.
+### Still pending
 
-### 2. Max characters flag
+### 1. Max characters flag
 
 A `--max-chars` option to limit total context size:
 
@@ -137,23 +134,7 @@ cite context "query" --max-chars 2000
 
 The CLI would return the most relevant citations that fit within the character budget.
 
-### 3. Summarized context
-
-A `--mode summary` that returns a brief synthesized answer with citation IDs, instead of raw chunks:
-
-```json
-{
-  "summary": "The MVP must support ingestion, retrieval, and context pack assembly (FR-001 through FR-005).",
-  "citations": ["c1", "c2"],
-  "result_kind": "context"
-}
-```
-
-### 4. Streaming output
-
-For long-running queries, streaming the results as they're computed would improve perceived latency.
-
-### 5. Multi-query batching
+### 2. Multi-query batching
 
 A `cite context-batch` command that accepts multiple queries in one call:
 
@@ -165,7 +146,7 @@ EOF
 
 This would reduce overhead for agents that need to ask multiple related questions.
 
-### 6. Relevance filtering
+### 3. Relevance filtering
 
 A `--min-score` flag to only return citations above a certain threshold:
 
@@ -175,7 +156,7 @@ cite context "query" --min-score 0.7
 
 This would filter out low-relevance results automatically.
 
-### 7. Document filtering
+### 4. Document filtering
 
 A `--doc` flag to search within specific documents:
 
@@ -183,81 +164,7 @@ A `--doc` flag to search within specific documents:
 cite context "query" --doc architecture.txt --doc api-reference.md
 ```
 
-### 8. Compact mode for agents (`--compact`)
-
-The current JSON contract returns all metadata fields, most of which an agent doesn't need for every query. A `--compact` mode would return only the essential fields.
-
-**Current output** (~1000 tokens):
-```json
-{
-  "context_pack_id": "ctx_xxx",
-  "result_kind": "context",
-  "query_id": "qry_xxx",
-  "trace_id": "trace_xxx",
-  "instructions": "Use only the cited context...",
-  "citations": [
-    {
-      "citation_id": "c1",
-      "document_id": "doc_xxx",
-      "display_name": "arch.txt",
-      "chunk_id": "chunk_xxx",
-      "page": 1,
-      "offset": { "start": 0, "end": 1000 },
-      "text": "Full 500-1000 char chunk...",
-      "score": 0.72,
-      "confidence_label": null
-    }
-  ],
-  "metadata": { /* 15+ fields */ }
-}
-```
-
-**Compact output** (~400 tokens, 60% reduction):
-```json
-{
-  "result_kind": "context",
-  "citations": [
-    {
-      "id": "c1",
-      "source": "arch.txt",
-      "snippet": "Most relevant 200 chars...",
-      "score": 0.72
-    }
-  ],
-  "trace_id": "trace_xxx"
-}
-```
-
-**Usage**:
-```bash
-# Compact mode (default for agents)
-cite context "query"
-
-# Full mode (when you need all metadata)
-cite context "query" --full
-```
-
-**Fields comparison**:
-
-| Field | Compact | Full | Agent needs |
-|---|---|---|---|
-| `result_kind` | ✅ | ✅ | Always — decides response strategy |
-| `citations[].id` | ✅ | ✅ | Always — for citing sources |
-| `citations[].source` | ✅ | ✅ | Always — context |
-| `citations[].snippet` | ✅ | ✅ | Always — the actual content |
-| `citations[].score` | ✅ | ✅ | Usually — for filtering |
-| `trace_id` | ✅ | ✅ | Sometimes — for `read` follow-up |
-| `context_pack_id` | ❌ | ✅ | Rarely |
-| `query_id` | ❌ | ✅ | Rarely |
-| `instructions` | ❌ | ✅ | Once per session |
-| `citations[].document_id` | ❌ | ✅ | Rarely |
-| `citations[].chunk_id` | ❌ | ✅ | Rarely |
-| `citations[].page` | ❌ | ✅ | Rarely |
-| `citations[].offset` | ❌ | ✅ | Rarely |
-| `citations[].confidence_label` | ❌ | ✅ | Rarely |
-| `metadata.*` | ❌ | ✅ | Debugging only |
-
-### 9. Snippet length control (`--max-snippet-chars`)
+### 5. Snippet length control (`--max-snippet-chars`)
 
 Limit the text returned per citation:
 
@@ -268,7 +175,7 @@ cite context "query" --max-snippet-chars 200
 
 **Impact**: Reduces token usage by 50-70% while keeping the most relevant content.
 
-### 10. Field selection (`--fields`)
+### 6. Field selection (`--fields`)
 
 Let the agent specify exactly which fields it needs:
 
@@ -277,6 +184,22 @@ cite context "query" --fields result_kind,citations.id,citations.snippet,citatio
 ```
 
 This is the most flexible approach but adds CLI complexity.
+
+### 7. Streaming output
+
+For long-running queries, streaming the results as they're computed would improve perceived latency.
+
+### 8. Summarized context
+
+A `--mode summary` that returns a brief synthesized answer with citation IDs, instead of raw chunks:
+
+```json
+{
+  "summary": "The MVP must support ingestion, retrieval, and context pack assembly (FR-001 through FR-005).",
+  "citations": ["c1", "c2"],
+  "result_kind": "context"
+}
+```
 
 ## Known issue: `insufficient_context` with large chunks
 
@@ -295,14 +218,18 @@ When chunks are large (800-1000+ chars), the vector similarity score tends to dr
 
 ## Performance characteristics
 
-| Metric | Typical value |
-|---|---|
-| Query latency (with Gemini) | 800-1500ms |
-| Query latency (eval/mock) | <50ms |
-| Chunks per query | 5 (default top-k) |
-| Characters per chunk | 500-1000 |
-| Total context per query | 2500-5000 chars |
-| Embedding dimensions | 768 (Gemini) / 1536 (OpenAI) |
+| Metric | Current (Gemini) | Planned (Ollama local) |
+|---|---|---|
+| Query latency | 800-1500ms | 15-50ms |
+| Query latency (eval/mock) | <50ms | <50ms |
+| Chunks per query | 5 (default top-k) | 5 (default top-k) |
+| Characters per chunk | 500-1000 | 500-1000 |
+| Total context per query | 2500-5000 chars | 2500-5000 chars |
+| Embedding dimensions | 3072 (Gemini) | 2560 (qwen3) or 768 (nomic) |
+| Rate limits | Yes (429 errors) | None |
+| Cost | $0.15/1M tokens | $0 |
+
+**Roadmap:** See `openspec/rfc/active/rfc-embedding-providers.md` for provider system and migration path.
 
 ## Comparison with alternatives
 

@@ -76,4 +76,17 @@ mod tests {
         let s = "hi";
         assert_eq!(char_truncate(s, 100), "hi");
     }
+
+    #[test]
+    fn test_char_truncate_zero_returns_empty() {
+        assert_eq!(char_truncate("hello", 0), "");
+        assert_eq!(char_truncate("日本語", 0), "");
+        assert_eq!(char_truncate("", 0), "");
+    }
+
+    #[test]
+    fn test_char_truncate_one() {
+        assert_eq!(char_truncate("hello", 1), "h");
+        assert_eq!(char_truncate("日本語", 1), "日");
+    }
 }

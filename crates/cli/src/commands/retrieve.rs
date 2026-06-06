@@ -103,8 +103,8 @@ pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
                         results: hits
                             .into_iter()
                             .map(|h| RetrieveResultItem {
-                                chunk_id: h.chunk_id,
-                                document_id: h.document_id,
+                                chunk_id: h.chunk_id.to_string(),
+                                document_id: h.document_id.to_string(),
                                 display_name: h.display_name,
                                 section_id: h.section_id,
                                 chunk_index: h.chunk_index,

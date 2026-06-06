@@ -121,8 +121,8 @@ mod tests {
 
         // Try to insert a chunk referencing a non-existent document
         let chunk = Chunk {
-            chunk_id: "chunk-orphan".to_string(),
-            document_id: "nonexistent-doc".to_string(),
+            chunk_id: "chunk-orphan".to_string().into(),
+            document_id: "nonexistent-doc".to_string().into(),
             section_id: None,
             chunk_index: 0,
             text: "orphan chunk".to_string(),
@@ -147,7 +147,7 @@ mod tests {
 
         // Insert a document first
         let doc = Document {
-            document_id: "doc-valid".to_string(),
+            document_id: "doc-valid".to_string().into(),
             display_name: "test.txt".to_string(),
             file_path: PathBuf::from("/test.txt"),
             file_type: FileType::Txt,
@@ -165,8 +165,8 @@ mod tests {
 
         // Now insert a chunk referencing the document
         let chunk = Chunk {
-            chunk_id: "chunk-valid".to_string(),
-            document_id: "doc-valid".to_string(),
+            chunk_id: "chunk-valid".to_string().into(),
+            document_id: "doc-valid".to_string().into(),
             section_id: None,
             chunk_index: 0,
             text: "valid chunk".to_string(),
@@ -185,7 +185,7 @@ mod tests {
         let db = Database::open_memory().unwrap();
 
         let doc = Document {
-            document_id: "doc-cast".to_string(),
+            document_id: "doc-cast".to_string().into(),
             display_name: "cast-test.txt".to_string(),
             file_path: PathBuf::from("/cast-test.txt"),
             file_type: FileType::Txt,
@@ -202,8 +202,8 @@ mod tests {
         db.insert_document(&doc).unwrap();
 
         let chunk = Chunk {
-            chunk_id: "chunk-cast-42".to_string(),
-            document_id: "doc-cast".to_string(),
+            chunk_id: "chunk-cast-42".to_string().into(),
+            document_id: "doc-cast".to_string().into(),
             section_id: None,
             chunk_index: 42,
             text: "test chunk".to_string(),

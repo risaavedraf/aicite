@@ -45,8 +45,14 @@ pub(crate) fn row_to_chunk(row: &rusqlite::Row<'_>) -> Result<Chunk, CiteError> 
     let created_at_str: String = row.get("created_at").map_err(storage_err)?;
 
     Ok(Chunk {
-        chunk_id: row.get("chunk_id").map_err(storage_err)?,
-        document_id: row.get("document_id").map_err(storage_err)?,
+        chunk_id: row
+            .get::<_, String>("chunk_id")
+            .map_err(storage_err)?
+            .into(),
+        document_id: row
+            .get::<_, String>("document_id")
+            .map_err(storage_err)?
+            .into(),
         section_id: row.get("section_id").map_err(storage_err)?,
         chunk_index: u32::try_from(row.get::<_, i64>("chunk_index").map_err(storage_err)?)
             .map_err(|e| storage_err(format!("chunk_index overflow: {e}")))?,

@@ -32,7 +32,7 @@ pub fn execute(config: &Config, json: bool) -> i32 {
             let summaries: Vec<DocumentSummary> = docs
                 .iter()
                 .map(|d| DocumentSummary {
-                    document_id: d.document_id.clone(),
+                    document_id: d.document_id.to_string(),
                     display_name: d.display_name.clone(),
                     status: d.status.to_string(),
                     chunk_count: d.chunk_count,

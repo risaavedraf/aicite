@@ -32,7 +32,7 @@ pub fn execute(args: &RetryArgs, config: &Config, json: bool) -> i32 {
     match ingest::retry_document(&ctx.db, &args.document_id) {
         Ok(doc) => {
             let output = RetryOutput {
-                document_id: doc.document_id,
+                document_id: doc.document_id.to_string(),
                 display_name: doc.display_name,
                 status: doc.status.to_string(),
                 retry_count: doc.retry_count,

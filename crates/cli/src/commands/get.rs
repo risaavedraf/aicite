@@ -40,7 +40,7 @@ pub fn execute(args: &GetArgs, config: &Config, json: bool) -> i32 {
     match ingest::get_document(&ctx.db, &args.document_id) {
         Ok(doc) => {
             let output = GetOutput {
-                document_id: doc.document_id,
+                document_id: doc.document_id.to_string(),
                 display_name: doc.display_name,
                 status: doc.status.to_string(),
                 chunk_count: doc.chunk_count,

@@ -111,9 +111,11 @@ impl Database {
 
         // Upsert the active pointer (single-row table)
         tx.execute(
-            "INSERT INTO snapshot_pointer (id, active_snapshot_id) VALUES (1, ?1)
-             ON CONFLICT(id) DO UPDATE SET active_snapshot_id = excluded.active_snapshot_id",
-            params![snapshot_id],
+            "INSERT INTO snapshot_pointer (id, active_snapshot_id, updated_at) VALUES (1, ?1, ?2)
+             ON CONFLICT(id) DO UPDATE SET
+                active_snapshot_id = excluded.active_snapshot_id,
+                updated_at = excluded.updated_at",
+            params![snapshot_id, now],
         )
         .map_err(storage_err)?;
 
@@ -334,6 +336,184 @@ mod tests {
         let members = db.get_active_snapshot_member_ids().unwrap().unwrap();
         assert_eq!(members.len(), 1);
         assert!(members.contains(&"doc-v2".to_string()));
+    }
+
+    #[test]
+    fn test_snapshot_pointer_old_schema_migration_adds_parseable_updated_at() {
+        let temp_dir = unique_temp_dir("snapshot-pointer-old-schema");
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let db_path = temp_dir.join("cite.db");
+
+        {
+            let conn = rusqlite::Connection::open(&db_path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE _migrations (
+                    version INTEGER PRIMARY KEY,
+                    applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
+                CREATE TABLE snapshot_pointer (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    active_snapshot_id TEXT NOT NULL
+                );
+                INSERT INTO _migrations (version) VALUES (7);
+                INSERT INTO snapshot_pointer (id, active_snapshot_id) VALUES (1, 'snap-old');",
+            )
+            .unwrap();
+        }
+
+        let db = Database::open(&temp_dir).unwrap();
+        let updated_at = snapshot_pointer_updated_at(&db).unwrap();
+        crate::util::parse_dt(&updated_at).unwrap();
+        assert_eq!(
+            db.get_active_snapshot_id().unwrap().as_deref(),
+            Some("snap-old")
+        );
+
+        drop(db);
+        std::fs::remove_dir_all(temp_dir).unwrap();
+    }
+
+    #[test]
+    fn test_activate_snapshot_refreshes_pointer_updated_at() {
+        let db = Database::open_memory().unwrap();
+
+        db.begin_snapshot_build("snap-1").unwrap();
+        db.activate_snapshot("snap-1").unwrap();
+        let first_updated_at = snapshot_pointer_updated_at(&db).unwrap();
+        crate::util::parse_dt(&first_updated_at).unwrap();
+        assert!(!first_updated_at.is_empty());
+
+        db.conn()
+            .execute(
+                "UPDATE snapshot_pointer SET updated_at = '2000-01-01 00:00:00' WHERE id = 1",
+                [],
+            )
+            .unwrap();
+
+        db.begin_snapshot_build("snap-2").unwrap();
+        db.activate_snapshot("snap-2").unwrap();
+        let refreshed_updated_at = snapshot_pointer_updated_at(&db).unwrap();
+        crate::util::parse_dt(&refreshed_updated_at).unwrap();
+        assert_ne!(refreshed_updated_at, "2000-01-01 00:00:00");
+        assert_eq!(
+            db.get_active_snapshot_id().unwrap().as_deref(),
+            Some("snap-2")
+        );
+    }
+
+    #[test]
+    fn test_activate_snapshot_rolls_back_after_pointer_update_failure() {
+        let db = Database::open_memory().unwrap();
+
+        db.begin_snapshot_build("snap-1").unwrap();
+        db.attach_document_to_snapshot("snap-1", "doc-v1").unwrap();
+        db.activate_snapshot("snap-1").unwrap();
+
+        db.begin_snapshot_build("snap-2").unwrap();
+        db.attach_document_to_snapshot("snap-2", "doc-v2").unwrap();
+
+        let result = simulate_activation_failure_after_pointer_update(&db, "snap-2");
+        assert!(result.is_err());
+
+        assert_eq!(
+            db.get_active_snapshot_id().unwrap().as_deref(),
+            Some("snap-1"),
+            "previous active pointer should survive a failed activation"
+        );
+        assert_eq!(snapshot_state(&db, "snap-1"), "active");
+        assert_eq!(
+            snapshot_state(&db, "snap-2"),
+            "building",
+            "failed activation should not expose the new snapshot as active"
+        );
+
+        db.activate_snapshot("snap-2").unwrap();
+        assert_eq!(
+            db.get_active_snapshot_id().unwrap().as_deref(),
+            Some("snap-2"),
+            "successful retry should still commit atomically"
+        );
+        assert_eq!(snapshot_state(&db, "snap-1"), "superseded");
+        assert_eq!(snapshot_state(&db, "snap-2"), "active");
+    }
+
+    fn simulate_activation_failure_after_pointer_update(
+        db: &Database,
+        snapshot_id: &str,
+    ) -> Result<(), CiteError> {
+        let now = format_dt(&Utc::now());
+        let tx = db.conn().unchecked_transaction().map_err(storage_err)?;
+
+        let previous_snapshot_id: Option<String> = tx
+            .query_row(
+                "SELECT active_snapshot_id FROM snapshot_pointer WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(storage_err)?;
+
+        if let Some(prev_id) = previous_snapshot_id {
+            tx.execute(
+                "UPDATE corpus_snapshots
+                 SET state = ?1, superseded_at = ?2
+                 WHERE snapshot_id = ?3 AND state = ?4",
+                params![STATE_SUPERSEDED, now, prev_id, STATE_ACTIVE],
+            )
+            .map_err(storage_err)?;
+        }
+
+        tx.execute(
+            "UPDATE corpus_snapshots
+             SET state = ?1, activated_at = ?2
+             WHERE snapshot_id = ?3",
+            params![STATE_ACTIVE, now, snapshot_id],
+        )
+        .map_err(storage_err)?;
+
+        tx.execute(
+            "INSERT INTO snapshot_pointer (id, active_snapshot_id, updated_at) VALUES (1, ?1, ?2)
+             ON CONFLICT(id) DO UPDATE SET
+                active_snapshot_id = excluded.active_snapshot_id,
+                updated_at = excluded.updated_at",
+            params![snapshot_id, now],
+        )
+        .map_err(storage_err)?;
+
+        Err(CiteError::StorageError {
+            message: "injected activation failure after pointer update".to_string(),
+        })
+    }
+
+    fn snapshot_state(db: &Database, snapshot_id: &str) -> String {
+        db.conn()
+            .query_row(
+                "SELECT state FROM corpus_snapshots WHERE snapshot_id = ?1",
+                params![snapshot_id],
+                |row| row.get(0),
+            )
+            .unwrap()
+    }
+
+    fn snapshot_pointer_updated_at(db: &Database) -> Option<String> {
+        db.conn()
+            .query_row(
+                "SELECT updated_at FROM snapshot_pointer WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .unwrap()
+    }
+
+    fn unique_temp_dir(prefix: &str) -> std::path::PathBuf {
+        let unique = format!(
+            "{}-{}-{}",
+            prefix,
+            std::process::id(),
+            Utc::now().timestamp_nanos_opt().unwrap()
+        );
+        std::env::temp_dir().join(unique)
     }
 
     #[test]

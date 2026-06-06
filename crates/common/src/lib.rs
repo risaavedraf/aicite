@@ -5,9 +5,10 @@ pub mod types;
 pub use error::CiteError;
 pub use exit::ExitCode;
 pub use types::{
-    Chunk, Citation, ContextMetadata, ContextMetadataScaffold, ContextResponse, Document,
-    DocumentStatus, FileType, ReadResponse, ReadSelector, ResultKind, TraceCitationRecord,
-    TraceEnvelope, TraceHeaderInput, TraceHeaderRecord, TraceResponse,
+    Chunk, ChunkId, Citation, ConceptId, ContextMetadata, ContextMetadataScaffold, ContextResponse,
+    Document, DocumentId, DocumentStatus, FileType, ReadResponse, ReadSelector, ResultKind,
+    TopicId, TraceCitationRecord, TraceEnvelope, TraceHeaderInput, TraceHeaderRecord, TraceId,
+    TraceResponse,
 };
 
 /// Count Unicode characters (not bytes) in a string.

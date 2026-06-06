@@ -8,68 +8,29 @@
 
 ## 🔴 CRITICAL
 
-### 1. Panic UTF-8 en truncación de `sanitize_display_name`
+### 1. ✅ RESUELTO: `sanitize_display_name` trunca por caracteres
 
-**Archivo:** `crates/ingest/src/validator.rs:97-98`
+**Archivo:** `crates/ingest/src/validator.rs`
 
-**Problema:** `trimmed[..255]` slicea por bytes, no por caracteres. Si el byte 255 cae dentro de un char multi-byte (emoji, acento, CJK), panic en runtime (`byte index 255 is not a char boundary`).
+**Verificado en CR-2 (2026-06-04):** la implementación actual usa `trimmed.chars().count() > 255` y `trimmed.chars().take(255).collect::<String>()`. Ya no slicea `trimmed[..255]`, así que no corta en medio de un carácter UTF-8.
 
-```rust
-// Código actual (bug)
-if trimmed.len() > 255 {
-    trimmed[..255].to_string()  // PANIC en boundary UTF-8 multi-byte
-}
-```
-
-**Reproducción:** 254 ASCII + 1 emoji (4 bytes) = 258 bytes, 255 chars. `len()` > 255 → entra al branch → `trimmed[..255]` intenta cortar en medio del emoji → panic.
-
-**Fix:**
-```rust
-if trimmed.len() > 255 {
-    trimmed.chars().take(255).collect::<String>()
-} else {
-    trimmed.to_string()
-}
-```
-
-**Nota:** el test `test_sanitize_display_name_truncation` usa `"a".repeat(300)` (ASCII puro) y no detecta el bug. Agregar test con emoji/caracteres multi-byte.
+**Cobertura actual:** existen tests con emoji y CJK que verifican `result.chars().count() == 255` y UTF-8 válido.
 
 ---
 
-### 2. `extract_plain_text` usa `content.len()` (bytes) para `total_chars`
+### 2. ✅ RESUELTO: `extract_plain_text` y `extract_pdf_text` cuentan caracteres
 
-**Archivo:** `crates/ingest/src/extractor.rs:37`
+**Archivo:** `crates/ingest/src/extractor.rs`
 
-**Problema:** `total_chars = content.len()` retorna el tamaño en bytes, no la cantidad de caracteres Unicode. El campo se llama `total_chars` y el resto del pipeline asume character-based offsets.
-
-```rust
-let total_chars = content.len();  // bytes, no chars
-```
-
-**Impacto:** para texto con multi-byte chars (acentos, CJK, emoji), `total_chars` es mayor que el conteo real de caracteres. Si algún consumidor usa este valor para validación o allocaciones basadas en char count, obtiene valores incorrectos. Actualmente el valor no se usa críticamente downstream (los chunks usan offsets del chunker, no este total), pero es una bomba semántica.
-
-**Fix:**
-```rust
-let total_chars = content.chars().count();
-```
-
-**Nota:** `extract_pdf_text` tiene el mismo problema en línea equivalente.
+**Verificado en CR-2 (2026-06-04):** `extract_plain_text` calcula `total_chars` con `content.chars().count()`. `extract_pdf_text` acumula `total_chars += text.chars().count()` por página. La afirmación anterior de `content.len()` byte-based está obsoleta.
 
 ---
 
-### 3. `heading_parser.rs` calcula `char_offset` con `line.len()` (bytes)
+### 3. ✅ RESUELTO: `HeadingSpan.char_offset` proviene de offsets character-based
 
-**Archivo:** `crates/graph/src/heading_parser.rs:17, 35`
+**Archivo:** `crates/graph/src/heading_parser.rs`
 
-**Problema:** La variable se llama `char_offset` pero se incrementa con `line.len()` que es byte length, no char count. El campo `HeadingSpan.char_offset` almacena byte offsets.
-
-```rust
-char_offset += line.len() + 1;  // bytes, no caracteres
-```
-
-**Impacto directo:** en `lib.rs:130`, `topic_boundaries` se construye a partir de `heading.char_offset` (bytes) y se compara con `c.offset_start` del `chunker.rs` (character offsets). Para texto ASCII puro son idénticos, pero para texto con multi-byte chars, los boundaries están desalineados → chunks se asignan al topic incorrecto o no se asignan.
-
-**Fix:** usar `line.chars().count() + 1` en lugar de `line.len() + 1` para calcular el offset real en caracteres. O alternativamente, renombrar el campo a `byte_offset` y hacer la conversión explícita en `lib.rs`.
+**Verificado en CR-2 (2026-06-04):** `heading_parser.rs` actualiza `char_offset` con `line.chars().count() + 1`. `HeadingSpan.char_offset` puede usarse como boundary de tópico/concepto sin mezclar bytes con los offsets del chunker.
 
 ---
 

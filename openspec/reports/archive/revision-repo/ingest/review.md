@@ -97,7 +97,7 @@ Vec<String> (chunk IDs)
 
 - **`extract_plain_text(path)`**
   - Returns single PageText (page=1) with full file content.
-  - Uses `content.len()` for `total_chars` (byte count, not char count).
+  - Computes `total_chars` with `content.chars().count()` (Unicode character count).
 
 - **`extract_pdf_text(path)`**
   - Uses `lopdf` to extract text per page.

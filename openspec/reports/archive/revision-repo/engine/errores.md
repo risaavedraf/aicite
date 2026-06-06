@@ -7,55 +7,18 @@
 
 ## 🔴 CRITICAL
 
-### C1. `check_ingest_allowed` es dead code — NO bloquea ingest en ningún runtime mode
+### C1. PARCIALMENTE RESUELTO: `check_ingest_allowed` se aplica en CLI, no dentro del engine
 
 **Archivos:**
-- `crates/engine/src/runtime_guard.rs:23-34` (definición)
-- `crates/engine/src/ingest.rs` (no lo importa ni llama)
-- `crates/cli/src/commands/ingest.rs` (no lo llama)
+- `crates/engine/src/runtime_guard.rs` (definición y tests)
+- `crates/cli/src/commands/ingest.rs` (invoca el guard en `execute()`)
+- `crates/engine/src/ingest.rs` (`ingest`, `ingest_next`, `ingest_internal` no lo revalidan)
 
-**Problema:** La función `check_ingest_allowed` existe, tiene tests (`tests/runtime_mode.rs`), y correctamente retorna error para `PublicPackagedDemo` y `Production`. Sin embargo, **nunca es invocada** en el path real de ingest. El CLI pasa `production_mode: bool` al engine, pero esto solo controla `derive_display_name` (sanitización del nombre de display), NO si el ingest está permitido.
+**Estado actual verificado en CR-2 (2026-06-04):** el CLI llama `engine::runtime_guard::check_ingest_allowed(&config.runtime.mode)` antes de `engine::ingest::ingest`, `ingest_next` o `enqueue_ingest`. Eso corrige la afirmación anterior de que el guard no se usaba en ningún path real.
 
-**Impacto:** En modo `Production` o `PublicPackagedDemo`, un usuario puede ejecutar `cite ingest path/to/file` y el archivo se procesará sin restricción. El guard de seguridad es ilusorio.
+**Riesgo restante:** el engine no hace defensa en profundidad. Un caller directo de `engine::ingest::ingest`, `ingest_next` o `ingest_internal` puede bypassar el control si no aplica `check_ingest_allowed` en su propio boundary.
 
-**Verificación:** Grep de `check_ingest_allowed` en todo el proyecto muestra solo:
-- Su definición en `runtime_guard.rs`
-- Su test en `tests/runtime_mode.rs`
-- Reportes previos que ya lo señalan
-
-**Fix sugerido:** Agregar llamada al guard en `cli/src/commands/execute` (ingest command), antes de llamar a `engine::ingest::ingest`:
-
-```rust
-// En crates/cli/src/commands/ingest.rs, función execute():
-// Agregar ANTES de cualquier operación de ingest:
-
-if let Err(e) = engine::runtime_guard::check_ingest_allowed(&config.runtime.mode) {
-    if json {
-        print_json(&e.to_json_response());
-    } else {
-        eprintln!("Error: {e}");
-    }
-    return e.exit_code() as i32;
-}
-```
-
-Alternativamente, mover el check dentro de `engine::ingest::ingest` para que TODOS los callers estén protegidos:
-
-```rust
-// En crates/engine/src/ingest.rs, función ingest():
-pub fn ingest(
-    db: &Database,
-    provider: &dyn EmbeddingProvider,
-    config: &IngestConfig,
-    path: &Path,
-    display_name_override: Option<&str>,
-    production_mode: bool,
-) -> Result<IngestResult, CiteError> {
-    // Agregar al inicio:
-    // Nota: requiere pasar RuntimeMode como parámetro o agregarlo a IngestConfig
-    ingest_internal(db, provider, config, path, display_name_override, production_mode, true)
-}
-```
+**Recomendación:** decidir si el boundary oficial es el CLI (y documentarlo) o mover/agregar el guard en `engine::ingest::ingest` / `ingest_next` para proteger todos los callers.
 
 ---
 

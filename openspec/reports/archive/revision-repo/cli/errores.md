@@ -8,35 +8,16 @@
 
 ## 🔴 CRITICAL
 
-### 1. `check_ingest_allowed` es dead code — production mode no bloquea ingest
+### 1. ✅ RESUELTO: `check_ingest_allowed` ahora se invoca desde el CLI ingest path
 
-**Archivos**:
-- `crates/engine/src/runtime_guard.rs:23-34` (definición)
-- `crates/cli/src/commands/ingest.rs:60-67` (no lo llama)
-- `crates/engine/src/ingest.rs:47,74,119` (recibe `production_mode` pero solo lo forwarda a `derive_display_name`)
+**Verificado en CR-2 (2026-06-04):** `crates/cli/src/commands/ingest.rs` llama `engine::runtime_guard::check_ingest_allowed(&config.runtime.mode)` dentro de `execute()` antes de procesar `queued`, `next` o ingest inmediato. En JSON emite `e.to_json_response()`; en salida humana imprime el error y retorna `e.exit_code()`.
 
-**Problema**: La función `check_ingest_allowed` existe con tests (`engine/tests/runtime_mode.rs`) pero **nunca es invocada** en el path real de ingest. El CLI pasa `production_mode: bool` a `engine::ingest::ingest()`, pero el engine solo lo usa para decidir si el display name es genérico ("document") o el nombre real del archivo. **Production mode NO bloquea ingest** — `cite ingest secret.pdf` almacena el documento exitosamente.
+**Estado actual:** production/public-demo ingest queda bloqueado para el entrypoint CLI. El riesgo restante está en el límite interno del engine: `engine::ingest::ingest`, `ingest_next` e `ingest_internal` no llaman `check_ingest_allowed` por sí mismos, así que callers que salteen el CLI deben aplicar el guard o el proyecto debe documentar/agregar ese boundary check.
 
-**Verificación**: `grep` de `check_ingest_allowed` en todo el workspace:
-- Encontrada en: `engine/src/runtime_guard.rs:23` (definición), `engine/tests/runtime_mode.rs` (tests)
-- **NO encontrada en**: `cli/src/commands/ingest.rs`, `engine/src/ingest.rs`
-
-**Fix recomendado**:
-1. **CLI** — Agregar guard al inicio de `execute()` en `crates/cli/src/commands/ingest.rs`:
-```rust
-// Al inicio de execute(), antes de CommandContext::open()
-if let Err(e) = engine::runtime_guard::check_ingest_allowed(&config.runtime.mode) {
-    if json {
-        print_json(&e.to_json_response());
-    } else {
-        eprintln!("Error: {e}");
-    }
-    return e.exit_code() as i32;
-}
-```
-2. **Engine** — Agregar guard dentro de `ingest_internal` como defensa en profundidad, para que cualquier caller (no solo CLI) esté gateado.
-
-**Severidad**: CRITICAL — El enforcement de runtime mode es un control de seguridad. La función fue escrita y testeada pero nunca conectada al path real. En un deployment público con `production` mode, usuarios pueden ingestar documentos inesperadamente.
+**Referencias actuales:**
+- `crates/cli/src/commands/ingest.rs` — `execute()` invoca `check_ingest_allowed`.
+- `crates/engine/src/runtime_guard.rs` — define y testea `check_ingest_allowed`.
+- `crates/engine/src/ingest.rs` — `ingest_next` / `ingest_internal` todavía no revalidan runtime mode.
 
 ---
 
@@ -65,19 +46,13 @@ if let Err(e) = engine::runtime_guard::check_ingest_allowed(&config.runtime.mode
 
 ---
 
-### 3. `create_provider` pasa API key vacía silenciosamente
+### 3. ✅ RESUELTO: `create_provider` rechaza API key ausente
 
-**Archivo**: `crates/cli/src/commands/mod.rs:94`
+**Archivo**: `crates/cli/src/commands/mod.rs`
+**Verificado en CR-2 (2026-06-04)**
 
-```rust
-let api_key = resolve_api_key(config).unwrap_or_default();
-```
+**Estado actual:** La afirmación original era histórica. `create_provider` ya no usa `resolve_api_key(config).unwrap_or_default()`: ahora llama `resolve_api_key(config).ok_or_else(...)` y retorna un `CiteError::ConfigError` claro cuando no hay API key configurada.
 
-**Problema**: Cuando no hay API key configurada (ninguna env var set, nada en config), `unwrap_or_default()` produce `""`. Este string vacío se pasa al constructor del provider (`GeminiProvider::new` o `OpenAICompatibleProvider::new`). El provider intentará autenticar con credencial vacía y fallará con un error HTTP críptico (ej: 401 Unauthorized) en vez de un mensaje claro de "API key no configurada".
-
-**Contexto**: `health.rs:145-155` tiene su propia verificación de API key y correctamente retorna "skipped" cuando la key está vacía. Pero los comandos que usan `CommandContext::open()` (ingest, search, retrieve, context) no tienen esta protección.
-
-**Fix**:
 ```rust
 let api_key = resolve_api_key(config).ok_or_else(|| CiteError::ConfigError {
     message: "No API key configured. Set CITE_EMBEDDING_API_KEY, GEMINI_API_KEY, \
@@ -85,7 +60,9 @@ let api_key = resolve_api_key(config).ok_or_else(|| CiteError::ConfigError {
 })?;
 ```
 
-**Severidad**: HIGH — Produce errores confusos para el usuario. El error debería ser claro y accionable.
+**Defensa adicional:** Los constructores de providers (`GeminiProvider::new` y `OpenAICompatibleProvider::new`) también rechazan `api_key.is_empty()`, así que el CLI y los providers validan la credencial en capas.
+
+**Riesgo restante:** ninguno para el caso de API key vacía en `create_provider`; mantener tests/contrato de error claro si se refactoriza `CommandContext::open()`.
 
 ---
 

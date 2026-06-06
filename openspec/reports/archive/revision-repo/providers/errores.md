@@ -8,45 +8,16 @@
 
 ## 🔴 CRITICAL
 
-### 1. `create_provider` pasa API key vacía silenciosamente — error críptico en runtime
+### 1. ✅ RESUELTO: `create_provider` y providers rechazan API keys vacías
 
 **Archivos:**
-- `crates/cli/src/commands/mod.rs:94` (`resolve_api_key(...).unwrap_or_default()`)
-- `crates/providers/src/gemini.rs:24` (constructor recibe key sin validar)
-- `crates/providers/src/openai.rs:29` (constructor recibe key sin validar)
+- `crates/cli/src/commands/mod.rs` (`create_provider`, `resolve_api_key`)
+- `crates/providers/src/gemini.rs` (`GeminiProvider::new`)
+- `crates/providers/src/openai.rs` (`OpenAICompatibleProvider::new`)
 
-**Problema:** Cuando no hay API key configurada, `resolve_api_key()` devuelve `None` y `unwrap_or_default()` convierte a `""`. Ambos providers aceptan el string vacío sin error. El fallo ocurre después, en el primer `embed()`, con un error HTTP 401 críptico ("Gemini API returned HTTP 401 Unauthorized") en vez de un mensaje claro que diga "no API key configured".
+**Verificado en CR-2 (2026-06-04):** `create_provider` usa `resolve_api_key(config).ok_or_else(...)` y retorna `CiteError::ConfigError` si no hay API key. Además, `GeminiProvider::new` y `OpenAICompatibleProvider::new` retornan `ConfigError` cuando `api_key.is_empty()`. La afirmación previa sobre `unwrap_or_default()` y autenticación con `""` está obsoleta.
 
-Este bug ya está documentado como CLI errores #2, pero el problema tiene una dimensión en `providers`: los constructores no son defensivos contra keys vacías.
-
-**Fix sugerido (doble capa):**
-
-Capa 1 — En CLI (`create_provider`): validar antes de construir:
-```rust
-let api_key = resolve_api_key(config).ok_or_else(|| CiteError::ConfigError {
-    message: "No API key configured. Set CITE_EMBEDDING_API_KEY, GEMINI_API_KEY, \
-              OPENAI_API_KEY, or run `cite setup`.".into(),
-})?;
-```
-
-Capa 2 — En providers (defensa en profundidad): validar en constructores:
-```rust
-// GeminiProvider::new
-if api_key.is_empty() {
-    return Err(CiteError::ConfigError {
-        message: "Gemini API key cannot be empty".into(),
-    });
-}
-
-// OpenAICompatibleProvider::new
-if api_key.is_empty() {
-    return Err(CiteError::ConfigError {
-        message: "API key cannot be empty".into(),
-    });
-}
-```
-
-**Rationale de severidad:** CRITICAL porque un usuario nuevo sin configurar API key obtiene un error HTTP críptico que no indica la causa real. Experiencia de onboarding rota.
+**Nota de archivo:** este reporte sí está en el repo; tratarlo como archivo archivado de revisión, no como documento privado fuera de GitHub.
 
 ---
 

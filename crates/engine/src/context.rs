@@ -3,7 +3,7 @@ use common::types::{
     Citation, ContextMetadata, ContextResponse, OffsetRange, ReadResponse, ReadSelector,
     ResultKind, TraceCitationRecord, TraceHeaderInput, TraceResponse,
 };
-use common::CiteError;
+use common::{CiteError, TraceId};
 use config::{RateLimitConfig, RetrievalConfig};
 use providers::EmbeddingProvider;
 use storage::Database;
@@ -149,9 +149,9 @@ fn build_citations_from_ranked(
 
             Citation {
                 citation_id: format!("c{}", i + 1),
-                document_id: hit.document_id.clone(),
+                document_id: hit.document_id_typed.clone(),
                 display_name: hit.display_name.clone(),
-                chunk_id: hit.chunk_id.clone(),
+                chunk_id: hit.chunk_id_typed.clone(),
                 page: hit.page,
                 offset: match (hit.offset_start, hit.offset_end) {
                     (Some(s), Some(e)) => Some(OffsetRange { start: s, end: e }),
@@ -213,7 +213,7 @@ fn persist_trace(
     let trace_citations: Vec<TraceCitationRecord> = citations
         .iter()
         .map(|c| TraceCitationRecord {
-            trace_id: trace_id.to_string(),
+            trace_id: TraceId::from(trace_id),
             citation_id: c.citation_id.clone(),
             document_id: c.document_id.clone(),
             display_name: c.display_name.clone(),
@@ -229,7 +229,7 @@ fn persist_trace(
 
     db.persist_trace_with_citations(
         &TraceHeaderInput {
-            trace_id: trace_id.to_string(),
+            trace_id: TraceId::from(trace_id),
             query_id: Some(query_id.to_string()),
             context_pack_id: Some(context_pack_id.to_string()),
             request_type: "context".into(),
@@ -325,7 +325,7 @@ pub fn build_context(
         context_pack_id,
         result_kind,
         query_id,
-        trace_id,
+        trace_id: TraceId::from(trace_id),
         instructions: AGENT_INSTRUCTIONS.into(),
         citations,
         metadata: ContextMetadata {
@@ -362,9 +362,9 @@ pub fn read_context(db: &Database, selector: ReadSelector) -> Result<ReadRespons
             let record = db.get_citation_by_trace(&trace_id, &citation_id)?;
             Ok(ReadResponse {
                 citation_id: Some(record.citation_id),
-                document_id: record.document_id,
+                document_id: record.document_id.to_string(),
                 display_name: Some(record.display_name),
-                chunk_id: record.chunk_id,
+                chunk_id: record.chunk_id.to_string(),
                 page: record.page,
                 offset: match (record.offset_start, record.offset_end) {
                     (Some(s), Some(e)) => Some(OffsetRange { start: s, end: e }),
@@ -383,9 +383,9 @@ pub fn read_context(db: &Database, selector: ReadSelector) -> Result<ReadRespons
             let chunk = db.get_ready_chunk_by_document(&document_id, &chunk_id)?;
             Ok(ReadResponse {
                 citation_id: None,
-                document_id: chunk.document_id,
+                document_id: chunk.document_id.to_string(),
                 display_name: None,
-                chunk_id: chunk.chunk_id,
+                chunk_id: chunk.chunk_id.to_string(),
                 page: chunk.page,
                 offset: match (chunk.offset_start, chunk.offset_end) {
                     (Some(s), Some(e)) => Some(OffsetRange { start: s, end: e }),
@@ -429,7 +429,7 @@ pub fn get_trace(db: &Database, trace_id: &str) -> Result<TraceResponse, CiteErr
         .collect();
 
     Ok(TraceResponse {
-        trace_id: envelope.header.trace_id,
+        trace_id: envelope.header.trace_id.to_string(),
         query_id: envelope.header.query_id,
         context_pack_id: envelope.header.context_pack_id,
         timestamp: envelope.header.created_at,
@@ -719,14 +719,14 @@ mod tests {
         let read = read_context(
             &db,
             ReadSelector::Citation {
-                trace_id: ctx.trace_id.clone(),
+                trace_id: ctx.trace_id.to_string(),
                 citation_id: "c1".into(),
             },
         )
         .unwrap();
 
         assert_eq!(read.text, "evidence text");
-        assert_eq!(read.trace_id, Some(ctx.trace_id));
+        assert_eq!(read.trace_id, Some(ctx.trace_id.to_string()));
         assert_eq!(read.document_id, "d1");
     }
 

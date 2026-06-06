@@ -70,8 +70,8 @@ pub fn ingest_document(
     let storage_chunks: Vec<Chunk> = raw_chunks
         .iter()
         .map(|c| Chunk {
-            chunk_id: Uuid::new_v4().to_string(),
-            document_id: document_id.to_string(),
+            chunk_id: Uuid::new_v4().to_string().into(),
+            document_id: document_id.to_string().into(),
             section_id: None,
             chunk_index: c.chunk_index,
             text: c.text.clone(),
@@ -82,7 +82,10 @@ pub fn ingest_document(
         })
         .collect();
 
-    let chunk_ids: Vec<String> = storage_chunks.iter().map(|c| c.chunk_id.clone()).collect();
+    let chunk_ids: Vec<String> = storage_chunks
+        .iter()
+        .map(|c| c.chunk_id.to_string())
+        .collect();
 
     db.insert_chunks(document_id, &storage_chunks)?;
 
@@ -143,14 +146,14 @@ pub fn ingest_document(
                     .iter()
                     .find(|h| h.level == 2 && h.title == twc.topic.name)
                 {
-                    topic_boundaries.push((h.char_offset, twc.topic.topic_id.clone()));
+                    topic_boundaries.push((h.char_offset, twc.topic.topic_id.to_string()));
                 }
             }
             topic_boundaries.sort_by_key(|b| b.0);
 
             // Fallback: no H2 boundaries (e.g. only H1 headings)
             if topic_boundaries.is_empty() && !hierarchy.topics.is_empty() {
-                topic_boundaries.push((0, hierarchy.topics[0].topic.topic_id.clone()));
+                topic_boundaries.push((0, hierarchy.topics[0].topic.topic_id.to_string()));
             }
 
             let mut bp = 0usize;
@@ -193,7 +196,7 @@ mod tests {
 
     fn insert_doc(db: &Database, id: &str) {
         let doc = Document {
-            document_id: id.to_string(),
+            document_id: id.to_string().into(),
             display_name: format!("{}.txt", id),
             file_path: PathBuf::from(format!("/docs/{}.txt", id)),
             file_type: CommonFileType::Txt,
@@ -413,7 +416,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 topic_id.as_deref(),
-                Some(topics[0].topic_id.as_str()),
+                Some(topics[0].topic_id.as_ref()),
                 "All chunks should be assigned to the Untitled topic"
             );
         }

@@ -1,4 +1,4 @@
-use common::CiteError;
+use common::{CiteError, DocumentId, TopicId};
 use rusqlite::params;
 
 use crate::util::storage_err;
@@ -10,8 +10,8 @@ use crate::Database;
 
 #[derive(Debug, Clone)]
 pub struct TopicRow {
-    pub topic_id: String,
-    pub document_id: String,
+    pub topic_id: TopicId,
+    pub document_id: DocumentId,
     pub name: String,
     pub summary: Option<String>,
     pub chunk_count: i64,
@@ -54,8 +54,8 @@ impl Database {
 
         match rows.next().map_err(storage_err)? {
             Some(row) => Ok(Some(TopicRow {
-                topic_id: row.get(0).map_err(storage_err)?,
-                document_id: row.get(1).map_err(storage_err)?,
+                topic_id: row.get::<_, String>(0).map_err(storage_err)?.into(),
+                document_id: row.get::<_, String>(1).map_err(storage_err)?.into(),
                 name: row.get(2).map_err(storage_err)?,
                 summary: row.get(3).map_err(storage_err)?,
                 chunk_count: row.get(4).map_err(storage_err)?,
@@ -80,8 +80,8 @@ impl Database {
 
         while let Some(row) = rows.next().map_err(storage_err)? {
             result.push(TopicRow {
-                topic_id: row.get(0).map_err(storage_err)?,
-                document_id: row.get(1).map_err(storage_err)?,
+                topic_id: row.get::<_, String>(0).map_err(storage_err)?.into(),
+                document_id: row.get::<_, String>(1).map_err(storage_err)?.into(),
                 name: row.get(2).map_err(storage_err)?,
                 summary: row.get(3).map_err(storage_err)?,
                 chunk_count: row.get(4).map_err(storage_err)?,
@@ -118,7 +118,7 @@ mod tests {
 
     fn insert_doc(db: &Database, id: &str) {
         let doc = Document {
-            document_id: id.to_string(),
+            document_id: id.to_string().into(),
             display_name: format!("{id}.txt"),
             file_path: PathBuf::from(format!("/docs/{id}.txt")),
             file_type: FileType::Txt,
@@ -144,8 +144,8 @@ mod tests {
             .unwrap();
 
         let topic = db.get_topic("t1").unwrap().expect("topic missing");
-        assert_eq!(topic.topic_id, "t1");
-        assert_eq!(topic.document_id, "doc-1");
+        assert_eq!(topic.topic_id.as_ref(), "t1");
+        assert_eq!(topic.document_id.as_ref(), "doc-1");
         assert_eq!(topic.name, "Rust Basics");
         assert_eq!(topic.summary.as_deref(), Some("Intro to Rust"));
         assert_eq!(topic.chunk_count, 0);
@@ -180,7 +180,31 @@ mod tests {
 
         let topics = db.list_topics_by_document("doc-1").unwrap();
         assert_eq!(topics.len(), 2);
-        assert!(topics.iter().all(|t| t.document_id == "doc-1"));
+        assert!(topics.iter().all(|t| t.document_id.as_ref() == "doc-1"));
+    }
+
+    #[test]
+    fn test_topic_row_decodes_ids_as_typed_ids_and_preserves_storage_strings() {
+        let db = Database::open_memory().unwrap();
+        insert_doc(&db, "doc-typed");
+
+        db.insert_topic("topic-typed", "doc-typed", "Typed", None)
+            .unwrap();
+
+        let topic = db.get_topic("topic-typed").unwrap().unwrap();
+        let (stored_topic_id, stored_document_id): (String, String) = db
+            .conn()
+            .query_row(
+                "SELECT topic_id, document_id FROM topics WHERE topic_id = 'topic-typed'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+
+        assert_eq!(topic.topic_id.as_ref(), "topic-typed");
+        assert_eq!(topic.document_id.as_ref(), "doc-typed");
+        assert_eq!(stored_topic_id, topic.topic_id.as_ref());
+        assert_eq!(stored_document_id, topic.document_id.as_ref());
     }
 
     #[test]
@@ -199,8 +223,8 @@ mod tests {
         // Insert chunks belonging to this topic
         let chunks: Vec<Chunk> = (0..3)
             .map(|i| Chunk {
-                chunk_id: format!("tc{i}"),
-                document_id: "doc-1".to_string(),
+                chunk_id: format!("tc{i}").into(),
+                document_id: "doc-1".to_string().into(),
                 section_id: None,
                 chunk_index: i,
                 text: format!("text {i}"),

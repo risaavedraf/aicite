@@ -48,7 +48,7 @@ impl Database {
                 latency_ms
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
-                header.trace_id,
+                header.trace_id.as_ref(),
                 header.query_id,
                 header.context_pack_id,
                 header.request_type,
@@ -90,11 +90,11 @@ impl Database {
                     confidence_label
                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 params![
-                    citation.trace_id,
+                    citation.trace_id.as_ref(),
                     citation.citation_id,
-                    citation.document_id,
+                    citation.document_id.as_ref(),
                     citation.display_name,
-                    citation.chunk_id,
+                    citation.chunk_id.as_ref(),
                     citation.page.map(|v| v as i64),
                     citation.offset_start.map(|v| v as i64),
                     citation.offset_end.map(|v| v as i64),
@@ -142,11 +142,11 @@ impl Database {
 
         if let Some(row) = rows.next().map_err(storage_err)? {
             Ok(TraceCitationRecord {
-                trace_id: row.get(0).map_err(storage_err)?,
+                trace_id: row.get::<_, String>(0).map_err(storage_err)?.into(),
                 citation_id: row.get(1).map_err(storage_err)?,
-                document_id: row.get(2).map_err(storage_err)?,
+                document_id: row.get::<_, String>(2).map_err(storage_err)?.into(),
                 display_name: row.get(3).map_err(storage_err)?,
-                chunk_id: row.get(4).map_err(storage_err)?,
+                chunk_id: row.get::<_, String>(4).map_err(storage_err)?.into(),
                 page: row
                     .get::<_, Option<i64>>(5)
                     .map_err(storage_err)?
@@ -253,7 +253,7 @@ impl Database {
         let header = if let Some(row) = trace_rows.next().map_err(storage_err)? {
             let created_at: String = row.get(13).map_err(storage_err)?;
             TraceHeaderRecord {
-                trace_id: row.get(0).map_err(storage_err)?,
+                trace_id: row.get::<_, String>(0).map_err(storage_err)?.into(),
                 query_id: row.get(1).map_err(storage_err)?,
                 context_pack_id: row.get(2).map_err(storage_err)?,
                 request_type: row.get(3).map_err(storage_err)?,
@@ -308,11 +308,11 @@ impl Database {
 
         while let Some(row) = citation_rows.next().map_err(storage_err)? {
             citations.push(TraceCitationRecord {
-                trace_id: row.get(0).map_err(storage_err)?,
+                trace_id: row.get::<_, String>(0).map_err(storage_err)?.into(),
                 citation_id: row.get(1).map_err(storage_err)?,
-                document_id: row.get(2).map_err(storage_err)?,
+                document_id: row.get::<_, String>(2).map_err(storage_err)?.into(),
                 display_name: row.get(3).map_err(storage_err)?,
-                chunk_id: row.get(4).map_err(storage_err)?,
+                chunk_id: row.get::<_, String>(4).map_err(storage_err)?.into(),
                 page: row
                     .get::<_, Option<i64>>(5)
                     .map_err(storage_err)?
@@ -382,7 +382,7 @@ mod tests {
 
     fn insert_document(db: &Database, document_id: &str, status: DocumentStatus) {
         let doc = Document {
-            document_id: document_id.to_string(),
+            document_id: document_id.to_string().into(),
             display_name: format!("{document_id}.txt"),
             file_path: PathBuf::from(format!("/docs/{document_id}.txt")),
             file_type: FileType::Txt,
@@ -404,8 +404,8 @@ mod tests {
         db.insert_chunks(
             document_id,
             &[Chunk {
-                chunk_id: chunk_id.to_string(),
-                document_id: document_id.to_string(),
+                chunk_id: chunk_id.to_string().into(),
+                document_id: document_id.to_string().into(),
                 section_id: None,
                 chunk_index: 0,
                 text: "chunk text".to_string(),
@@ -420,7 +420,7 @@ mod tests {
 
     fn make_trace_header(trace_id: &str) -> TraceHeaderInput {
         TraceHeaderInput {
-            trace_id: trace_id.to_string(),
+            trace_id: trace_id.to_string().into(),
             query_id: Some("qry-1".to_string()),
             context_pack_id: Some("ctx-1".to_string()),
             request_type: "context".to_string(),
@@ -443,11 +443,11 @@ mod tests {
         db.persist_trace_with_citations(
             &make_trace_header("trace-a"),
             &[TraceCitationRecord {
-                trace_id: "trace-a".to_string(),
+                trace_id: "trace-a".to_string().into(),
                 citation_id: "c1".to_string(),
-                document_id: "doc-a".to_string(),
+                document_id: "doc-a".to_string().into(),
                 display_name: "a.txt".to_string(),
-                chunk_id: "chunk-a".to_string(),
+                chunk_id: "chunk-a".to_string().into(),
                 page: Some(1),
                 offset_start: Some(0),
                 offset_end: Some(10),
@@ -461,11 +461,11 @@ mod tests {
         db.persist_trace_with_citations(
             &make_trace_header("trace-b"),
             &[TraceCitationRecord {
-                trace_id: "trace-b".to_string(),
+                trace_id: "trace-b".to_string().into(),
                 citation_id: "c1".to_string(),
-                document_id: "doc-b".to_string(),
+                document_id: "doc-b".to_string().into(),
                 display_name: "b.txt".to_string(),
-                chunk_id: "chunk-b".to_string(),
+                chunk_id: "chunk-b".to_string().into(),
                 page: Some(2),
                 offset_start: Some(11),
                 offset_end: Some(20),
@@ -481,8 +481,8 @@ mod tests {
 
         assert_eq!(citation_a.text, "from trace a");
         assert_eq!(citation_b.text, "from trace b");
-        assert_eq!(citation_a.chunk_id, "chunk-a");
-        assert_eq!(citation_b.chunk_id, "chunk-b");
+        assert_eq!(citation_a.chunk_id, "chunk-a".into());
+        assert_eq!(citation_b.chunk_id, "chunk-b".into());
     }
 
     #[test]
@@ -497,7 +497,7 @@ mod tests {
         let ready_chunk = db
             .get_ready_chunk_by_document("doc-ready", "chunk-ready")
             .unwrap();
-        assert_eq!(ready_chunk.chunk_id, "chunk-ready");
+        assert_eq!(ready_chunk.chunk_id, "chunk-ready".into());
 
         let not_ready_err = db
             .get_ready_chunk_by_document("doc-processing", "chunk-processing")

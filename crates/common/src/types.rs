@@ -295,7 +295,7 @@ pub struct ErrorInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Document {
     /// Unique document identifier.
-    pub document_id: String,
+    pub document_id: DocumentId,
     /// Human-readable display name (typically the filename).
     pub display_name: String,
     /// Absolute path to the source file on disk.
@@ -350,9 +350,9 @@ pub struct Document {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Chunk {
     /// Unique chunk identifier.
-    pub chunk_id: String,
+    pub chunk_id: ChunkId,
     /// Identifier of the parent document.
-    pub document_id: String,
+    pub document_id: DocumentId,
     /// Optional section identifier from the hierarchy builder.
     pub section_id: Option<String>,
     /// Zero-based ordering index within the document.
@@ -401,11 +401,11 @@ pub struct Citation {
     /// Unique citation identifier.
     pub citation_id: String,
     /// Source document identifier.
-    pub document_id: String,
+    pub document_id: DocumentId,
     /// Human-readable document name.
     pub display_name: String,
     /// Chunk that this citation references.
-    pub chunk_id: String,
+    pub chunk_id: ChunkId,
     /// Page number in the source document.
     pub page: Option<u32>,
     /// Character offset range in the source.
@@ -502,7 +502,7 @@ pub struct ContextResponse {
     pub context_pack_id: String,
     pub result_kind: ResultKind,
     pub query_id: String,
-    pub trace_id: String,
+    pub trace_id: TraceId,
     pub instructions: String,
     pub citations: Vec<Citation>,
     pub metadata: ContextMetadata,
@@ -573,7 +573,7 @@ pub struct TraceResponse {
 /// so they can be replayed or audited later.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TraceHeaderInput {
-    pub trace_id: String,
+    pub trace_id: TraceId,
     pub query_id: Option<String>,
     pub context_pack_id: Option<String>,
     pub request_type: String,
@@ -593,7 +593,7 @@ pub struct TraceHeaderInput {
 /// Extends [`TraceHeaderInput`] with a `created_at` timestamp.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TraceHeaderRecord {
-    pub trace_id: String,
+    pub trace_id: TraceId,
     pub query_id: Option<String>,
     pub context_pack_id: Option<String>,
     pub request_type: String,
@@ -615,11 +615,11 @@ pub struct TraceHeaderRecord {
 /// the original context pack without re-querying the embedding index.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TraceCitationRecord {
-    pub trace_id: String,
+    pub trace_id: TraceId,
     pub citation_id: String,
-    pub document_id: String,
+    pub document_id: DocumentId,
     pub display_name: String,
-    pub chunk_id: String,
+    pub chunk_id: ChunkId,
     pub page: Option<u32>,
     pub offset_start: Option<u32>,
     pub offset_end: Option<u32>,

@@ -10,7 +10,7 @@ Completamos el **first pass** del SDD error-remediation (v0.2.4):
 - Artefactos SDD en `openspec/changes/error-remediation/`
 - Tracking en `openspec/reports/error-tracking.md`
 
-**Objetivo:** Arreglar los **78 errores restantes (T3+T4) + 11 casts** descubiertos en verify.
+**Objetivo:** Arreglar los **75 errores restantes (T3+T4) + 11 casts** descubiertos en verify.
 
 ## Última sesión (checkpoint)
 

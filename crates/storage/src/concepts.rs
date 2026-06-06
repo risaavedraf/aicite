@@ -118,7 +118,7 @@ mod tests {
 
     fn insert_doc(db: &Database, id: &str) {
         let doc = Document {
-            document_id: id.to_string(),
+            document_id: id.into(),
             display_name: format!("{id}.txt"),
             file_path: PathBuf::from(format!("/docs/{id}.txt")),
             file_type: FileType::Txt,
@@ -203,8 +203,8 @@ mod tests {
         // Insert chunks belonging to this concept
         let chunks: Vec<Chunk> = (0..2)
             .map(|i| Chunk {
-                chunk_id: format!("cc{i}"),
-                document_id: "doc-1".to_string(),
+                chunk_id: format!("cc{i}").into(),
+                document_id: "doc-1".into(),
                 section_id: None,
                 chunk_index: i,
                 text: format!("text {i}"),

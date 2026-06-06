@@ -4,6 +4,7 @@
 //! embeddings. These are the core math operations behind context pack
 //! assembly.
 
+use common::{ChunkId, DocumentId};
 use storage::embeddings::ChunkEmbeddingRecord;
 
 /// A text chunk paired with its retrieval relevance score.
@@ -21,6 +22,8 @@ use storage::embeddings::ChunkEmbeddingRecord;
 /// let chunk = ScoredChunk {
 ///     chunk_id: "c1".to_string(),
 ///     document_id: "d1".to_string(),
+///     chunk_id_typed: "c1".into(),
+///     document_id_typed: "d1".into(),
 ///     display_name: "doc.txt".to_string(),
 ///     section_id: None,
 ///     chunk_index: 0,
@@ -40,6 +43,8 @@ use storage::embeddings::ChunkEmbeddingRecord;
 pub struct ScoredChunk {
     pub chunk_id: String,
     pub document_id: String,
+    pub chunk_id_typed: ChunkId,
+    pub document_id_typed: DocumentId,
     pub display_name: String,
     pub section_id: Option<String>,
     pub chunk_index: u32,
@@ -125,10 +130,35 @@ impl From<ChunkEmbeddingRecord> for ScoredChunk {
         ScoredChunk {
             chunk_id: c.chunk_id,
             document_id: c.document_id,
+            chunk_id_typed: c.chunk_id_typed,
+            document_id_typed: c.document_id_typed,
             display_name: c.display_name,
             section_id: c.section_id,
             chunk_index: c.chunk_index,
             text: c.text,
+            page: c.page,
+            offset_start: c.offset_start,
+            offset_end: c.offset_end,
+            score: 0.0,
+            topic_id: None,
+            topic_name: None,
+            concept_id: None,
+            concept_name: None,
+        }
+    }
+}
+
+impl From<&ChunkEmbeddingRecord> for ScoredChunk {
+    fn from(c: &ChunkEmbeddingRecord) -> Self {
+        ScoredChunk {
+            chunk_id: c.chunk_id.clone(),
+            document_id: c.document_id.clone(),
+            chunk_id_typed: c.chunk_id_typed.clone(),
+            document_id_typed: c.document_id_typed.clone(),
+            display_name: c.display_name.clone(),
+            section_id: c.section_id.clone(),
+            chunk_index: c.chunk_index,
+            text: c.text.clone(),
             page: c.page,
             offset_start: c.offset_start,
             offset_end: c.offset_end,
@@ -179,7 +209,7 @@ pub fn rank_by_similarity(
         .iter()
         .filter_map(|candidate| {
             let score = cosine_similarity(query_vector, &candidate.vector)?;
-            let mut chunk: ScoredChunk = candidate.clone().into();
+            let mut chunk: ScoredChunk = candidate.into();
             chunk.score = score;
             Some(chunk)
         })
@@ -198,6 +228,8 @@ mod tests {
         ChunkEmbeddingRecord {
             chunk_id: id.to_string(),
             document_id: "doc-1".to_string(),
+            chunk_id_typed: ChunkId::from(id),
+            document_id_typed: DocumentId::from("doc-1"),
             display_name: "doc-1.txt".to_string(),
             section_id: None,
             chunk_index: 0,
@@ -247,6 +279,38 @@ mod tests {
         assert_eq!(ranked.len(), 2);
         assert_eq!(ranked[0].chunk_id, "a");
         assert_eq!(ranked[1].chunk_id, "b");
+    }
+
+    #[test]
+    fn test_scored_chunk_from_record_reference_preserves_metadata() {
+        let mut record = candidate("chunk-1", vec![0.1, 0.2, 0.3], "body");
+        record.section_id = Some("section-1".to_string());
+        record.page = Some(7);
+        record.offset_start = Some(10);
+        record.offset_end = Some(14);
+
+        let scored = ScoredChunk::from(&record);
+
+        assert_eq!(scored.chunk_id, "chunk-1");
+        assert_eq!(scored.document_id, "doc-1");
+        assert_eq!(scored.chunk_id_typed.as_ref(), "chunk-1");
+        assert_eq!(scored.document_id_typed.as_ref(), "doc-1");
+        assert_eq!(scored.display_name, "doc-1.txt");
+        assert_eq!(scored.section_id.as_deref(), Some("section-1"));
+        assert_eq!(scored.text, "body");
+        assert_eq!(scored.page, Some(7));
+        assert_eq!(scored.offset_start, Some(10));
+        assert_eq!(scored.offset_end, Some(14));
+        assert_eq!(scored.score, 0.0);
+    }
+
+    #[test]
+    fn test_scored_chunk_typed_ids_render_as_strings() {
+        let record = candidate("chunk-typed", vec![0.2, 0.1], "typed");
+        let scored = ScoredChunk::from(&record);
+
+        assert_eq!(scored.chunk_id_typed.to_string(), scored.chunk_id);
+        assert_eq!(scored.document_id_typed.to_string(), scored.document_id);
     }
 
     #[test]

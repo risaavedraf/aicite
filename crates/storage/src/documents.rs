@@ -89,7 +89,7 @@ fn row_to_document(row: &Row<'_>) -> Result<Document, CiteError> {
     };
 
     Ok(Document {
-        document_id,
+        document_id: document_id.into(),
         display_name,
         file_path: PathBuf::from(file_path_str),
         file_type: parse_file_type(&file_type_str)?,
@@ -158,7 +158,7 @@ impl Database {
                     created_at, updated_at
                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
                 params![
-                    doc.document_id,
+                    doc.document_id.as_ref(),
                     doc.display_name,
                     doc.file_path.to_string_lossy().as_ref(),
                     file_type_to_str(&doc.file_type),
@@ -542,7 +542,7 @@ mod tests {
 
     fn make_doc(id: &str) -> Document {
         Document {
-            document_id: id.to_string(),
+            document_id: id.to_string().into(),
             display_name: format!("{id}.txt"),
             file_path: PathBuf::from(format!("/docs/{id}.txt")),
             file_type: FileType::Txt,
@@ -565,7 +565,7 @@ mod tests {
         db.insert_document(&doc).unwrap();
 
         let fetched = db.get_document("doc-1").unwrap().expect("document missing");
-        assert_eq!(fetched.document_id, "doc-1");
+        assert_eq!(fetched.document_id, "doc-1".into());
         assert_eq!(fetched.display_name, "doc-1.txt");
         assert_eq!(fetched.file_type, FileType::Txt);
         assert_eq!(fetched.status, DocumentStatus::Pending);
@@ -609,7 +609,7 @@ mod tests {
 
         let processing_docs = db.list_processing_documents().unwrap();
         assert_eq!(processing_docs.len(), 1);
-        assert_eq!(processing_docs[0].document_id, "processing");
+        assert_eq!(processing_docs[0].document_id, "processing".into());
     }
 
     #[test]
@@ -697,7 +697,7 @@ mod tests {
 
         let next = Utc::now();
         let doc = Document {
-            document_id: "full-doc".to_string(),
+            document_id: "full-doc".to_string().into(),
             display_name: "full.pdf".to_string(),
             file_path: PathBuf::from("/tmp/full.pdf"),
             file_type: FileType::Pdf,

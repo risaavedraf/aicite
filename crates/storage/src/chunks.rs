@@ -15,7 +15,7 @@ impl Database {
         let tx = self.conn.unchecked_transaction().map_err(storage_err)?;
 
         for chunk in chunks {
-            if chunk.document_id != document_id {
+            if chunk.document_id.as_ref() != document_id {
                 return Err(CiteError::StorageError {
                     message: format!(
                         "Chunk {} belongs to document {}, expected {}",
@@ -30,8 +30,8 @@ impl Database {
                     text, page, offset_start, offset_end, created_at
                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
-                    chunk.chunk_id,
-                    chunk.document_id,
+                    chunk.chunk_id.as_ref(),
+                    chunk.document_id.as_ref(),
                     chunk.section_id,
                     chunk.chunk_index as i64,
                     chunk.text,
@@ -91,7 +91,7 @@ mod tests {
 
     fn insert_parent_doc(db: &Database, id: &str) {
         let doc = Document {
-            document_id: id.to_string(),
+            document_id: id.to_string().into(),
             display_name: format!("{id}.txt"),
             file_path: PathBuf::from(format!("/docs/{id}.txt")),
             file_type: FileType::Txt,
@@ -110,8 +110,8 @@ mod tests {
 
     fn make_chunk(id: &str, doc_id: &str, index: u32, text: &str) -> Chunk {
         Chunk {
-            chunk_id: id.to_string(),
-            document_id: doc_id.to_string(),
+            chunk_id: id.to_string().into(),
+            document_id: doc_id.to_string().into(),
             section_id: None,
             chunk_index: index,
             text: text.to_string(),
@@ -152,8 +152,8 @@ mod tests {
         insert_parent_doc(&db, "doc-1");
 
         let chunk = Chunk {
-            chunk_id: "full-c".to_string(),
-            document_id: "doc-1".to_string(),
+            chunk_id: "full-c".to_string().into(),
+            document_id: "doc-1".to_string().into(),
             section_id: Some("sec-A".to_string()),
             chunk_index: 5,
             text: "hello world".to_string(),

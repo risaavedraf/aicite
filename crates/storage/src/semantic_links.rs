@@ -109,7 +109,7 @@ mod tests {
     fn setup_two_docs_with_chunks(db: &Database) {
         for doc_id in &["doc-1", "doc-2"] {
             let doc = Document {
-                document_id: doc_id.to_string(),
+                document_id: (*doc_id).into(),
                 display_name: format!("{doc_id}.txt"),
                 file_path: PathBuf::from(format!("/docs/{doc_id}.txt")),
                 file_type: FileType::Txt,
@@ -128,8 +128,8 @@ mod tests {
 
         let chunks = [
             Chunk {
-                chunk_id: "c-a".to_string(),
-                document_id: "doc-1".to_string(),
+                chunk_id: "c-a".into(),
+                document_id: "doc-1".into(),
                 section_id: None,
                 chunk_index: 0,
                 text: "chunk a".to_string(),
@@ -139,8 +139,8 @@ mod tests {
                 created_at: Utc::now(),
             },
             Chunk {
-                chunk_id: "c-b".to_string(),
-                document_id: "doc-2".to_string(),
+                chunk_id: "c-b".into(),
+                document_id: "doc-2".into(),
                 section_id: None,
                 chunk_index: 0,
                 text: "chunk b".to_string(),
@@ -150,8 +150,8 @@ mod tests {
                 created_at: Utc::now(),
             },
             Chunk {
-                chunk_id: "c-c".to_string(),
-                document_id: "doc-2".to_string(),
+                chunk_id: "c-c".into(),
+                document_id: "doc-2".into(),
                 section_id: None,
                 chunk_index: 1,
                 text: "chunk c".to_string(),

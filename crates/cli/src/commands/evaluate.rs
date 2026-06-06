@@ -253,7 +253,7 @@ fn seed_eval_corpus(db: &Database) {
         .map(|c| {
             let vec = provider.embed(&c.text).unwrap();
             (
-                c.chunk_id.clone(),
+                c.chunk_id.to_string(),
                 vec,
                 provider.model_id(),
                 provider.provider_id(),

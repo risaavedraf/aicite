@@ -1,7 +1,8 @@
-use common::CiteError;
-use rusqlite::params;
+use chrono::{DateTime, Utc};
+use common::{ChunkId, CiteError};
+use rusqlite::{params, Row};
 
-use crate::util::storage_err;
+use crate::util::{parse_dt, storage_err};
 use crate::Database;
 
 // ---------------------------------------------------------------------------
@@ -11,11 +12,24 @@ use crate::Database;
 #[derive(Debug, Clone)]
 pub struct SemanticLinkRow {
     pub link_id: String,
-    pub source_chunk_id: String,
-    pub target_chunk_id: String,
+    pub source_chunk_id: ChunkId,
+    pub target_chunk_id: ChunkId,
     pub similarity_score: f64,
     pub link_type: String,
-    pub created_at: String,
+    pub created_at: DateTime<Utc>,
+}
+
+fn row_to_semantic_link(row: &Row<'_>) -> Result<SemanticLinkRow, CiteError> {
+    let created_at: String = row.get(5).map_err(storage_err)?;
+
+    Ok(SemanticLinkRow {
+        link_id: row.get(0).map_err(storage_err)?,
+        source_chunk_id: row.get::<_, String>(1).map_err(storage_err)?.into(),
+        target_chunk_id: row.get::<_, String>(2).map_err(storage_err)?.into(),
+        similarity_score: row.get(3).map_err(storage_err)?,
+        link_type: row.get(4).map_err(storage_err)?,
+        created_at: parse_dt(&created_at)?,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -56,14 +70,7 @@ impl Database {
         let mut result = Vec::new();
 
         while let Some(row) = rows.next().map_err(storage_err)? {
-            result.push(SemanticLinkRow {
-                link_id: row.get(0).map_err(storage_err)?,
-                source_chunk_id: row.get(1).map_err(storage_err)?,
-                target_chunk_id: row.get(2).map_err(storage_err)?,
-                similarity_score: row.get(3).map_err(storage_err)?,
-                link_type: row.get(4).map_err(storage_err)?,
-                created_at: row.get(5).map_err(storage_err)?,
-            });
+            result.push(row_to_semantic_link(row)?);
         }
         Ok(result)
     }
@@ -82,14 +89,7 @@ impl Database {
         let mut result = Vec::new();
 
         while let Some(row) = rows.next().map_err(storage_err)? {
-            result.push(SemanticLinkRow {
-                link_id: row.get(0).map_err(storage_err)?,
-                source_chunk_id: row.get(1).map_err(storage_err)?,
-                target_chunk_id: row.get(2).map_err(storage_err)?,
-                similarity_score: row.get(3).map_err(storage_err)?,
-                link_type: row.get(4).map_err(storage_err)?,
-                created_at: row.get(5).map_err(storage_err)?,
-            });
+            result.push(row_to_semantic_link(row)?);
         }
         Ok(result)
     }
@@ -102,6 +102,7 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::util::format_dt;
     use chrono::Utc;
     use common::types::{Chunk, Document, DocumentStatus, FileType};
     use std::path::PathBuf;
@@ -109,7 +110,7 @@ mod tests {
     fn setup_two_docs_with_chunks(db: &Database) {
         for doc_id in &["doc-1", "doc-2"] {
             let doc = Document {
-                document_id: doc_id.to_string(),
+                document_id: doc_id.to_string().into(),
                 display_name: format!("{doc_id}.txt"),
                 file_path: PathBuf::from(format!("/docs/{doc_id}.txt")),
                 file_type: FileType::Txt,
@@ -128,8 +129,8 @@ mod tests {
 
         let chunks = [
             Chunk {
-                chunk_id: "c-a".to_string(),
-                document_id: "doc-1".to_string(),
+                chunk_id: "c-a".to_string().into(),
+                document_id: "doc-1".to_string().into(),
                 section_id: None,
                 chunk_index: 0,
                 text: "chunk a".to_string(),
@@ -139,8 +140,8 @@ mod tests {
                 created_at: Utc::now(),
             },
             Chunk {
-                chunk_id: "c-b".to_string(),
-                document_id: "doc-2".to_string(),
+                chunk_id: "c-b".to_string().into(),
+                document_id: "doc-2".to_string().into(),
                 section_id: None,
                 chunk_index: 0,
                 text: "chunk b".to_string(),
@@ -150,8 +151,8 @@ mod tests {
                 created_at: Utc::now(),
             },
             Chunk {
-                chunk_id: "c-c".to_string(),
-                document_id: "doc-2".to_string(),
+                chunk_id: "c-c".to_string().into(),
+                document_id: "doc-2".to_string().into(),
                 section_id: None,
                 chunk_index: 1,
                 text: "chunk c".to_string(),
@@ -180,6 +181,8 @@ mod tests {
         assert_eq!(links.len(), 2);
         // Should be ordered by similarity_score DESC
         assert_eq!(links[0].link_id, "l1");
+        assert_eq!(links[0].source_chunk_id.as_ref(), "c-a");
+        assert_eq!(links[0].target_chunk_id.as_ref(), "c-b");
         assert_eq!(links[0].similarity_score, 0.85);
         assert_eq!(links[1].link_id, "l2");
         assert_eq!(links[1].similarity_score, 0.72);
@@ -208,9 +211,71 @@ mod tests {
         assert_eq!(links.len(), 2);
         // Ordered by similarity_score DESC
         assert_eq!(links[0].link_id, "l1");
+        assert_eq!(links[0].source_chunk_id.as_ref(), "c-a");
+        assert_eq!(links[0].target_chunk_id.as_ref(), "c-b");
         assert_eq!(links[0].link_type, "semantic");
         assert_eq!(links[1].link_id, "l2");
         assert_eq!(links[1].link_type, "citation");
+    }
+
+    #[test]
+    fn test_semantic_link_row_decodes_chunk_ids_as_typed_ids_and_preserves_storage_strings() {
+        let db = Database::open_memory().unwrap();
+        setup_two_docs_with_chunks(&db);
+
+        db.insert_semantic_link("l-typed", "c-a", "c-b", 0.91, "semantic")
+            .unwrap();
+
+        let link = db.get_links_from("c-a").unwrap().remove(0);
+        let (stored_source_chunk_id, stored_target_chunk_id): (String, String) = db
+            .conn()
+            .query_row(
+                "SELECT source_chunk_id, target_chunk_id FROM semantic_links WHERE link_id = 'l-typed'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+
+        assert_eq!(link.source_chunk_id.as_ref(), "c-a");
+        assert_eq!(link.target_chunk_id.as_ref(), "c-b");
+        assert_eq!(stored_source_chunk_id, link.source_chunk_id.as_ref());
+        assert_eq!(stored_target_chunk_id, link.target_chunk_id.as_ref());
+    }
+
+    #[test]
+    fn test_semantic_link_row_decodes_created_at_as_datetime() {
+        let db = Database::open_memory().unwrap();
+        setup_two_docs_with_chunks(&db);
+
+        db.insert_semantic_link("l-time", "c-a", "c-b", 0.91, "semantic")
+            .unwrap();
+        db.conn()
+            .execute(
+                "UPDATE semantic_links SET created_at = '2026-06-05 12:34:56' WHERE link_id = 'l-time'",
+                [],
+            )
+            .unwrap();
+
+        let link = db.get_links_from("c-a").unwrap().remove(0);
+        assert_eq!(format_dt(&link.created_at), "2026-06-05 12:34:56");
+    }
+
+    #[test]
+    fn test_semantic_link_row_rejects_invalid_created_at() {
+        let db = Database::open_memory().unwrap();
+        setup_two_docs_with_chunks(&db);
+
+        db.insert_semantic_link("l-bad-time", "c-a", "c-b", 0.91, "semantic")
+            .unwrap();
+        db.conn()
+            .execute(
+                "UPDATE semantic_links SET created_at = 'not-a-timestamp' WHERE link_id = 'l-bad-time'",
+                [],
+            )
+            .unwrap();
+
+        let err = db.get_links_from("c-a").unwrap_err();
+        assert!(err.to_string().contains("Failed to parse datetime"));
     }
 
     #[test]

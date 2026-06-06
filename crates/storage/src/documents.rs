@@ -77,8 +77,19 @@ fn row_to_document(row: &Row<'_>) -> Result<Document, CiteError> {
     let error_message: Option<String> = row.get("error_message").map_err(storage_err)?;
     let created_at_str: String = row.get("created_at").map_err(storage_err)?;
     let updated_at_str: String = row.get("updated_at").map_err(storage_err)?;
+    let source_hash: Option<String> = row.get("source_hash").map_err(storage_err)?;
+    let ingested_at_str: Option<String> = row.get("ingested_at").map_err(storage_err)?;
+    let file_modified_at_str: Option<String> = row.get("file_modified_at").map_err(storage_err)?;
 
     let next_retry_at = match next_retry_at_str {
+        Some(s) => Some(parse_dt(&s)?),
+        None => None,
+    };
+    let ingested_at = match ingested_at_str {
+        Some(s) => Some(parse_dt(&s)?),
+        None => None,
+    };
+    let file_modified_at = match file_modified_at_str {
         Some(s) => Some(parse_dt(&s)?),
         None => None,
     };
@@ -102,6 +113,9 @@ fn row_to_document(row: &Row<'_>) -> Result<Document, CiteError> {
         error,
         created_at: parse_dt(&created_at_str)?,
         updated_at: parse_dt(&updated_at_str)?,
+        source_hash,
+        ingested_at,
+        file_modified_at,
     })
 }
 
@@ -145,6 +159,9 @@ impl Database {
     ///     error: None,
     ///     created_at: Utc::now(),
     ///     updated_at: Utc::now(),
+    ///     source_hash: None,
+    ///     ingested_at: None,
+    ///     file_modified_at: None,
     /// };
     /// db.insert_document(&doc).unwrap();
     /// ```
@@ -155,8 +172,8 @@ impl Database {
                     document_id, display_name, file_path, file_type, file_size_bytes,
                     status, chunk_count, retry_count, max_retry_count,
                     next_retry_at, error_code, error_message,
-                    created_at, updated_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                    created_at, updated_at, source_hash, ingested_at, file_modified_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
                 params![
                     doc.document_id.as_ref(),
                     doc.display_name,
@@ -172,6 +189,9 @@ impl Database {
                     doc.error.as_ref().map(|e| e.message.as_str()),
                     format_dt(&doc.created_at),
                     format_dt(&doc.updated_at),
+                    doc.source_hash.as_deref(),
+                    doc.ingested_at.as_ref().map(format_dt),
+                    doc.file_modified_at.as_ref().map(format_dt),
                 ],
             )
             .map_err(storage_err)?;
@@ -555,6 +575,9 @@ mod tests {
             error: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            source_hash: None,
+            ingested_at: None,
+            file_modified_at: None,
         }
     }
 
@@ -574,6 +597,30 @@ mod tests {
         assert_eq!(fetched.max_retry_count, 3);
         assert!(fetched.error.is_none());
         assert!(fetched.next_retry_at.is_none());
+        assert!(fetched.source_hash.is_none());
+        assert!(fetched.ingested_at.is_none());
+        assert!(fetched.file_modified_at.is_none());
+    }
+
+    #[test]
+    fn test_insert_and_get_document_lifecycle_fields() {
+        let db = Database::open_memory().unwrap();
+        let mut doc = make_doc("doc-life");
+        let ingested_at = Utc::now();
+        let file_modified_at = Utc::now();
+        doc.source_hash = Some("sha256:abc".to_string());
+        doc.ingested_at = Some(ingested_at);
+        doc.file_modified_at = Some(file_modified_at);
+
+        db.insert_document(&doc).unwrap();
+
+        let fetched = db
+            .get_document("doc-life")
+            .unwrap()
+            .expect("document missing");
+        assert_eq!(fetched.source_hash.as_deref(), Some("sha256:abc"));
+        assert!(fetched.ingested_at.is_some());
+        assert!(fetched.file_modified_at.is_some());
     }
 
     #[test]
@@ -713,6 +760,9 @@ mod tests {
             }),
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            source_hash: None,
+            ingested_at: None,
+            file_modified_at: None,
         };
         db.insert_document(&doc).unwrap();
 

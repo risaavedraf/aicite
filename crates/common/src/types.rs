@@ -262,6 +262,7 @@ pub struct ErrorInfo {
 /// - **Identity**: `document_id`, `display_name`, `file_path`, `file_type`, `file_size_bytes`
 /// - **Pipeline state**: `status`, `chunk_count`, retry tracking, `error`
 /// - **Timestamps**: `created_at`, `updated_at`
+/// - **Lifecycle**: `source_hash`, `ingested_at`, `file_modified_at`
 ///
 /// > **Note on sub-structs**: The fields are intentionally kept flat because
 /// > splitting into nested structs (e.g. `DocumentIdentity`) would require
@@ -289,6 +290,9 @@ pub struct ErrorInfo {
 ///     error: None,
 ///     created_at: Utc::now(),
 ///     updated_at: Utc::now(),
+///     source_hash: None,
+///     ingested_at: None,
+///     file_modified_at: None,
 /// };
 /// assert_eq!(doc.status, DocumentStatus::Pending);
 /// ```
@@ -320,6 +324,12 @@ pub struct Document {
     pub created_at: DateTime<Utc>,
     /// Timestamp of the most recent status change.
     pub updated_at: DateTime<Utc>,
+    /// Hash of source file contents observed at ingest time.
+    pub source_hash: Option<String>,
+    /// Timestamp when Cite last processed the source content.
+    pub ingested_at: Option<DateTime<Utc>>,
+    /// Source file modification time observed during ingest, when available.
+    pub file_modified_at: Option<DateTime<Utc>>,
 }
 
 /// Text chunk extracted from a document during ingestion.

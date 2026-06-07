@@ -89,6 +89,15 @@ pub struct RetrievalScopeArgs<'a> {
     pub concept_filter: Option<&'a str>,
 }
 
+/// Parse shared chunk-local tag filters for search, retrieve, and context.
+pub fn parse_retrieval_tag_filters(
+    tags: &[String],
+) -> Result<Vec<storage::tags::TagFilter>, common::CiteError> {
+    tags.iter()
+        .map(|tag| storage::tags::TagFilter::parse(tag))
+        .collect()
+}
+
 /// Validate shared retrieval-scope flags for search, retrieve, and context commands.
 pub fn validate_retrieval_scope<'a>(
     flat: bool,
@@ -220,6 +229,22 @@ mod tests {
         assert_eq!(scope.hierarchy_override, None);
         assert_eq!(scope.topic_filter, Some("security"));
         assert_eq!(scope.concept_filter, None);
+    }
+
+    #[test]
+    fn parse_retrieval_tag_filters_accepts_exact_and_key_only_filters() {
+        let filters = parse_retrieval_tag_filters(&["type:rfc".into(), "status".into()]).unwrap();
+        assert_eq!(filters.len(), 2);
+        assert_eq!(filters[0].key, "type");
+        assert_eq!(filters[0].value.as_deref(), Some("rfc"));
+        assert_eq!(filters[1].key, "status");
+        assert_eq!(filters[1].value, None);
+    }
+
+    #[test]
+    fn parse_retrieval_tag_filters_rejects_malformed_filters() {
+        let err = parse_retrieval_tag_filters(&["type:".into()]).unwrap_err();
+        assert_eq!(err.exit_code(), ExitCode::Validation);
     }
 
     #[test]

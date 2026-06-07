@@ -4,7 +4,9 @@ use config::Config;
 use engine::retrieve;
 use serde::Serialize;
 
-use super::{exit_for_error, validate_retrieval_scope, CommandContext};
+use super::{
+    exit_for_error, parse_retrieval_tag_filters, validate_retrieval_scope, CommandContext,
+};
 use crate::output::{print_json, to_compact_retrieve};
 
 #[derive(Args)]
@@ -27,6 +29,10 @@ pub struct RetrieveArgs {
     /// Filter results to a specific concept by name or ID
     #[arg(long)]
     pub concept: Option<String>,
+
+    /// Filter results by chunk-local tag. May be repeated; filters use AND semantics.
+    #[arg(long = "tag")]
+    pub tags: Vec<String>,
 
     /// Return full JSON response (default: compact when --json is used)
     #[arg(long)]
@@ -67,6 +73,10 @@ pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
             Ok(scope) => scope,
             Err(e) => return exit_for_error(&e, json),
         };
+    let tag_filters = match parse_retrieval_tag_filters(&args.tags) {
+        Ok(filters) => filters,
+        Err(e) => return exit_for_error(&e, json),
+    };
 
     let ctx = match CommandContext::open(config, json) {
         Ok(ctx) => ctx,
@@ -83,7 +93,7 @@ pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
         retrieval_config.use_hierarchy = use_hierarchy;
     }
 
-    match retrieve::retrieve(
+    match retrieve::retrieve_with_tags(
         db,
         provider,
         &retrieval_config,
@@ -92,6 +102,7 @@ pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
         args.k,
         scope.topic_filter,
         scope.concept_filter,
+        &tag_filters,
     ) {
         Ok(hits) => {
             if json {
@@ -143,5 +154,27 @@ pub fn execute(args: &RetrieveArgs, config: &Config, json: bool) -> i32 {
             ExitCode::Success as i32
         }
         Err(e) => exit_for_error(&e, json),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use common::ExitCode;
+
+    #[test]
+    fn retrieve_args_reject_malformed_tag_filters_through_shared_parser() {
+        let args = RetrieveArgs {
+            query: "jwt".into(),
+            k: None,
+            flat: false,
+            topic: None,
+            concept: None,
+            tags: vec!["status:".into()],
+            full: false,
+        };
+
+        let err = parse_retrieval_tag_filters(&args.tags).unwrap_err();
+        assert_eq!(err.exit_code(), ExitCode::Validation);
     }
 }

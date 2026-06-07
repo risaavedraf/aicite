@@ -3,7 +3,7 @@ use config::{RateLimitConfig, RetrievalConfig};
 use providers::EmbeddingProvider;
 use retrieval::{rank_by_similarity, ScoredChunk};
 use std::collections::HashMap;
-use storage::Database;
+use storage::{tags::TagFilter, Database};
 
 const MAX_QUERY_CHARS: usize = 4000;
 const MIN_K: u32 = 1;
@@ -26,6 +26,7 @@ pub struct RetrievalRequest<'a> {
     pub k_override: Option<u32>,
     pub topic_filter: Option<&'a str>,
     pub concept_filter: Option<&'a str>,
+    pub tag_filters: &'a [TagFilter],
 }
 
 // ---------------------------------------------------------------------------
@@ -115,6 +116,7 @@ pub(crate) fn fetch_candidates(
     config: &RetrievalConfig,
     topic_filter: Option<&str>,
     concept_filter: Option<&str>,
+    tag_filters: &[TagFilter],
 ) -> Result<
     (
         Vec<storage::embeddings::ChunkEmbeddingRecord>,
@@ -125,7 +127,11 @@ pub(crate) fn fetch_candidates(
     let use_hierarchy = config.use_hierarchy && db.has_hierarchy_data().unwrap_or(false);
 
     if use_hierarchy {
-        let hier = db.list_chunk_embeddings_hierarchical(topic_filter, concept_filter)?;
+        let hier = db.list_chunk_embeddings_hierarchical_by_tags(
+            topic_filter,
+            concept_filter,
+            tag_filters,
+        )?;
         let meta: HierarchyMeta = hier
             .iter()
             .map(|h| {
@@ -150,7 +156,7 @@ pub(crate) fn fetch_candidates(
         if topic_filter.is_some() || concept_filter.is_some() {
             return Ok((Vec::new(), None));
         }
-        Ok((db.list_ready_chunk_embeddings()?, None))
+        Ok((db.list_ready_chunk_embeddings_by_tags(tag_filters)?, None))
     }
 }
 
@@ -168,8 +174,13 @@ pub fn ranked_candidates(
     validate_query(req.query)?;
     enforce_rate_limit(req.db, req.provider, req.rate_limit, route)?;
     let query_vector = req.provider.embed(req.query)?;
-    let (candidates, hierarchy_meta) =
-        fetch_candidates(req.db, req.config, req.topic_filter, req.concept_filter)?;
+    let (candidates, hierarchy_meta) = fetch_candidates(
+        req.db,
+        req.config,
+        req.topic_filter,
+        req.concept_filter,
+        req.tag_filters,
+    )?;
     let ranked = rank_by_similarity(&query_vector, &candidates, k as usize);
     Ok(if let Some(ref meta) = hierarchy_meta {
         enrich_with_hierarchy(ranked, meta)
@@ -233,6 +244,31 @@ pub fn search(
     topic_filter: Option<&str>,
     concept_filter: Option<&str>,
 ) -> Result<Vec<Hit>, CiteError> {
+    search_with_tags(
+        db,
+        provider,
+        config,
+        rate_limit,
+        query,
+        k_override,
+        topic_filter,
+        concept_filter,
+        &[],
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn search_with_tags(
+    db: &Database,
+    provider: &dyn EmbeddingProvider,
+    config: &RetrievalConfig,
+    rate_limit: &RateLimitConfig,
+    query: &str,
+    k_override: Option<u32>,
+    topic_filter: Option<&str>,
+    concept_filter: Option<&str>,
+    tag_filters: &[TagFilter],
+) -> Result<Vec<Hit>, CiteError> {
     let req = RetrievalRequest {
         db,
         provider,
@@ -242,6 +278,7 @@ pub fn search(
         k_override,
         topic_filter,
         concept_filter,
+        tag_filters,
     };
     let ranked = ranked_candidates(&req, SEARCH_ROUTE)?;
     Ok(ranked.into_iter().map(Hit::from_scored_chunk).collect())
@@ -258,6 +295,31 @@ pub fn retrieve(
     topic_filter: Option<&str>,
     concept_filter: Option<&str>,
 ) -> Result<Vec<Hit>, CiteError> {
+    retrieve_with_tags(
+        db,
+        provider,
+        config,
+        rate_limit,
+        query,
+        k_override,
+        topic_filter,
+        concept_filter,
+        &[],
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn retrieve_with_tags(
+    db: &Database,
+    provider: &dyn EmbeddingProvider,
+    config: &RetrievalConfig,
+    rate_limit: &RateLimitConfig,
+    query: &str,
+    k_override: Option<u32>,
+    topic_filter: Option<&str>,
+    concept_filter: Option<&str>,
+    tag_filters: &[TagFilter],
+) -> Result<Vec<Hit>, CiteError> {
     let req = RetrievalRequest {
         db,
         provider,
@@ -267,6 +329,7 @@ pub fn retrieve(
         k_override,
         topic_filter,
         concept_filter,
+        tag_filters,
     };
     let ranked = ranked_candidates(&req, RETRIEVE_ROUTE)?;
     Ok(ranked.into_iter().map(Hit::from_scored_chunk).collect())
@@ -375,6 +438,7 @@ mod tests {
     use chrono::Utc;
     use common::types::{Chunk, Document, DocumentStatus, FileType};
     use config::RateLimitConfig;
+    use storage::tags::{TagEntityType, TagRecord};
 
     struct FakeProvider {
         vector: Vec<f32>,
@@ -968,5 +1032,199 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].chunk_id.as_ref(), "c-jwt-0");
         assert_eq!(results[0].concept_name.as_deref(), Some("JWT Tokens"));
+    }
+
+    #[test]
+    fn test_search_with_tags_filters_before_ranking_and_uses_and_semantics() {
+        let db = test_db();
+        insert_doc(&db, "doc-tags", DocumentStatus::Ready);
+        insert_chunk_with_embedding(&db, "doc-tags", "c-best", "best match", vec![1.0, 0.0]);
+        insert_chunk_with_embedding(&db, "doc-tags", "c-tagged", "tagged match", vec![0.8, 0.2]);
+        insert_chunk_with_embedding(
+            &db,
+            "doc-tags",
+            "c-wrong-workspace",
+            "wrong workspace",
+            vec![0.9, 0.1],
+        );
+
+        db.set_tag_engine(
+            TagEntityType::Chunk,
+            "c-tagged",
+            &TagRecord::new("type", "rfc").unwrap(),
+        )
+        .unwrap();
+        db.set_tag_engine(
+            TagEntityType::Chunk,
+            "c-tagged",
+            &TagRecord::new("workspace", "core").unwrap(),
+        )
+        .unwrap();
+        db.set_tag_engine(
+            TagEntityType::Chunk,
+            "c-wrong-workspace",
+            &TagRecord::new("type", "rfc").unwrap(),
+        )
+        .unwrap();
+        db.set_tag_engine(
+            TagEntityType::Chunk,
+            "c-wrong-workspace",
+            &TagRecord::new("workspace", "docs").unwrap(),
+        )
+        .unwrap();
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let cfg = RetrievalConfig {
+            top_k: 5,
+            evidence_floor: 0.3,
+            confidence_threshold: 0.5,
+            use_hierarchy: true,
+        };
+        let filters = vec![
+            TagFilter::parse("type:rfc").unwrap(),
+            TagFilter::parse("workspace:core").unwrap(),
+        ];
+
+        let results = search_with_tags(
+            &db,
+            &provider,
+            &cfg,
+            &rl_cfg(),
+            "query",
+            None,
+            None,
+            None,
+            &filters,
+        )
+        .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].chunk_id.as_ref(), "c-tagged");
+    }
+
+    #[test]
+    fn test_retrieve_status_changed_is_chunk_local_only() {
+        let db = test_db();
+        insert_doc(&db, "doc-status", DocumentStatus::Ready);
+        insert_chunk_with_embedding(
+            &db,
+            "doc-status",
+            "c-unchanged",
+            "unchanged",
+            vec![1.0, 0.0],
+        );
+        insert_chunk_with_embedding(&db, "doc-status", "c-changed", "changed", vec![0.9, 0.1]);
+
+        db.set_tag_engine(
+            TagEntityType::Document,
+            "doc-status",
+            &TagRecord::new("status", "implemented").unwrap(),
+        )
+        .unwrap();
+        db.set_tag_engine(
+            TagEntityType::Chunk,
+            "c-changed",
+            &TagRecord::new("status", "changed").unwrap(),
+        )
+        .unwrap();
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let cfg = RetrievalConfig {
+            top_k: 5,
+            evidence_floor: 0.3,
+            confidence_threshold: 0.5,
+            use_hierarchy: true,
+        };
+
+        let changed = retrieve_with_tags(
+            &db,
+            &provider,
+            &cfg,
+            &rl_cfg(),
+            "query",
+            None,
+            None,
+            None,
+            &[TagFilter::parse("status:changed").unwrap()],
+        )
+        .unwrap();
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed[0].chunk_id.as_ref(), "c-changed");
+
+        let doc_status = retrieve_with_tags(
+            &db,
+            &provider,
+            &cfg,
+            &rl_cfg(),
+            "query",
+            None,
+            None,
+            None,
+            &[TagFilter::parse("status:implemented").unwrap()],
+        )
+        .unwrap();
+        assert!(doc_status.is_empty());
+    }
+
+    #[test]
+    fn test_search_combines_legacy_topic_filter_with_tag_filter() {
+        let db = test_db();
+        insert_doc(&db, "doc-mixed", DocumentStatus::Ready);
+        insert_chunk_with_embedding(&db, "doc-mixed", "c-auth-rfc", "auth rfc", vec![1.0, 0.0]);
+        insert_chunk_with_embedding(&db, "doc-mixed", "c-auth-spec", "auth spec", vec![0.9, 0.1]);
+        insert_chunk_with_embedding(&db, "doc-mixed", "c-log-rfc", "log rfc", vec![0.8, 0.2]);
+
+        db.insert_topic("t-auth", "doc-mixed", "Authentication", None)
+            .unwrap();
+        db.insert_topic("t-log", "doc-mixed", "Logging", None)
+            .unwrap();
+        db.set_chunk_hierarchy("c-auth-rfc", "t-auth", None)
+            .unwrap();
+        db.set_chunk_hierarchy("c-auth-spec", "t-auth", None)
+            .unwrap();
+        db.set_chunk_hierarchy("c-log-rfc", "t-log", None).unwrap();
+        for chunk_id in ["c-auth-rfc", "c-log-rfc"] {
+            db.set_tag_engine(
+                TagEntityType::Chunk,
+                chunk_id,
+                &TagRecord::new("type", "rfc").unwrap(),
+            )
+            .unwrap();
+        }
+        db.set_tag_engine(
+            TagEntityType::Chunk,
+            "c-auth-spec",
+            &TagRecord::new("type", "spec").unwrap(),
+        )
+        .unwrap();
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let cfg = RetrievalConfig {
+            top_k: 5,
+            evidence_floor: 0.3,
+            confidence_threshold: 0.5,
+            use_hierarchy: true,
+        };
+
+        let results = search_with_tags(
+            &db,
+            &provider,
+            &cfg,
+            &rl_cfg(),
+            "query",
+            None,
+            Some("Authentication"),
+            None,
+            &[TagFilter::parse("type:rfc").unwrap()],
+        )
+        .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].chunk_id.as_ref(), "c-auth-rfc");
+        assert_eq!(results[0].topic_name.as_deref(), Some("Authentication"));
     }
 }

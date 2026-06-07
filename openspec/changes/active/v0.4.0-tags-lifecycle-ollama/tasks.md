@@ -78,18 +78,18 @@ GitHub issue: https://github.com/risaavedraf/aicite/issues/30
 
 ### RED
 
-- [ ] Add tests in `crates/storage/src/embeddings.rs`, `crates/engine/src/retrieve.rs`, `crates/engine/src/context.rs`, and CLI command modules `search.rs`, `retrieve.rs`, `context.rs` for exact tag filtering, multiple-filter AND semantics, `status` chunk-local behavior, sibling non-inheritance, pre-ranking exclusion, and legacy `--topic`/`--concept` regression behavior.
+- [x] Add tests in `crates/storage/src/embeddings.rs`, `crates/engine/src/retrieve.rs`, `crates/engine/src/context.rs`, and CLI command modules `search.rs`, `retrieve.rs`, `context.rs` for exact tag filtering, multiple-filter AND semantics, `status` chunk-local behavior, sibling non-inheritance, pre-ranking exclusion, and legacy `--topic`/`--concept` regression behavior.
 
 ### GREEN
 
-- [ ] Add shared retrieval tag filter parsing/validation in `crates/cli/src/commands/mod.rs` or a concrete helper module under `crates/cli/src/commands/`.
-- [ ] Add `--tag` args to `crates/cli/src/commands/search.rs`, `retrieve.rs`, and `context.rs` and pass parsed filters into engine requests.
-- [ ] Extend retrieval request/data flow in `crates/engine/src/retrieve.rs` and `crates/engine/src/context.rs` with `tag_filters`.
-- [ ] Update candidate SQL in `crates/storage/src/embeddings.rs` to append bound chunk-local tag `EXISTS` clauses without string-interpolating user values.
+- [x] Add shared retrieval tag filter parsing/validation in `crates/cli/src/commands/mod.rs` or a concrete helper module under `crates/cli/src/commands/`.
+- [x] Add `--tag` args to `crates/cli/src/commands/search.rs`, `retrieve.rs`, and `context.rs` and pass parsed filters into engine requests.
+- [x] Extend retrieval request/data flow in `crates/engine/src/retrieve.rs` and `crates/engine/src/context.rs` with `tag_filters`.
+- [x] Update candidate SQL in `crates/storage/src/embeddings.rs` to append bound chunk-local tag `EXISTS` clauses without string-interpolating user values.
 
 ### VERIFY / REFACTOR
 
-- [ ] Run focused retrieval tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+- [x] Run focused retrieval tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
 
 ## PR 4 — Ingest lifecycle skip + auto-tags
 

@@ -43,7 +43,9 @@ enum Commands {
     /// Ingest a document into the corpus
     Ingest(commands::ingest::IngestArgs),
     /// List documents in the corpus
-    List,
+    List(commands::list::ListArgs),
+    /// Manage local document and chunk tags
+    Tag(commands::tag::TagArgs),
     /// Get document metadata
     Get(commands::get::GetArgs),
     /// Retry a failed document
@@ -115,7 +117,8 @@ fn main() {
         }
         Commands::Setup(args) => commands::setup::execute(&args, &config, cli.json),
         Commands::Ingest(args) => commands::ingest::execute(&args, &config, cli.json),
-        Commands::List => commands::list::execute(&config, cli.json),
+        Commands::List(args) => commands::list::execute(&args, &config, cli.json),
+        Commands::Tag(args) => commands::tag::execute(&args, &config, cli.json),
         Commands::Get(args) => commands::get::execute(&args, &config, cli.json),
         Commands::Retry(args) => commands::retry::execute(&args, &config, cli.json),
         Commands::Search(args) => commands::search::execute(&args, &config, cli.json),

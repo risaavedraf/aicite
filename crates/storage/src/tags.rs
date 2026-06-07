@@ -65,12 +65,16 @@ pub struct TagFilter {
 
 impl TagFilter {
     pub fn parse(input: &str) -> Result<Self, CiteError> {
-        let trimmed = input.trim();
-        if trimmed.is_empty() {
+        if input.trim().is_empty() {
             return Err(invalid_tag("Tag filter key cannot be empty"));
         }
+        if input.trim() != input {
+            return Err(invalid_tag(
+                "Tag filter cannot contain leading or trailing whitespace",
+            ));
+        }
 
-        match trimmed.split_once(':') {
+        match input.split_once(':') {
             Some((key, value)) => {
                 let tag = TagRecord::new(key, value)?;
                 Ok(Self {
@@ -79,9 +83,9 @@ impl TagFilter {
                 })
             }
             None => {
-                validate_component("key", trimmed)?;
+                validate_component("key", input)?;
                 Ok(Self {
-                    key: trimmed.to_string(),
+                    key: input.to_string(),
                     value: None,
                 })
             }

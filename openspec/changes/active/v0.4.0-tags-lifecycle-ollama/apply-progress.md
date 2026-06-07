@@ -277,3 +277,97 @@ Exact unchecked task lines remaining in `tasks.md` after PR 2:
 - Delivery path remains stacked-to-main.
 - Current PR boundary should be reviewed as tag CLI + document-local list filtering only.
 - PR 3 should start from this branch after parent review/commit and explicit approval.
+
+## PR 3 update — Retrieval tag filters
+
+### Structured status consumed
+
+- Active change: `v0.4.0-tags-lifecycle-ollama`
+- Apply state: PR 3 explicitly approved by user/parent prompt.
+- Artifact store: `openspec+engram` (Engram memory tools unavailable in this subagent toolset; OpenSpec artifacts updated)
+- Action context: repo-local implementation in `E:/Proyectos/Intento_de_conseguir_pega/aiharness`
+- Allowed edit roots used: `crates/storage/src/embeddings.rs`, `crates/engine/src/retrieve.rs`, `crates/engine/src/context.rs`, `crates/cli/src/commands/search.rs`, `crates/cli/src/commands/retrieve.rs`, `crates/cli/src/commands/context.rs`, `crates/cli/src/commands/mod.rs`, and this OpenSpec change directory.
+- GitHub issue: https://github.com/risaavedraf/aicite/issues/30
+- Branch: `feat/v0.4-tag-cli-list`
+
+### PR boundary
+
+PR 3 only: chunk-local retrieval tag filters for `search`, `retrieve`, and `context`.
+
+Implemented:
+- Shared retrieval tag filter parsing via `parse_retrieval_tag_filters`.
+- `--tag` args for `cite search`, `cite retrieve`, and `cite context`.
+- Engine retrieval/context request data flow carrying `tag_filters`.
+- Storage candidate filtering with one chunk-local `EXISTS` clause per tag filter and bound SQL parameters.
+- Tests for exact tag filtering, multiple-filter AND semantics, chunk-local `status`, no document/sibling inheritance, pre-ranking exclusion, and legacy topic/concept compatibility with tag filters.
+
+Not implemented by design:
+- PR 4+ ingest lifecycle, auto-tags, changed re-ingest replacement, check-docs tags, provider trait/factory, or Ollama.
+- Document tag aggregation for retrieval; retrieval filters remain chunk-local only.
+
+### Completed tasks and persisted checkbox updates
+
+PR 3 checkboxes marked `- [x]` in `openspec/changes/active/v0.4.0-tags-lifecycle-ollama/tasks.md`:
+
+- RED storage/engine/CLI tests for exact tag filtering, AND semantics, status chunk-local behavior, sibling/document non-inheritance, pre-ranking exclusion, and legacy topic/concept regression behavior.
+- GREEN shared retrieval tag filter parsing/validation.
+- GREEN `--tag` args for `search`, `retrieve`, and `context` and engine request wiring.
+- GREEN retrieval/context `tag_filters` data flow.
+- GREEN storage candidate SQL with bound chunk-local tag `EXISTS` clauses.
+- VERIFY focused retrieval tests, `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+
+### Files changed
+
+- `crates/storage/src/embeddings.rs` — adds tag-filtered ready/hierarchical candidate helpers and storage tests.
+- `crates/engine/src/retrieve.rs` — adds `tag_filters` request field, tag-aware search/retrieve entry points, candidate flow, and retrieval tests.
+- `crates/engine/src/context.rs` — adds tag-aware context entry point and context citation test.
+- `crates/cli/src/commands/mod.rs` — adds shared retrieval tag filter parser and parser tests.
+- `crates/cli/src/commands/search.rs` — adds `--tag` arg, parser call, tag-aware engine call, and CLI module test.
+- `crates/cli/src/commands/retrieve.rs` — adds `--tag` arg, parser call, tag-aware engine call, and CLI module test.
+- `crates/cli/src/commands/context.rs` — adds `--tag` arg, parser call, tag-aware engine call, and CLI module test.
+- `crates/cli/src/main.rs` — adds parent hardening tests that parse real repeated `--tag` argv for `search`, `retrieve`, and `context`.
+- `openspec/changes/active/v0.4.0-tags-lifecycle-ollama/tasks.md` — PR 3 checkboxes marked complete.
+- `openspec/changes/active/v0.4.0-tags-lifecycle-ollama/apply-progress.md` — this cumulative PR 3 update.
+
+### Test commands run
+
+- `cargo test -p storage embeddings::tests::test_list_ready_chunk_embeddings_by_tags -- --nocapture` — passed (2 matching storage tests).
+- `cargo test -p engine tag -- --nocapture` — passed (3 matching engine tests; included retrieval tag filters and context tag filtering).
+- `cargo test -p engine retrieve::tests::test_retrieve_status_changed_is_chunk_local_only -- --nocapture` — passed.
+- `cargo test -p cli tag_filters -- --nocapture` — passed (5 matching CLI parser/module tests).
+- `cargo test -p cli parse_retrieval_tag_filters -- --nocapture` — passed (2 matching shared parser tests).
+- `cargo test -p cli parses_repeated_tag_filters_in_order -- --nocapture` — passed (3 parent-added Clap argv parsing tests).
+- `cargo fmt --check` — passed after formatting.
+- `cargo clippy -- -D warnings` — passed.
+- `cargo test` — passed.
+
+Failed/incorrect focused command attempts before correction:
+- `cargo test -p engine retrieve::tests::test_search_with_tags_filters_before_ranking_and_uses_and_semantics retrieve::tests::test_retrieve_status_changed_is_chunk_local_only retrieve::tests::test_search_combines_legacy_topic_filter_with_tag_filter context::tests::test_context_with_tags_returns_only_matching_chunk_citations -- --nocapture` — invalid Cargo test invocation with multiple test name arguments.
+- Initial `cargo fmt --check` failed only on formatting; `cargo fmt` was run and the final `cargo fmt --check` passed.
+
+### Deviations from design/tasks
+
+- No product-scope deviation: PR 3 only was implemented.
+- Existing public `search`, `retrieve`, and `build_context` APIs remain backward-compatible and delegate to new tag-aware variants with empty filters; CLI uses the new tag-aware variants.
+- Key-only tag filters remain accepted through the existing `TagFilter::parse` design, but PR 3 tests emphasize exact `key:value` retrieval behavior.
+- Parent fresh review found no blockers and suggested real Clap argv parsing coverage; parent added those parser-level tests before final validation.
+
+### Remaining tasks
+
+PR 3 is complete. Exact unchecked task lines remaining in `tasks.md` are PR 4+ and final cross-slice verification tasks, starting with:
+
+```text
+- [ ] Add tests in `crates/engine/src/ingest.rs`, `crates/storage/src/documents.rs`, and `crates/storage/src/tags.rs` for `source_hash`, `ingested_at`, `file_modified_at`, source-path lookup, unchanged hash skip, no duplicate active source path, and OpenSpec path auto-tags on both documents and chunks.
+- [ ] Implement `get_document_by_file_path` and lifecycle update helpers in `crates/storage/src/documents.rs` using the same canonical path format that ingest stores.
+- [ ] Compute source hash and file modified time in `crates/engine/src/ingest.rs` before expensive extraction/embedding.
+- [ ] Recheck existing document hash under the existing ingest pipeline lock and return the existing document result without re-chunking/re-embedding when unchanged.
+- [ ] Store lifecycle fields on initial ingest and successful changed ingest.
+- [ ] Add engine-owned auto-tag assignment in `crates/engine/src/ingest.rs` for `source_kind:document`, `workspace:<name>`, and OpenSpec path mappings to `type:prd|spec|architecture|guide|rfc` on documents and chunks; do not propagate `status`.
+- [ ] Run focused ingest/storage tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+```
+
+### Workload / review notes
+
+- Delivery path remains stacked-to-main.
+- Current PR boundary should be reviewed as retrieval tag filters only.
+- PR 4 should start only after parent review/commit and explicit approval.

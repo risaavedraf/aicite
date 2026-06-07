@@ -1,6 +1,7 @@
 use common::{ChunkId, CiteError, DocumentId};
-use rusqlite::params;
+use rusqlite::{params, params_from_iter, ToSql};
 
+use crate::tags::TagFilter;
 use crate::util::storage_err;
 use crate::Database;
 
@@ -92,6 +93,28 @@ fn row_to_chunk_embedding(row: &rusqlite::Row<'_>) -> Result<ChunkEmbeddingRecor
     })
 }
 
+fn append_chunk_tag_filters(
+    sql: &mut String,
+    values: &mut Vec<Box<dyn ToSql>>,
+    tag_filters: &[TagFilter],
+) {
+    for (idx, filter) in tag_filters.iter().enumerate() {
+        sql.push_str(&format!(
+            " AND EXISTS (
+                    SELECT 1 FROM tags tag_filter_{idx}
+                    WHERE tag_filter_{idx}.entity_type = 'chunk'
+                      AND tag_filter_{idx}.entity_id = c.chunk_id
+                      AND tag_filter_{idx}.key = ?"
+        ));
+        values.push(Box::new(filter.key.clone()));
+        if let Some(value) = &filter.value {
+            sql.push_str(&format!(" AND tag_filter_{idx}.value = ?"));
+            values.push(Box::new(value.clone()));
+        }
+        sql.push(')');
+    }
+}
+
 // ---------------------------------------------------------------------------
 // CRUD operations
 // ---------------------------------------------------------------------------
@@ -164,7 +187,19 @@ impl Database {
         topic_filter: Option<&str>,
         concept_filter: Option<&str>,
     ) -> Result<Vec<HierarchicalChunkEmbedding>, CiteError> {
-        let sql = "
+        self.list_chunk_embeddings_hierarchical_by_tags(topic_filter, concept_filter, &[])
+    }
+
+    /// List chunk embeddings enriched with hierarchy metadata and filtered by
+    /// chunk-local tags. Multiple tag filters use AND semantics.
+    pub fn list_chunk_embeddings_hierarchical_by_tags(
+        &self,
+        topic_filter: Option<&str>,
+        concept_filter: Option<&str>,
+        tag_filters: &[TagFilter],
+    ) -> Result<Vec<HierarchicalChunkEmbedding>, CiteError> {
+        let mut sql = String::from(
+            "
             SELECT
                 c.chunk_id,
                 c.document_id,
@@ -185,16 +220,28 @@ impl Database {
             INNER JOIN documents d ON d.document_id = c.document_id
             LEFT JOIN topics t ON t.topic_id = c.topic_id
             LEFT JOIN concepts cp ON cp.concept_id = c.concept_id
-            WHERE d.status = 'ready'
-              AND (?1 IS NULL OR c.topic_id = ?1 OR t.name = ?1)
-              AND (?2 IS NULL OR c.concept_id = ?2 OR cp.name = ?2)
-            ORDER BY d.created_at DESC, c.chunk_index ASC
-        ";
+            WHERE d.status = 'ready'",
+        );
+        let mut values: Vec<Box<dyn ToSql>> = Vec::new();
 
-        let mut stmt = self.conn.prepare(sql).map_err(storage_err)?;
-        let mut rows = stmt
-            .query(rusqlite::params![topic_filter, concept_filter])
-            .map_err(storage_err)?;
+        if let Some(topic) = topic_filter {
+            sql.push_str(" AND (c.topic_id = ? OR t.name = ?)");
+            values.push(Box::new(topic.to_string()));
+            values.push(Box::new(topic.to_string()));
+        }
+
+        if let Some(concept) = concept_filter {
+            sql.push_str(" AND (c.concept_id = ? OR cp.name = ?)");
+            values.push(Box::new(concept.to_string()));
+            values.push(Box::new(concept.to_string()));
+        }
+
+        append_chunk_tag_filters(&mut sql, &mut values, tag_filters);
+        sql.push_str(" ORDER BY d.created_at DESC, c.chunk_index ASC");
+
+        let mut stmt = self.conn.prepare(&sql).map_err(storage_err)?;
+        let params = params_from_iter(values.iter().map(|v| v.as_ref()));
+        let mut rows = stmt.query(params).map_err(storage_err)?;
         let mut out = Vec::new();
 
         while let Some(row) = rows.next().map_err(storage_err)? {
@@ -212,10 +259,17 @@ impl Database {
 
     /// List chunk embeddings for documents with status='ready'.
     pub fn list_ready_chunk_embeddings(&self) -> Result<Vec<ChunkEmbeddingRecord>, CiteError> {
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT
+        self.list_ready_chunk_embeddings_by_tags(&[])
+    }
+
+    /// List ready chunk embeddings filtered by chunk-local tags. Multiple tag
+    /// filters use AND semantics, and user values are always bound parameters.
+    pub fn list_ready_chunk_embeddings_by_tags(
+        &self,
+        tag_filters: &[TagFilter],
+    ) -> Result<Vec<ChunkEmbeddingRecord>, CiteError> {
+        let mut sql = String::from(
+            "SELECT
                     c.chunk_id,
                     c.document_id,
                     d.display_name,
@@ -229,12 +283,15 @@ impl Database {
                  FROM embeddings e
                  INNER JOIN chunks c ON c.chunk_id = e.chunk_id
                  INNER JOIN documents d ON d.document_id = c.document_id
-                 WHERE d.status = 'ready'
-                 ORDER BY d.created_at DESC, c.chunk_index ASC",
-            )
-            .map_err(storage_err)?;
+                 WHERE d.status = 'ready'",
+        );
+        let mut values: Vec<Box<dyn ToSql>> = Vec::new();
+        append_chunk_tag_filters(&mut sql, &mut values, tag_filters);
+        sql.push_str(" ORDER BY d.created_at DESC, c.chunk_index ASC");
 
-        let mut rows = stmt.query([]).map_err(storage_err)?;
+        let mut stmt = self.conn.prepare(&sql).map_err(storage_err)?;
+        let params = params_from_iter(values.iter().map(|v| v.as_ref()));
+        let mut rows = stmt.query(params).map_err(storage_err)?;
         let mut out = Vec::new();
 
         while let Some(row) = rows.next().map_err(storage_err)? {
@@ -252,6 +309,7 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tags::{TagEntityType, TagRecord};
     use chrono::Utc;
     use common::types::{Chunk, Document, DocumentStatus, FileType};
     use std::path::PathBuf;
@@ -459,6 +517,107 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].vector, vec![1.5, 2.5, 3.5]);
         assert_eq!(rows[0].display_name, "doc-ready.txt");
+    }
+
+    #[test]
+    fn test_list_ready_chunk_embeddings_by_tags_uses_chunk_local_exact_and_semantics() {
+        let db = Database::open_memory().unwrap();
+        insert_parent_doc(&db, "doc-tags");
+        db.update_document_status("doc-tags", DocumentStatus::Ready, None)
+            .unwrap();
+        insert_chunks_for_doc(&db, "doc-tags", 3);
+        db.insert_embeddings(&[
+            ("doc-tags-c0".to_string(), vec![1.0], "m", "p"),
+            ("doc-tags-c1".to_string(), vec![1.0], "m", "p"),
+            ("doc-tags-c2".to_string(), vec![1.0], "m", "p"),
+        ])
+        .unwrap();
+
+        db.set_tag_engine(
+            TagEntityType::Chunk,
+            "doc-tags-c0",
+            &TagRecord::new("type", "rfc").unwrap(),
+        )
+        .unwrap();
+        db.set_tag_engine(
+            TagEntityType::Chunk,
+            "doc-tags-c0",
+            &TagRecord::new("workspace", "core").unwrap(),
+        )
+        .unwrap();
+        db.set_tag_engine(
+            TagEntityType::Chunk,
+            "doc-tags-c1",
+            &TagRecord::new("type", "spec").unwrap(),
+        )
+        .unwrap();
+        db.set_tag_engine(
+            TagEntityType::Chunk,
+            "doc-tags-c2",
+            &TagRecord::new("type", "rfc-draft").unwrap(),
+        )
+        .unwrap();
+
+        let exact = db
+            .list_ready_chunk_embeddings_by_tags(&[TagFilter::parse("type:rfc").unwrap()])
+            .unwrap();
+        assert_eq!(exact.len(), 1);
+        assert_eq!(exact[0].chunk_id, "doc-tags-c0");
+
+        let and_filtered = db
+            .list_ready_chunk_embeddings_by_tags(&[
+                TagFilter::parse("type:rfc").unwrap(),
+                TagFilter::parse("workspace:core").unwrap(),
+            ])
+            .unwrap();
+        assert_eq!(and_filtered.len(), 1);
+        assert_eq!(and_filtered[0].chunk_id, "doc-tags-c0");
+
+        let no_match = db
+            .list_ready_chunk_embeddings_by_tags(&[
+                TagFilter::parse("type:rfc").unwrap(),
+                TagFilter::parse("workspace:other").unwrap(),
+            ])
+            .unwrap();
+        assert!(no_match.is_empty());
+    }
+
+    #[test]
+    fn test_list_ready_chunk_embeddings_by_tags_does_not_inherit_document_or_sibling_status() {
+        let db = Database::open_memory().unwrap();
+        insert_parent_doc(&db, "doc-status");
+        db.update_document_status("doc-status", DocumentStatus::Ready, None)
+            .unwrap();
+        insert_chunks_for_doc(&db, "doc-status", 2);
+        db.insert_embeddings(&[
+            ("doc-status-c0".to_string(), vec![1.0], "m", "p"),
+            ("doc-status-c1".to_string(), vec![1.0], "m", "p"),
+        ])
+        .unwrap();
+
+        db.set_tag_engine(
+            TagEntityType::Document,
+            "doc-status",
+            &TagRecord::new("status", "implemented").unwrap(),
+        )
+        .unwrap();
+        db.set_tag_engine(
+            TagEntityType::Chunk,
+            "doc-status-c1",
+            &TagRecord::new("status", "changed").unwrap(),
+        )
+        .unwrap();
+
+        let document_status = db
+            .list_ready_chunk_embeddings_by_tags(&[TagFilter::parse("status:implemented").unwrap()])
+            .unwrap();
+        assert!(document_status.is_empty());
+
+        let changed = db
+            .list_ready_chunk_embeddings_by_tags(&[TagFilter::parse("status:changed").unwrap()])
+            .unwrap();
+        assert_eq!(changed.len(), 1);
+        assert_eq!(changed[0].chunk_id, "doc-status-c1");
     }
 
     #[test]

@@ -275,11 +275,16 @@ fn invalid_tag(message: impl Into<String>) -> CiteError {
 }
 
 fn tag_id(entity_type: TagEntityType, entity_id: &str, tag: &TagRecord) -> String {
+    let entity_type = entity_type.as_str();
     format!(
-        "tag:{}:{}:{}:{}",
-        entity_type.as_str(),
+        "tag:{}:{}:{}:{}:{}:{}:{}:{}",
+        entity_type.len(),
+        entity_type,
+        entity_id.len(),
         entity_id,
+        tag.key.len(),
         tag.key,
+        tag.value.len(),
         tag.value
     )
 }
@@ -357,6 +362,23 @@ mod tests {
         assert_eq!(
             db.list_tags(TagEntityType::Chunk, "same").unwrap(),
             vec![tag("tag:chunk")]
+        );
+    }
+
+    #[test]
+    fn tag_id_distinguishes_colon_containing_components() {
+        let db = Database::open_memory().unwrap();
+        let first = TagRecord::new("b", "c:d").unwrap();
+        let second = TagRecord::new("b:c", "d").unwrap();
+
+        db.set_tag_engine(TagEntityType::Chunk, "a", &first)
+            .unwrap();
+        db.set_tag_engine(TagEntityType::Chunk, "a", &second)
+            .unwrap();
+
+        assert_eq!(
+            db.list_tags(TagEntityType::Chunk, "a").unwrap(),
+            vec![first, second]
         );
     }
 

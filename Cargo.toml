@@ -51,6 +51,7 @@ uuid = { version = "1", features = ["v4"] }
 nanoid = "0.5"
 dotenvy = "0.15"
 dialoguer = "0.12"
+sha2 = "0.10"
 
 [profile.release]
 opt-level = 3

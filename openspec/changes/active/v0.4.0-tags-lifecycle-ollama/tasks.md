@@ -99,19 +99,19 @@ GitHub issue: https://github.com/risaavedraf/aicite/issues/30
 
 ### RED
 
-- [ ] Add tests in `crates/engine/src/ingest.rs`, `crates/storage/src/documents.rs`, and `crates/storage/src/tags.rs` for `source_hash`, `ingested_at`, `file_modified_at`, source-path lookup, unchanged hash skip, no duplicate active source path, and OpenSpec path auto-tags on both documents and chunks.
+- [x] Add tests in `crates/engine/src/ingest.rs`, `crates/storage/src/documents.rs`, and `crates/storage/src/tags.rs` for `source_hash`, `ingested_at`, `file_modified_at`, source-path lookup, unchanged hash skip, no duplicate active source path, and OpenSpec path auto-tags on both documents and chunks.
 
 ### GREEN
 
-- [ ] Implement `get_document_by_file_path` and lifecycle update helpers in `crates/storage/src/documents.rs` using the same canonical path format that ingest stores.
-- [ ] Compute source hash and file modified time in `crates/engine/src/ingest.rs` before expensive extraction/embedding.
-- [ ] Recheck existing document hash under the existing ingest pipeline lock and return the existing document result without re-chunking/re-embedding when unchanged.
-- [ ] Store lifecycle fields on initial ingest and successful changed ingest.
-- [ ] Add engine-owned auto-tag assignment in `crates/engine/src/ingest.rs` for `source_kind:document`, `workspace:<name>`, and OpenSpec path mappings to `type:prd|spec|architecture|guide|rfc` on documents and chunks; do not propagate `status`.
+- [x] Implement `get_document_by_file_path` and lifecycle update helpers in `crates/storage/src/documents.rs` using the same canonical path format that ingest stores.
+- [x] Compute source hash and file modified time in `crates/engine/src/ingest.rs` before expensive extraction/embedding.
+- [x] Recheck existing document hash under the existing ingest pipeline lock and return the existing document result without re-chunking/re-embedding when unchanged.
+- [x] Store lifecycle fields on initial ingest and successful changed ingest.
+- [x] Add engine-owned auto-tag assignment in `crates/engine/src/ingest.rs` for `source_kind:document`, `workspace:<name>`, and OpenSpec path mappings to `type:prd|spec|architecture|guide|rfc` on documents and chunks; do not propagate `status`.
 
 ### VERIFY / REFACTOR
 
-- [ ] Run focused ingest/storage tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+- [x] Run focused ingest/storage tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
 
 ## PR 5 — Changed re-ingest replacement + chunk-local `status:changed`
 

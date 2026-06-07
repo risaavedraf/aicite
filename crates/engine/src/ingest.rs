@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use common::types::{Chunk, Document, DocumentStatus, ErrorInfo};
 use common::CiteError;
 use common::{ChunkId, DocumentId};
@@ -9,12 +9,26 @@ use ingest::chunker::{self};
 use ingest::extractor::{self};
 use ingest::validator;
 use providers::EmbeddingProvider;
+use sha2::{Digest, Sha256};
+use std::fs;
 use std::path::{Path, PathBuf};
+use storage::tags::{TagEntityType, TagRecord};
 use storage::Database;
 use uuid::Uuid;
 
 const INGEST_LOCK_NAME: &str = "ingest_pipeline";
 const INGEST_LOCK_RETRY_AFTER_SECONDS: u32 = 5;
+
+struct SourceLifecycle {
+    path: PathBuf,
+    hash: String,
+    modified_at: Option<DateTime<Utc>>,
+}
+
+struct PipelineOutput {
+    chunk_count: u32,
+    chunk_ids: Vec<ChunkId>,
+}
 
 /// Result of a successful ingestion
 #[derive(Debug, Clone)]
@@ -124,6 +138,7 @@ fn ingest_internal(
 ) -> Result<IngestResult, CiteError> {
     // 1. Validate
     let (file_type, file_size) = validator::validate_file(path, config.max_file_size_bytes)?;
+    let lifecycle = source_lifecycle(path)?;
 
     let lock_owner_id = format!("ingest_{}", Uuid::new_v4());
     if !db.try_acquire_lock(INGEST_LOCK_NAME, &lock_owner_id)? {
@@ -139,9 +154,21 @@ fn ingest_internal(
     }
 
     let result = (|| {
+        // Recheck under the ingest lock so unchanged re-ingest cannot race with writes.
+        if let Some(existing) = db.get_document_by_file_path(&lifecycle.path)? {
+            if existing.source_hash.as_deref() == Some(lifecycle.hash.as_str()) {
+                return Ok(IngestResult {
+                    document_id: existing.document_id,
+                    display_name: existing.display_name,
+                    status: existing.status,
+                    chunk_count: existing.chunk_count,
+                });
+            }
+        }
+
         // 2. Derive display name
         let display_name =
-            validator::derive_display_name(path, display_name_override, production_mode);
+            validator::derive_display_name(&lifecycle.path, display_name_override, production_mode);
 
         // 3. Create document record
         let document_id = DocumentId::from(format!(
@@ -151,7 +178,7 @@ fn ingest_internal(
         let doc = Document {
             document_id: document_id.clone(),
             display_name: display_name.clone(),
-            file_path: path.to_path_buf(),
+            file_path: lifecycle.path.clone(),
             file_type: file_type.clone(),
             file_size_bytes: file_size,
             status: DocumentStatus::Pending,
@@ -172,17 +199,31 @@ fn ingest_internal(
         db.update_document_status(&document_id, DocumentStatus::Processing, None)?;
 
         // Run the rest of the pipeline; on any error, clean up and mark failed
-        match run_pipeline(db, provider, config, &document_id, path, &file_type) {
-            Ok(chunk_count) => {
-                // Success — mark ready
+        match run_pipeline(
+            db,
+            provider,
+            config,
+            &document_id,
+            &lifecycle.path,
+            &file_type,
+        ) {
+            Ok(output) => {
+                // Success — store source lifecycle metadata and auto-tags before marking ready.
+                db.update_document_lifecycle(
+                    &document_id,
+                    &lifecycle.hash,
+                    Utc::now(),
+                    lifecycle.modified_at,
+                )?;
+                apply_auto_tags(db, &document_id, &output.chunk_ids, &lifecycle.path)?;
                 db.update_document_status(&document_id, DocumentStatus::Ready, None)?;
-                db.update_document_chunk_count(&document_id, chunk_count)?;
+                db.update_document_chunk_count(&document_id, output.chunk_count)?;
 
                 Ok(IngestResult {
                     document_id,
                     display_name,
                     status: DocumentStatus::Ready,
-                    chunk_count,
+                    chunk_count: output.chunk_count,
                 })
             }
             Err(e) => {
@@ -221,12 +262,15 @@ fn run_pipeline(
     document_id: &str,
     path: &Path,
     file_type: &common::FileType,
-) -> Result<u32, CiteError> {
+) -> Result<PipelineOutput, CiteError> {
     // Extract text
     let extraction = extractor::extract_text(path, file_type)?;
 
     if extraction.pages.is_empty() {
-        return Ok(0);
+        return Ok(PipelineOutput {
+            chunk_count: 0,
+            chunk_ids: Vec::new(),
+        });
     }
 
     // Convert to chunker::PageText
@@ -248,7 +292,10 @@ fn run_pipeline(
     )?;
 
     if chunk_inputs.is_empty() {
-        return Ok(0);
+        return Ok(PipelineOutput {
+            chunk_count: 0,
+            chunk_ids: Vec::new(),
+        });
     }
 
     // Convert ChunkInput → Chunk for storage
@@ -389,7 +436,84 @@ fn run_pipeline(
         }
     }
 
-    Ok(chunk_count)
+    let chunk_ids = chunks.iter().map(|chunk| chunk.chunk_id.clone()).collect();
+    Ok(PipelineOutput {
+        chunk_count,
+        chunk_ids,
+    })
+}
+
+fn source_lifecycle(path: &Path) -> Result<SourceLifecycle, CiteError> {
+    let bytes = fs::read(path).map_err(|_| CiteError::FileNotFound {
+        path: path.to_path_buf(),
+    })?;
+    let hash = format!("sha256:{:x}", Sha256::digest(&bytes));
+    let metadata = fs::metadata(path).map_err(|_| CiteError::FileNotFound {
+        path: path.to_path_buf(),
+    })?;
+    let modified_at = metadata.modified().ok().map(DateTime::<Utc>::from);
+    let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+
+    Ok(SourceLifecycle {
+        path: canonical_path,
+        hash,
+        modified_at,
+    })
+}
+
+fn apply_auto_tags(
+    db: &Database,
+    document_id: &DocumentId,
+    chunk_ids: &[ChunkId],
+    path: &Path,
+) -> Result<(), CiteError> {
+    let tags = auto_tags(path);
+    for tag in &tags {
+        db.set_tag_engine(TagEntityType::Document, document_id, tag)?;
+        for chunk_id in chunk_ids {
+            db.set_tag_engine(TagEntityType::Chunk, chunk_id, tag)?;
+        }
+    }
+    Ok(())
+}
+
+fn auto_tags(path: &Path) -> Vec<TagRecord> {
+    let mut tags = vec![
+        TagRecord::new("source_kind", "document").expect("valid source_kind tag"),
+        TagRecord::new("workspace", workspace_name()).expect("valid workspace tag"),
+    ];
+
+    if let Some(document_type) = openspec_document_type(path) {
+        tags.push(TagRecord::new("type", document_type).expect("valid type tag"));
+    }
+
+    tags
+}
+
+fn workspace_name() -> String {
+    std::env::current_dir()
+        .ok()
+        .and_then(|path| {
+            path.file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+        })
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| "default".to_string())
+}
+
+fn openspec_document_type(path: &Path) -> Option<&'static str> {
+    let path_text = path.to_string_lossy().replace('\\', "/");
+    let mappings = [
+        ("/openspec/prd/", "prd"),
+        ("/openspec/specs/", "spec"),
+        ("/openspec/architecture/", "architecture"),
+        ("/openspec/guides/", "guide"),
+        ("/openspec/rfc/", "rfc"),
+    ];
+
+    mappings
+        .iter()
+        .find_map(|(needle, document_type)| path_text.contains(needle).then_some(*document_type))
 }
 
 /// Clean up partial data from a failed ingestion
@@ -464,7 +588,9 @@ pub fn get_document(db: &Database, document_id: &str) -> Result<Document, CiteEr
 mod tests {
     use super::*;
     use providers::EmbeddingProvider;
+    use std::cell::Cell;
     use std::fs;
+    use storage::tags::TagEntityType;
     use storage::Database;
 
     struct TestProvider;
@@ -483,18 +609,74 @@ mod tests {
         }
     }
 
+    struct CountingProvider {
+        calls: Cell<usize>,
+    }
+
+    impl CountingProvider {
+        fn new() -> Self {
+            Self {
+                calls: Cell::new(0),
+            }
+        }
+
+        fn calls(&self) -> usize {
+            self.calls.get()
+        }
+    }
+
+    impl EmbeddingProvider for CountingProvider {
+        fn embed(&self, _text: &str) -> Result<Vec<f32>, CiteError> {
+            self.calls.set(self.calls.get() + 1);
+            Ok(vec![0.1, 0.2, 0.3])
+        }
+
+        fn model_id(&self) -> &str {
+            "test-model"
+        }
+
+        fn provider_id(&self) -> &str {
+            "test-provider"
+        }
+    }
+
     fn test_db() -> Database {
         Database::open_memory().expect("failed to open in-memory DB")
     }
 
     fn temp_txt_file(prefix: &str) -> std::path::PathBuf {
+        temp_txt_file_with_content(prefix, "hello world\nthis is a test file")
+    }
+
+    fn temp_txt_file_with_content(prefix: &str, content: &str) -> std::path::PathBuf {
         let path = std::env::temp_dir().join(format!(
             "aicite_ingest_{}_{}.txt",
             prefix,
             Utc::now().timestamp_nanos_opt().unwrap_or_default()
         ));
-        fs::write(&path, "hello world\nthis is a test file").unwrap();
+        fs::write(&path, content).unwrap();
         path
+    }
+
+    fn temp_openspec_file(kind: &str, content: &str) -> std::path::PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "aicite_ingest_openspec_{}_{}",
+            kind,
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let dir = root.join("openspec").join(kind).join("active");
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("example.md");
+        fs::write(&path, content).unwrap();
+        path
+    }
+
+    fn row_count(db: &Database, table: &str) -> i64 {
+        db.conn()
+            .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+                row.get(0)
+            })
+            .unwrap()
     }
 
     #[test]
@@ -509,6 +691,83 @@ mod tests {
         let db = test_db();
         let docs = list_documents(&db).unwrap();
         assert!(docs.is_empty());
+    }
+
+    #[test]
+    fn test_ingest_stores_lifecycle_and_skips_unchanged_reingest() {
+        let db = test_db();
+        let provider = CountingProvider::new();
+        let config = IngestConfig::default();
+        let path = temp_txt_file_with_content("lifecycle_skip", "same content for both ingests");
+
+        let first = ingest(&db, &provider, &config, &path, Some("skip-doc"), false).unwrap();
+        let doc = db
+            .get_document(&first.document_id)
+            .unwrap()
+            .expect("document");
+        assert!(doc
+            .source_hash
+            .as_deref()
+            .unwrap_or_default()
+            .starts_with("sha256:"));
+        assert!(doc.ingested_at.is_some());
+        assert!(doc.file_modified_at.is_some());
+        assert_eq!(doc.file_path, path.canonicalize().unwrap());
+        assert!(db
+            .get_document_by_file_path(&doc.file_path)
+            .unwrap()
+            .is_some());
+
+        let calls_after_first = provider.calls();
+        let chunks_after_first = row_count(&db, "chunks");
+        let second = ingest(&db, &provider, &config, &path, Some("skip-doc"), false).unwrap();
+        assert_eq!(second.document_id, first.document_id);
+        assert_eq!(provider.calls(), calls_after_first);
+        assert_eq!(row_count(&db, "documents"), 1);
+        assert_eq!(row_count(&db, "chunks"), chunks_after_first);
+
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn test_ingest_assigns_openspec_auto_tags_to_document_and_chunks() {
+        let db = test_db();
+        let provider = CountingProvider::new();
+        let config = IngestConfig::default();
+        let path = temp_openspec_file("rfc", "# RFC\n\nOpenSpec auto tags should apply.");
+
+        let result = ingest(&db, &provider, &config, &path, None, false).unwrap();
+        let document_tags = db
+            .list_tags(TagEntityType::Document, &result.document_id)
+            .unwrap();
+        assert!(document_tags
+            .iter()
+            .any(|tag| tag.key == "source_kind" && tag.value == "document"));
+        assert!(document_tags.iter().any(|tag| tag.key == "workspace"));
+        assert!(document_tags
+            .iter()
+            .any(|tag| tag.key == "type" && tag.value == "rfc"));
+        assert!(!document_tags.iter().any(|tag| tag.key == "status"));
+
+        let chunk_id: String = db
+            .conn()
+            .query_row(
+                "SELECT chunk_id FROM chunks WHERE document_id = ?1 LIMIT 1",
+                [result.document_id.as_ref()],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let chunk_tags = db.list_tags(TagEntityType::Chunk, &chunk_id).unwrap();
+        assert!(chunk_tags
+            .iter()
+            .any(|tag| tag.key == "source_kind" && tag.value == "document"));
+        assert!(chunk_tags.iter().any(|tag| tag.key == "workspace"));
+        assert!(chunk_tags
+            .iter()
+            .any(|tag| tag.key == "type" && tag.value == "rfc"));
+        assert!(!chunk_tags.iter().any(|tag| tag.key == "status"));
+
+        let _ = fs::remove_file(path);
     }
 
     #[test]

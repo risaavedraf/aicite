@@ -371,3 +371,13 @@ PR 3 is complete. Exact unchecked task lines remaining in `tasks.md` are PR 4+ a
 - Delivery path remains stacked-to-main.
 - Current PR boundary should be reviewed as retrieval tag filters only.
 - PR 4 should start only after parent review/commit and explicit approval.
+
+## PR 4 update — Ingest lifecycle skip + auto-tags
+
+- Status consumed: change `v0.4.0-tags-lifecycle-ollama`, apply `ready`, repo-local allowed root, branch `feat/v0.4-retrieval-tag-filters`; PR 4 only, PR 5+ untouched.
+- Completed/persisted: all PR 4 RED/GREEN/VERIFY checkboxes marked `- [x]` in `tasks.md`.
+- Files changed: `Cargo.toml`, `crates/engine/Cargo.toml`, `crates/engine/src/ingest.rs`, `crates/storage/src/documents.rs`, `tasks.md`, `apply-progress.md`.
+- Behavior: SHA-256 source lifecycle metadata, canonical source-path lookup, unchanged re-ingest skip under lock, engine-owned `source_kind`, `workspace`, and OpenSpec `type` auto-tags on documents/chunks without `status` propagation.
+- Commands passed: focused storage lifecycle test; focused engine lifecycle, unchanged-skip, and auto-tag tests; `cargo fmt --check`; `cargo clippy -- -D warnings`; `cargo test`.
+- TDD evidence: strict TDD inactive; focused PR4 tests were added and passed after implementation.
+- Deviations/remaining: changed-source replacement and `status:changed` recalculation remain PR 5; final cross-slice verification/smokes remain unchecked. Diff is at/above the review budget once OpenSpec evidence is included, so parent should split or explicitly accept size before commit/PR.

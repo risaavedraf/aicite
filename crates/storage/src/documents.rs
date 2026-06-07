@@ -4,9 +4,9 @@
 //! records. All methods operate on the [`Database`] handle
 //! and return [`Result<T, CiteError>`].
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use common::types::{Document, DocumentStatus, ErrorInfo, FileType};
 use common::CiteError;
 use rusqlite::{params, params_from_iter, Row};
@@ -228,6 +228,61 @@ impl Database {
             Some(row) => Ok(Some(row_to_document(row)?)),
             None => Ok(None),
         }
+    }
+
+    /// Retrieve a document by the canonical file path stored during ingest.
+    pub fn get_document_by_file_path(&self, path: &Path) -> Result<Option<Document>, CiteError> {
+        let stored_path = path.to_string_lossy();
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT * FROM documents WHERE file_path = ?1 ORDER BY created_at DESC LIMIT 1",
+            )
+            .map_err(storage_err)?;
+
+        let mut rows = stmt
+            .query(params![stored_path.as_ref()])
+            .map_err(storage_err)?;
+
+        match rows.next().map_err(storage_err)? {
+            Some(row) => Ok(Some(row_to_document(row)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Update source lifecycle metadata after a successful ingest.
+    pub fn update_document_lifecycle(
+        &self,
+        document_id: &str,
+        source_hash: &str,
+        ingested_at: DateTime<Utc>,
+        file_modified_at: Option<DateTime<Utc>>,
+    ) -> Result<(), CiteError> {
+        let n = self
+            .conn
+            .execute(
+                "UPDATE documents
+                 SET source_hash = ?1,
+                     ingested_at = ?2,
+                     file_modified_at = ?3,
+                     updated_at = ?4
+                 WHERE document_id = ?5",
+                params![
+                    source_hash,
+                    format_dt(&ingested_at),
+                    file_modified_at.as_ref().map(format_dt),
+                    format_dt(&Utc::now()),
+                    document_id,
+                ],
+            )
+            .map_err(storage_err)?;
+
+        if n == 0 {
+            return Err(CiteError::DocumentNotFound {
+                document_id: document_id.to_string(),
+            });
+        }
+        Ok(())
     }
 
     /// List all documents ordered by creation time (newest first).
@@ -691,6 +746,35 @@ mod tests {
         let db = Database::open_memory().unwrap();
         let result = db.get_document("nonexistent").unwrap();
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_document_by_file_path_and_update_lifecycle() {
+        let db = Database::open_memory().unwrap();
+        let mut doc = make_doc("doc-path");
+        doc.file_path = PathBuf::from("/workspace/docs/a.md");
+        db.insert_document(&doc).unwrap();
+
+        let fetched = db
+            .get_document_by_file_path(PathBuf::from("/workspace/docs/a.md").as_path())
+            .unwrap()
+            .expect("document by path");
+        assert_eq!(fetched.document_id, "doc-path".into());
+
+        let ingested_at = Utc::now();
+        let file_modified_at = Utc::now();
+        db.update_document_lifecycle(
+            "doc-path",
+            "sha256:test",
+            ingested_at,
+            Some(file_modified_at),
+        )
+        .unwrap();
+
+        let updated = db.get_document("doc-path").unwrap().expect("document");
+        assert_eq!(updated.source_hash.as_deref(), Some("sha256:test"));
+        assert!(updated.ingested_at.is_some());
+        assert!(updated.file_modified_at.is_some());
     }
 
     #[test]

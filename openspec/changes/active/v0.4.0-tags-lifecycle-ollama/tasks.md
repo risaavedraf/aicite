@@ -57,18 +57,18 @@ GitHub issue: https://github.com/risaavedraf/aicite/issues/30
 
 ### RED
 
-- [ ] Add CLI/parser tests in `crates/cli/src/commands/mod.rs`, new `crates/cli/src/commands/tag.rs`, and `crates/cli/src/commands/list.rs` for `key:value` mutation parsing, key-only mutation rejection, entity inference from `doc_*`/`chunk_*`, `--entity-type document|chunk`, reserved-key rejection, exact remove semantics, AND list filters, and `list --tag status:changed` not matching documents with only changed chunks.
+- [x] Add CLI/parser tests in `crates/cli/src/commands/mod.rs`, new `crates/cli/src/commands/tag.rs`, and `crates/cli/src/commands/list.rs` for `key:value` mutation parsing, key-only mutation rejection, entity inference from `doc_*`/`chunk_*`, `--entity-type document|chunk`, reserved-key rejection, exact remove semantics, AND list filters, and `list --tag status:changed` not matching documents with only changed chunks.
 
 ### GREEN
 
-- [ ] Add `Commands::Tag(commands::tag::TagArgs)` in `crates/cli/src/main.rs` and `pub mod tag;` in `crates/cli/src/commands/mod.rs`.
-- [ ] Implement `crates/cli/src/commands/tag.rs` with `set/get/rm`, entity inference, optional `--entity-type`, and calls to user tag storage APIs.
-- [ ] Convert `List` to `List(commands::list::ListArgs)` in `crates/cli/src/main.rs` and implement `--tag` parsing in `crates/cli/src/commands/list.rs`.
-- [ ] Add document-local tag-filtered list storage helper in `crates/storage/src/documents.rs` using one bound `EXISTS` clause per filter.
+- [x] Add `Commands::Tag(commands::tag::TagArgs)` in `crates/cli/src/main.rs` and `pub mod tag;` in `crates/cli/src/commands/mod.rs`.
+- [x] Implement `crates/cli/src/commands/tag.rs` with `set/get/rm`, entity inference, optional `--entity-type`, and calls to user tag storage APIs.
+- [x] Convert `List` to `List(commands::list::ListArgs)` in `crates/cli/src/main.rs` and implement `--tag` parsing in `crates/cli/src/commands/list.rs`.
+- [x] Add document-local tag-filtered list storage helper in `crates/storage/src/documents.rs` using one bound `EXISTS` clause per filter.
 
 ### VERIFY / REFACTOR
 
-- [ ] Run focused CLI/storage tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+- [x] Run focused CLI/storage tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
 
 ## PR 3 — Retrieval tag filters
 

@@ -9,8 +9,9 @@ use std::path::PathBuf;
 use chrono::Utc;
 use common::types::{Document, DocumentStatus, ErrorInfo, FileType};
 use common::CiteError;
-use rusqlite::{params, Row};
+use rusqlite::{params, params_from_iter, Row};
 
+use crate::tags::TagFilter;
 use crate::util::{format_dt, i64_to_u32, parse_dt, storage_err, usize_to_u32};
 use crate::Database;
 
@@ -249,6 +250,48 @@ impl Database {
             .map_err(storage_err)?;
 
         let mut rows = stmt.query([]).map_err(storage_err)?;
+
+        let mut documents = Vec::new();
+        while let Some(row) = rows.next().map_err(storage_err)? {
+            documents.push(row_to_document(row)?);
+        }
+        Ok(documents)
+    }
+
+    /// List documents filtered by local document tags using AND semantics.
+    pub fn list_documents_by_tags(
+        &self,
+        filters: &[TagFilter],
+    ) -> Result<Vec<Document>, CiteError> {
+        if filters.is_empty() {
+            return self.list_documents();
+        }
+
+        let mut query = String::from("SELECT * FROM documents d WHERE 1 = 1");
+        let mut params = Vec::new();
+
+        for filter in filters {
+            query.push_str(
+                " AND EXISTS (
+                    SELECT 1 FROM tags t
+                    WHERE t.entity_type = 'document'
+                      AND t.entity_id = d.document_id
+                      AND t.key = ?",
+            );
+            params.push(filter.key.clone());
+
+            if let Some(value) = &filter.value {
+                query.push_str(" AND t.value = ?");
+                params.push(value.clone());
+            }
+
+            query.push(')');
+        }
+
+        query.push_str(" ORDER BY d.created_at DESC");
+
+        let mut stmt = self.conn.prepare(&query).map_err(storage_err)?;
+        let mut rows = stmt.query(params_from_iter(params)).map_err(storage_err)?;
 
         let mut documents = Vec::new();
         while let Some(row) = rows.next().map_err(storage_err)? {
@@ -558,6 +601,8 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tags::{TagEntityType, TagRecord};
+    use common::types::Chunk;
     use std::path::PathBuf;
 
     fn make_doc(id: &str) -> Document {
@@ -579,6 +624,24 @@ mod tests {
             ingested_at: None,
             file_modified_at: None,
         }
+    }
+
+    fn make_chunk(id: &str, document_id: &str) -> Chunk {
+        Chunk {
+            chunk_id: id.into(),
+            document_id: document_id.into(),
+            section_id: None,
+            chunk_index: 0,
+            text: "chunk text".to_string(),
+            page: None,
+            offset_start: None,
+            offset_end: None,
+            created_at: Utc::now(),
+        }
+    }
+
+    fn tag(input: &str) -> TagRecord {
+        TagRecord::parse_mutation(input).unwrap()
     }
 
     #[test]
@@ -639,6 +702,77 @@ mod tests {
 
         let docs = db.list_documents().unwrap();
         assert_eq!(docs.len(), 3);
+    }
+
+    #[test]
+    fn test_list_documents_by_tags_uses_document_local_and_semantics() {
+        let db = Database::open_memory().unwrap();
+        db.insert_document(&make_doc("doc_a")).unwrap();
+        db.insert_document(&make_doc("doc_b")).unwrap();
+        db.insert_document(&make_doc("doc_c")).unwrap();
+
+        db.set_tag_engine(TagEntityType::Document, "doc_a", &tag("type:rfc"))
+            .unwrap();
+        db.set_tag_engine(TagEntityType::Document, "doc_a", &tag("status:planned"))
+            .unwrap();
+        db.set_tag_engine(TagEntityType::Document, "doc_b", &tag("type:rfc"))
+            .unwrap();
+        db.set_tag_engine(TagEntityType::Document, "doc_c", &tag("type:prd"))
+            .unwrap();
+
+        let docs = db
+            .list_documents_by_tags(&[
+                TagFilter {
+                    key: "type".to_string(),
+                    value: Some("rfc".to_string()),
+                },
+                TagFilter {
+                    key: "status".to_string(),
+                    value: Some("planned".to_string()),
+                },
+            ])
+            .unwrap();
+
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].document_id, "doc_a".into());
+    }
+
+    #[test]
+    fn test_list_documents_by_status_tag_does_not_infer_from_chunks() {
+        let db = Database::open_memory().unwrap();
+        db.insert_document(&make_doc("doc_a")).unwrap();
+        db.insert_chunks("doc_a", &[make_chunk("chunk_a", "doc_a")])
+            .unwrap();
+        db.set_tag_engine(TagEntityType::Chunk, "chunk_a", &tag("status:changed"))
+            .unwrap();
+
+        let docs = db
+            .list_documents_by_tags(&[TagFilter {
+                key: "status".to_string(),
+                value: Some("changed".to_string()),
+            }])
+            .unwrap();
+
+        assert!(docs.is_empty());
+    }
+
+    #[test]
+    fn test_list_documents_by_tags_supports_key_only_filter() {
+        let db = Database::open_memory().unwrap();
+        db.insert_document(&make_doc("doc_a")).unwrap();
+        db.insert_document(&make_doc("doc_b")).unwrap();
+        db.set_tag_engine(TagEntityType::Document, "doc_a", &tag("status:planned"))
+            .unwrap();
+
+        let docs = db
+            .list_documents_by_tags(&[TagFilter {
+                key: "status".to_string(),
+                value: None,
+            }])
+            .unwrap();
+
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].document_id, "doc_a".into());
     }
 
     #[test]

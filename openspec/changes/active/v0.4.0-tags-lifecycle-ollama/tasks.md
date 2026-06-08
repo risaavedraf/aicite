@@ -142,17 +142,17 @@ GitHub issue: https://github.com/risaavedraf/aicite/issues/30
 
 ### RED
 
-- [ ] Add tests in `crates/cli/src/commands/check_docs.rs` and `crates/check-docs/src/parser.rs` if that parser crate owns markdown parsing for adjacent `<!-- tag:status=planned -->`, `<!-- tag:status=implemented -->`, unknown tags, blank-line adjacency, and untagged default verification.
+- [x] Add tests in `crates/cli/src/commands/check_docs.rs` and `crates/check-docs/src/parser.rs` if that parser crate owns markdown parsing for adjacent `<!-- tag:status=planned -->`, `<!-- tag:status=implemented -->`, unknown tags, blank-line adjacency, and untagged default verification.
 
 ### GREEN
 
-- [ ] Extend markdown parsing to capture `<!-- tag:key=value -->` comments with line numbers and associate recognized status tags to the next adjacent Cite command block.
-- [ ] Map `status=planned` to planned/skipped/warning output such as `Planned command; verification skipped` instead of outdated failure.
-- [ ] Ensure `status=implemented`, unknown tags, and untagged commands use existing verification paths.
+- [x] Extend markdown parsing to capture `<!-- tag:key=value -->` comments with line numbers and associate recognized status tags to the next adjacent Cite command block.
+- [x] Map `status=planned` to planned/skipped/warning output such as `Planned command; verification skipped` instead of outdated failure.
+- [x] Ensure `status=implemented`, unknown tags, and untagged commands use existing verification paths.
 
 ### VERIFY / REFACTOR
 
-- [ ] Run focused check-docs tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+- [x] Run focused check-docs tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
 
 ## PR 7 — Provider trait, config, factory, and health batch strategy
 

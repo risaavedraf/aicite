@@ -9,9 +9,7 @@ This directory contains Specification-Driven Development (SDD) artifacts organiz
 ```
 changes/
 ├── active/                    # Work in progress
-│   ├── error-remediation/     # First-pass error fixes
-│   ├── error-remediation-v2/  # Second-pass error fixes
-│   └── error-remediation-v3/  # Verification pass ← current
+│   └── v0.4.0-tags-lifecycle-ollama/  # Tags + lifecycle + Ollama ← current
 ├── completed/                 # Verified and done
 │   ├── phase-10-*/
 │   ├── phase-11-*/
@@ -40,4 +38,4 @@ changes/
 
 | Change | Status |
 |---|---|
-| error-remediation-v3 | 🔄 Active |
+| v0.4.0-tags-lifecycle-ollama | 🔄 Active (PR 1-6 implemented, PR 7-8 pending) |

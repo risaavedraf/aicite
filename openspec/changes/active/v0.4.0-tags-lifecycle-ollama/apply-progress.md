@@ -381,3 +381,26 @@ PR 3 is complete. Exact unchecked task lines remaining in `tasks.md` are PR 4+ a
 - Commands passed: focused storage lifecycle test; focused engine lifecycle, unchanged-skip, and auto-tag tests; `cargo fmt --check`; `cargo clippy -- -D warnings`; `cargo test`.
 - TDD evidence: strict TDD inactive; focused PR4 tests were added and passed after implementation.
 - Deviations/remaining: changed-source replacement and `status:changed` recalculation remain PR 5; final cross-slice verification/smokes remain unchecked. Diff is at/above the review budget once OpenSpec evidence is included, so parent should split or explicitly accept size before commit/PR.
+
+## PR 5 update — Changed re-ingest replacement + chunk-local status:changed
+
+- Status consumed: change `v0.4.0-tags-lifecycle-ollama`, apply `ready`, branch `feat/v0.4-changed-reingest`; PR 5 only.
+- Completed/persisted: all PR 5 RED/GREEN/VERIFY checkboxes marked `- [x]` in `tasks.md`.
+- Files changed: `crates/engine/src/ingest.rs`, `crates/storage/src/chunks.rs`, `crates/storage/src/tags.rs`, `tasks.md`.
+- Behavior: changed re-ingest reuses existing document_id; atomically replaces chunks/embeddings/tags in a single transaction via `replace_chunks_for_document`; detects changed chunks via SHA-256 content-hash with frequency/multiset counting (handles duplicate text); applies chunk-local `status:changed` only to changed/new chunks; clears stale `status:changed` tags; never writes document-local `status:changed` (banned); failure preserves old chunks+embeddings.
+- Commands passed: focused storage tests (replace atomicity, rollback, get_chunks_for_document ordering); focused engine tests (changed source reuse, content-hash detection, stale tag cleanup, no duplicate documents, failure preservation, status:changed ban); `cargo fmt --check`; `cargo clippy -- -D warnings`; `cargo test` (258 tests, 0 failures).
+- Reviewer fixes: transactional replacement now includes semantic links + hierarchy rows to avoid FK failures; rollback coverage added; `cleanup_partial` deletes chunk tags before chunks to avoid orphan tags; duplicate-text-count test added; failure-preservation test strengthened.
+- PR: https://github.com/risaavedraf/aicite/pull/35
+- Deviations/remaining: PR 6 (check-docs status tags) and PR 7-8 (provider trait + Ollama) remain.
+
+## PR 6 update — check-docs markdown status tags
+
+- Status consumed: change `v0.4.0-tags-lifecycle-ollama`, apply `ready`, branch `feat/v0.4-check-docs-status-tags`; PR 6 only.
+- Completed/persisted: all PR 6 RED/GREEN/VERIFY checkboxes marked `- [x]` in `tasks.md`.
+- Files changed: `crates/check_docs/src/parser.rs`, `crates/check_docs/src/lib.rs`, `crates/check_docs/src/report.rs`, `crates/cli/src/commands/check_docs.rs`, `tasks.md`.
+- Behavior: parser detects `<!-- tag:status=VALUE -->` HTML comments adjacent to fenced code blocks via upward scan from fence; adjacency rule = no blank line between comment and fence; topmost tag wins when multiple present; `status=planned` short-circuits verification to `CheckStatus::Planned` with "Planned command; verification skipped" detail; `status=implemented`, unknown tags, and untagged commands use existing verification paths; planned results counted in `ReportSummary`.
+- Commands passed: 11 check-docs tests (5 RED→GREEN + 6 green); `cargo fmt --check`; `cargo clippy -- -D warnings`; `cargo test --no-fail-fast` (452 tests, 0 failures).
+- Reviewer fixes: test fixture corrected (blank line removed for adjacency); `ReportSummary.planned` count added; upward scan cleaned up to tolerate adjacent multi-line HTML comment blocks.
+- Subagent approach: RED test writer + reviewer → GREEN implementer + reviewer in separate sessions for token efficiency.
+- PR: https://github.com/risaavedraf/aicite/pull/36
+- Deviations/remaining: PR 7-8 (provider trait + Ollama) remain to close v0.4.0.

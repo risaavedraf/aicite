@@ -160,6 +160,24 @@ impl Database {
         rows.collect::<Result<Vec<_>, _>>().map_err(storage_err)
     }
 
+    /// Bulk-delete ALL tags on chunks belonging to a document.
+    /// Used during changed-source re-ingest to remove stale chunk tags
+    /// before replacing chunks.
+    pub fn delete_tags_for_chunks_of_document(&self, document_id: &str) -> Result<u64, CiteError> {
+        let deleted = self
+            .conn()
+            .execute(
+                "DELETE FROM tags
+                 WHERE entity_type = 'chunk'
+                   AND entity_id IN (
+                       SELECT chunk_id FROM chunks WHERE document_id = ?1
+                   )",
+                params![document_id],
+            )
+            .map_err(storage_err)?;
+        Ok(deleted as u64)
+    }
+
     pub fn clear_chunk_status_changed_for_document(
         &self,
         document_id: &str,
@@ -474,6 +492,49 @@ mod tests {
         assert_eq!(
             db.list_tags(TagEntityType::Chunk, "chunk-2").unwrap(),
             vec![tag("tag:auth")]
+        );
+    }
+
+    #[test]
+    fn delete_tags_for_chunks_of_document_removes_all_chunk_tags() {
+        let db = Database::open_memory().unwrap();
+        let doc = make_doc("doc-bulk");
+        db.insert_document(&doc).unwrap();
+        db.insert_chunks(
+            "doc-bulk",
+            &[
+                make_chunk("chunk-1", "doc-bulk"),
+                make_chunk("chunk-2", "doc-bulk"),
+            ],
+        )
+        .unwrap();
+
+        db.set_tag_engine(TagEntityType::Chunk, "chunk-1", &tag("status:changed"))
+            .unwrap();
+        db.set_tag_engine(TagEntityType::Chunk, "chunk-1", &tag("tag:auth"))
+            .unwrap();
+        db.set_tag_engine(TagEntityType::Chunk, "chunk-2", &tag("status:changed"))
+            .unwrap();
+
+        // Also set a document tag — should NOT be affected
+        db.set_tag_engine(TagEntityType::Document, "doc-bulk", &tag("type:rfc"))
+            .unwrap();
+
+        let deleted = db.delete_tags_for_chunks_of_document("doc-bulk").unwrap();
+        assert_eq!(deleted, 3); // chunk-1:2 + chunk-2:1
+
+        assert!(db
+            .list_tags(TagEntityType::Chunk, "chunk-1")
+            .unwrap()
+            .is_empty());
+        assert!(db
+            .list_tags(TagEntityType::Chunk, "chunk-2")
+            .unwrap()
+            .is_empty());
+        // Document tag untouched
+        assert_eq!(
+            db.list_tags(TagEntityType::Document, "doc-bulk").unwrap(),
+            vec![tag("type:rfc")]
         );
     }
 

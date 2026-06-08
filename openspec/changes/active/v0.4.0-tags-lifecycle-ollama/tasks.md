@@ -121,18 +121,18 @@ GitHub issue: https://github.com/risaavedraf/aicite/issues/30
 
 ### RED
 
-- [ ] Add tests in `crates/engine/src/ingest.rs`, `crates/storage/src/chunks.rs`, `crates/storage/src/embeddings.rs`, and `crates/storage/src/tags.rs` for changed source processing, document ID reuse, no duplicate active documents, content-hash changed chunk detection including duplicate text counts, stale `status:changed` cleanup, document `status:changed` ban, and failure preserving last ready representation where practical.
+- [x] Add tests in `crates/engine/src/ingest.rs`, `crates/storage/src/chunks.rs`, `crates/storage/src/embeddings.rs`, and `crates/storage/src/tags.rs` for changed source processing, document ID reuse, no duplicate active documents, content-hash changed chunk detection including duplicate text counts, stale `status:changed` cleanup, document `status:changed` ban, and failure preserving last ready representation where practical.
 
 ### GREEN
 
-- [ ] Add storage helpers for transactional replacement of a document's chunks, embeddings, related chunk tags, and hierarchy rows in `crates/storage/src/chunks.rs`, `crates/storage/src/embeddings.rs`, and `crates/storage/src/tags.rs`.
-- [ ] Implement changed-source branch in `crates/engine/src/ingest.rs` that compares previous/new chunk text hashes, marks only known changed/new chunks with engine-owned `status:changed`, and never writes document-local `status:changed`.
-- [ ] Clear stale chunk-local `status:changed` for the document during successful replacement before recreating current changed tags.
-- [ ] Update lifecycle metadata, chunk count, and pipeline status only after successful extract/chunk/embed/replace.
+- [x] Add storage helpers for transactional replacement of a document's chunks, embeddings, related chunk tags, and hierarchy rows in `crates/storage/src/chunks.rs`, `crates/storage/src/embeddings.rs`, and `crates/storage/src/tags.rs`.
+- [x] Implement changed-source branch in `crates/engine/src/ingest.rs` that compares previous/new chunk text hashes, marks only known changed/new chunks with engine-owned `status:changed`, and never writes document-local `status:changed`.
+- [x] Clear stale chunk-local `status:changed` for the document during successful replacement before recreating current changed tags.
+- [x] Update lifecycle metadata, chunk count, and pipeline status only after successful extract/chunk/embed/replace.
 
 ### VERIFY / REFACTOR
 
-- [ ] Run focused ingest replacement tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+- [x] Run focused ingest replacement tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
 
 ## PR 6 — `check-docs` markdown status tags
 

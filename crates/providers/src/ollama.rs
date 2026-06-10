@@ -81,8 +81,7 @@ impl OllamaProvider {
             })?;
 
         if !status.is_success() {
-            if status == reqwest::StatusCode::NOT_FOUND
-                || body.to_lowercase().contains("not found")
+            if status == reqwest::StatusCode::NOT_FOUND || body.to_lowercase().contains("not found")
             {
                 return Err(CiteError::EmbeddingProviderError {
                     message: format!(

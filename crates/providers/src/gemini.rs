@@ -1,4 +1,4 @@
-use crate::EmbeddingProvider;
+use crate::{BatchStrategy, EmbeddingProvider};
 use common::CiteError;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
@@ -131,6 +131,13 @@ impl EmbeddingProvider for GeminiProvider {
                 })?;
 
         Ok(parsed.embedding.values)
+    }
+
+    fn batch_strategy(&self) -> BatchStrategy {
+        BatchStrategy::RateLimited {
+            max_concurrent: 1,
+            delay_ms: 0,
+        }
     }
 
     fn model_id(&self) -> &str {

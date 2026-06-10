@@ -32,6 +32,7 @@ struct ProviderHealth {
     status: String,
     latency_ms: Option<u64>,
     error: Option<String>,
+    batch_strategy: String,
 }
 
 #[derive(Serialize)]
@@ -129,19 +130,6 @@ fn mask_key(key: &str) -> String {
 }
 
 fn check_provider(config: &Config) -> ProviderHealth {
-    let api_key = resolve_api_key(config);
-
-    // No key → skip provider test
-    if api_key.is_none() || api_key.as_deref() == Some("") {
-        return ProviderHealth {
-            provider_id: config.embedding.provider.clone(),
-            model: config.embedding.model.clone(),
-            status: "skipped".to_string(),
-            latency_ms: None,
-            error: Some("no API key configured".to_string()),
-        };
-    }
-
     let provider = match create_provider(config) {
         Ok(p) => p,
         Err(e) => {
@@ -151,9 +139,12 @@ fn check_provider(config: &Config) -> ProviderHealth {
                 status: "unreachable".to_string(),
                 latency_ms: None,
                 error: Some(e.to_string()),
+                batch_strategy: "unknown".to_string(),
             };
         }
     };
+
+    let batch_strategy = provider.batch_strategy().to_string();
 
     // Test with a short embedding call
     let start = Instant::now();
@@ -166,6 +157,7 @@ fn check_provider(config: &Config) -> ProviderHealth {
                 status: "reachable".to_string(),
                 latency_ms: Some(elapsed),
                 error: None,
+                batch_strategy,
             }
         }
         Err(e) => ProviderHealth {
@@ -174,6 +166,7 @@ fn check_provider(config: &Config) -> ProviderHealth {
             status: "unreachable".to_string(),
             latency_ms: None,
             error: Some(e.to_string()),
+            batch_strategy,
         },
     }
 }
@@ -328,6 +321,9 @@ fn print_health_human(output: &HealthOutput) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
     struct EnvVarGuard {
         name: &'static str,
@@ -338,6 +334,12 @@ mod tests {
         fn remove(name: &'static str) -> Self {
             let original = std::env::var(name).ok();
             std::env::remove_var(name);
+            Self { name, original }
+        }
+
+        fn set(name: &'static str, value: &str) -> Self {
+            let original = std::env::var(name).ok();
+            std::env::set_var(name, value);
             Self { name, original }
         }
     }
@@ -353,6 +355,7 @@ mod tests {
 
     #[test]
     fn health_output_includes_provider_status_for_json_contract() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let _embedding_key = EnvVarGuard::remove("CITE_EMBEDDING_API_KEY");
         let _gemini_key = EnvVarGuard::remove("GEMINI_API_KEY");
         let _openai_key = EnvVarGuard::remove("OPENAI_API_KEY");
@@ -363,10 +366,63 @@ mod tests {
 
         assert_eq!(output.provider.provider_id, config.embedding.provider);
         assert_eq!(output.provider.model, config.embedding.model);
-        assert_eq!(output.provider.status, "skipped");
-        assert_eq!(
-            output.provider.error.as_deref(),
-            Some("no API key configured")
+        assert_eq!(output.provider.status, "unreachable");
+        let error = output.provider.error.as_deref().unwrap_or_default();
+        assert!(
+            error.contains("No API key configured. Set the CITE_API_KEY environment variable"),
+            "expected factory key error, got: {error}"
         );
+    }
+
+    #[test]
+    fn health_output_includes_batch_strategy_field() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _embedding_key = EnvVarGuard::remove("CITE_EMBEDDING_API_KEY");
+        let _gemini_key = EnvVarGuard::remove("GEMINI_API_KEY");
+        let _openai_key = EnvVarGuard::remove("OPENAI_API_KEY");
+        let _provider = EnvVarGuard::remove("CITE_EMBEDDING_PROVIDER");
+        let config =
+            Config::load_from(Some(std::path::Path::new("/nonexistent/health-test.toml"))).unwrap();
+
+        let output = build_health_output(&config, None);
+
+        assert_eq!(output.provider.batch_strategy, "unknown");
+    }
+
+    #[test]
+    fn health_output_json_contains_batch_strategy_key() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _embedding_key = EnvVarGuard::remove("CITE_EMBEDDING_API_KEY");
+        let _gemini_key = EnvVarGuard::remove("GEMINI_API_KEY");
+        let _openai_key = EnvVarGuard::remove("OPENAI_API_KEY");
+        let _provider = EnvVarGuard::remove("CITE_EMBEDDING_PROVIDER");
+        let config =
+            Config::load_from(Some(std::path::Path::new("/nonexistent/health-test.toml"))).unwrap();
+
+        let output = build_health_output(&config, None);
+        let json = serde_json::to_string(&output).expect("HealthOutput should serialize");
+
+        // PR7: serialized HealthOutput must surface batch_strategy under provider.
+        assert!(
+            json.contains("\"batch_strategy\""),
+            "JSON should include batch_strategy key, got: {json}"
+        );
+    }
+
+    #[test]
+    fn ollama_provider_reports_native_batch_strategy() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _embedding_key = EnvVarGuard::remove("CITE_EMBEDDING_API_KEY");
+        let _gemini_key = EnvVarGuard::remove("GEMINI_API_KEY");
+        let _openai_key = EnvVarGuard::remove("OPENAI_API_KEY");
+        let _provider = EnvVarGuard::set("CITE_EMBEDDING_PROVIDER", "ollama");
+        let config =
+            Config::load_from(Some(std::path::Path::new("/nonexistent/health-test.toml"))).unwrap();
+
+        let output = build_health_output(&config, None);
+
+        // PR7: ollama is a local provider with native batch support, so its
+        // health report must surface batch_strategy = "native".
+        assert_eq!(output.provider.batch_strategy, "native");
     }
 }

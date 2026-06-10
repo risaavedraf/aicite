@@ -16,6 +16,7 @@ pub mod workspace;
 
 use config::Config;
 use providers::gemini::GeminiProvider;
+use providers::ollama::OllamaProvider;
 use providers::openai::OpenAICompatibleProvider;
 use providers::EmbeddingProvider;
 use std::path::PathBuf;
@@ -137,17 +138,16 @@ pub fn resolve_api_key(config: &Config) -> Option<String> {
 /// Create an embedding provider based on config.
 ///
 /// Supported providers:
-/// - `gemini`: Google Gemini API
-/// - `openai-compatible` (default): Any OpenAI-compatible API
+/// - `gemini`: Google Gemini API (requires API key)
+/// - `ollama`: Local Ollama inference server (no API key required)
+/// - `openai-compatible` (default): Any OpenAI-compatible API (requires API key)
 pub fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, common::CiteError> {
-    let api_key = resolve_api_key(config).ok_or_else(|| common::CiteError::ConfigError {
-        message:
-            "No API key configured. Set the CITE_API_KEY environment variable or run `cite setup`."
-                .to_string(),
-    })?;
-
     match config.embedding.provider.as_str() {
         "gemini" => {
+            let api_key = resolve_api_key(config).ok_or_else(|| common::CiteError::ConfigError {
+                message: "No API key configured for Gemini. Set CITE_EMBEDDING_API_KEY or run `cite setup`."
+                    .to_string(),
+            })?;
             let provider = GeminiProvider::new(
                 &config.embedding.model,
                 &api_key,
@@ -155,11 +155,19 @@ pub fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, co
             )?;
             Ok(Box::new(provider))
         }
-        _ => {
+        "ollama" => {
+            // Ollama is a local provider — no API key required.
+            // Full implementation in PR8.
+            let provider = OllamaProvider::new(&config.embedding.model)?;
+            Ok(Box::new(provider))
+        }
+        "openai-compatible" => {
+            let api_key = resolve_api_key(config).ok_or_else(|| common::CiteError::ConfigError {
+                message: "No API key configured. Set the CITE_API_KEY environment variable or run `cite setup`."
+                    .to_string(),
+            })?;
             let endpoint = config
-                .ingest
-                .embedding_endpoint
-                .as_deref()
+                .embedding_endpoint()
                 .unwrap_or("https://api.openai.com/v1/embeddings");
 
             let provider = OpenAICompatibleProvider::new(
@@ -170,6 +178,12 @@ pub fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, co
             )?;
             Ok(Box::new(provider))
         }
+        unknown => Err(common::CiteError::ConfigError {
+            message: format!(
+                "Unknown embedding provider '{}'. Supported providers: gemini, ollama, openai-compatible.",
+                unknown
+            ),
+        }),
     }
 }
 
@@ -236,5 +250,221 @@ mod tests {
             message: "bad flags".to_string(),
         };
         assert_eq!(exit_for_error(&err, true), ExitCode::Validation as i32);
+    }
+
+    // --- PR7 factory refactor: provider-before-key tests ---
+    //
+    // PR7 changes `create_provider` so provider selection happens BEFORE
+    // API key validation, and adds an `ollama` branch that does not need
+    // a key. These tests document the new contract:
+    //
+    //   * `ollama` provider should succeed without any API key (RED now:
+    //     the factory returns a "No API key configured" ConfigError before
+    //     the provider match runs).
+    //   * `gemini` and the default `openai-compatible` provider still
+    //     require a key (these tests document the existing contract).
+    //   * An unknown provider should return a meaningful error referencing
+    //     the provider name (RED now: the factory returns a misleading
+    //     "No API key configured" error before the match runs).
+    //
+    // The factory function is NOT refactored in this PR; these tests are
+    // intentionally failing for the ollama / unknown-provider cases.
+
+    use std::sync::Mutex;
+
+    /// Serializes tests that mutate process-global env vars so they don't
+    /// race each other when cargo runs tests in parallel.
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+    /// Restores a removed env var to its previous value on drop.
+    struct EnvVarGuard {
+        name: &'static str,
+        original: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn remove(name: &'static str) -> Self {
+            let original = std::env::var(name).ok();
+            std::env::remove_var(name);
+            Self { name, original }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            match &self.original {
+                Some(value) => std::env::set_var(self.name, value),
+                None => std::env::remove_var(self.name),
+            }
+        }
+    }
+
+    /// Remove every env var that could supply an API key or override the
+    /// embedding provider/model/endpoint, so the resulting Config reflects
+    /// the on-disk defaults plus our explicit per-test overrides only.
+    fn clear_factory_env_vars() -> [EnvVarGuard; 7] {
+        [
+            EnvVarGuard::remove("CITE_EMBEDDING_API_KEY"),
+            EnvVarGuard::remove("CITE_API_KEY"),
+            EnvVarGuard::remove("GEMINI_API_KEY"),
+            EnvVarGuard::remove("OPENAI_API_KEY"),
+            EnvVarGuard::remove("CITE_EMBEDDING_PROVIDER"),
+            EnvVarGuard::remove("CITE_EMBEDDING_MODEL"),
+            EnvVarGuard::remove("CITE_EMBEDDING_ENDPOINT"),
+        ]
+    }
+
+    /// Path that is guaranteed not to exist, so `FileConfig::load` returns
+    /// `None` and the merged config reflects defaults only.
+    fn isolated_config_path() -> &'static std::path::Path {
+        std::path::Path::new("/nonexistent/aiharness-pr7-factory-test.toml")
+    }
+
+    /// PR7: with `provider = "ollama"` and no API key anywhere, the factory
+    /// should match the ollama branch and succeed without asking for a key.
+    /// This is RED today: the factory calls `resolve_api_key().ok_or(...)`
+    /// before the provider match runs, so it returns
+    /// `ConfigError("No API key configured...")` instead of creating the
+    /// provider.
+    #[test]
+    fn ollama_provider_creates_without_api_key() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _env_guards = clear_factory_env_vars();
+
+        let mut config = Config::load_from(Some(isolated_config_path()))
+            .expect("isolated config load should succeed");
+        config.embedding.provider = "ollama".to_string();
+        // config.embedding.api_key remains None from defaults.
+
+        let result = create_provider(&config);
+        assert!(
+            result.is_ok(),
+            "ollama provider should be creatable without an API key, got error: {:?}",
+            result.err()
+        );
+
+        let provider = result.unwrap();
+        assert_eq!(
+            provider.provider_id(),
+            "ollama",
+            "factory should have matched the ollama branch"
+        );
+    }
+
+    /// PR7: provider selection should happen before key validation. With
+    /// `provider = "ollama"` and no key, the factory must not return a
+    /// ConfigError complaining about a missing API key. The weaker form of
+    /// this contract: the error path, if any, must mention the provider —
+    /// not the key.
+    #[test]
+    fn ollama_provider_does_not_fail_with_missing_api_key_error() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _env_guards = clear_factory_env_vars();
+
+        let mut config = Config::load_from(Some(isolated_config_path()))
+            .expect("isolated config load should succeed");
+        config.embedding.provider = "ollama".to_string();
+
+        let result = create_provider(&config);
+        if let Err(e) = &result {
+            let msg = format!("{:?}", e).to_lowercase();
+            assert!(
+                !msg.contains("api key") && !msg.contains("cite_api_key"),
+                "factory should match provider before validating key, got key error: {:?}",
+                e
+            );
+        }
+        // Ok(...) is fine — the strong contract is covered by
+        // `ollama_provider_creates_without_api_key`. This test pins the
+        // weaker "must not mention api key" contract for documentation.
+    }
+
+    /// PR7 contract (preserved): `gemini` requires an API key. This
+    /// documents existing behavior — the factory returns a ConfigError when
+    /// no key is configured for the gemini branch.
+    #[test]
+    fn gemini_provider_requires_api_key() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _env_guards = clear_factory_env_vars();
+
+        let mut config = Config::load_from(Some(isolated_config_path()))
+            .expect("isolated config load should succeed");
+        config.embedding.provider = "gemini".to_string();
+
+        let result = create_provider(&config);
+        match result {
+            Err(common::CiteError::ConfigError { message }) => {
+                let lower = message.to_lowercase();
+                assert!(
+                    lower.contains("api key") || lower.contains("must not be empty"),
+                    "expected config error about API key, got: {}",
+                    message
+                );
+            }
+            Err(other) => panic!("Expected ConfigError, got: {:?}", other),
+            Ok(_) => panic!("gemini without a key should fail, got Ok"),
+        }
+    }
+
+    /// PR7 contract (preserved): the default `openai-compatible` provider
+    /// requires an API key. This documents existing behavior — the
+    /// factory returns a ConfigError when no key is configured.
+    #[test]
+    fn openai_compatible_provider_requires_api_key() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _env_guards = clear_factory_env_vars();
+
+        let config = Config::load_from(Some(isolated_config_path()))
+            .expect("isolated config load should succeed");
+        assert_eq!(
+            config.embedding.provider, "openai-compatible",
+            "default provider should be openai-compatible"
+        );
+
+        let result = create_provider(&config);
+        match result {
+            Err(common::CiteError::ConfigError { message }) => {
+                let lower = message.to_lowercase();
+                assert!(
+                    lower.contains("api key") || lower.contains("must not be empty"),
+                    "expected config error about API key, got: {}",
+                    message
+                );
+            }
+            Err(other) => panic!("Expected ConfigError, got: {:?}", other),
+            Ok(_) => panic!("openai-compatible without a key should fail, got Ok"),
+        }
+    }
+
+    /// PR7 contract: an unrecognized provider name should produce a
+    /// meaningful error that references the provider, not a misleading
+    /// "no API key configured" error. This is RED today: the factory
+    /// checks the key first and never reaches the provider match, so the
+    /// error is about the missing key instead of the unknown provider.
+    #[test]
+    fn unknown_provider_returns_meaningful_error() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _env_guards = clear_factory_env_vars();
+
+        let mut config = Config::load_from(Some(isolated_config_path()))
+            .expect("isolated config load should succeed");
+        config.embedding.provider = "nonexistent-provider".to_string();
+
+        let err = match create_provider(&config) {
+            Ok(_) => panic!("unknown provider should fail, got Ok"),
+            Err(e) => e,
+        };
+        let msg = format!("{:?}", err);
+        let lower = msg.to_lowercase();
+
+        assert!(
+            msg.contains("nonexistent-provider")
+                || lower.contains("unknown provider")
+                || lower.contains("unsupported provider")
+                || lower.contains("invalid provider")
+                || lower.contains("unrecognized provider"),
+            "expected error to mention the unknown provider name, got: {}",
+            msg
+        );
     }
 }

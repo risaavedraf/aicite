@@ -1021,7 +1021,7 @@ api_key = "test-key"
             Some("https://fallback.example.com/v1/embeddings".to_string());
         let resolved = config.embedding_endpoint();
         assert_eq!(
-            resolved.as_deref(),
+            resolved,
             Some("https://fallback.example.com/v1/embeddings")
         );
     }

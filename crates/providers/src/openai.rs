@@ -1,4 +1,4 @@
-use crate::EmbeddingProvider;
+use crate::{BatchStrategy, EmbeddingProvider};
 use common::CiteError;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
@@ -130,6 +130,10 @@ impl EmbeddingProvider for OpenAICompatibleProvider {
             .ok_or_else(|| CiteError::EmbeddingProviderError {
                 message: "Embedding response contained no data".to_string(),
             })
+    }
+
+    fn batch_strategy(&self) -> BatchStrategy {
+        BatchStrategy::Sequential
     }
 
     fn model_id(&self) -> &str {

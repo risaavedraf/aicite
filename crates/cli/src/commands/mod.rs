@@ -157,8 +157,14 @@ pub fn create_provider(config: &Config) -> Result<Box<dyn EmbeddingProvider>, co
         }
         "ollama" => {
             // Ollama is a local provider — no API key required.
-            // Full implementation in PR8.
-            let provider = OllamaProvider::new(&config.embedding.model)?;
+            let endpoint = config.embedding_endpoint()
+                .unwrap_or("http://localhost:11434");
+            let dimensions = config.embedding.dimensions.unwrap_or(768);
+            let provider = OllamaProvider::new(
+                &config.embedding.model,
+                endpoint,
+                dimensions,
+            )?;
             Ok(Box::new(provider))
         }
         "openai-compatible" => {

@@ -68,6 +68,21 @@ pub struct EmbeddingConfig {
     /// API key (loaded from config file; env vars take precedence at runtime)
     #[serde(default)]
     pub api_key: Option<String>,
+    /// Custom embedding endpoint URL
+    #[serde(default)]
+    pub endpoint: Option<String>,
+    /// Embedding dimensions
+    #[serde(default)]
+    pub dimensions: Option<usize>,
+    /// Compute device (e.g. "cuda", "cpu")
+    #[serde(default)]
+    pub device: Option<String>,
+    /// Batch size for embedding requests
+    #[serde(default)]
+    pub batch_size: Option<usize>,
+    /// Workspace path for local models
+    #[serde(default)]
+    pub workspace: Option<String>,
 }
 
 /// Retrieval ranking and filtering parameters.
@@ -176,6 +191,11 @@ impl Config {
                 provider: "openai-compatible".to_string(),
                 model: "text-embedding-3-small".to_string(),
                 api_key: None,
+                endpoint: None,
+                dimensions: None,
+                device: None,
+                batch_size: None,
+                workspace: None,
             },
             retrieval: RetrievalConfig {
                 top_k: 5,
@@ -217,6 +237,21 @@ impl Config {
             if let Some(v) = f.data_dir {
                 config.paths.data_dir = Some(PathBuf::from(v));
             }
+            if let Some(v) = f.embedding_endpoint {
+                config.embedding.endpoint = Some(v);
+            }
+            if let Some(v) = f.embedding_dimensions {
+                config.embedding.dimensions = Some(v);
+            }
+            if let Some(v) = f.embedding_device {
+                config.embedding.device = Some(v);
+            }
+            if let Some(v) = f.embedding_batch_size {
+                config.embedding.batch_size = Some(v);
+            }
+            if let Some(v) = f.embedding_workspace {
+                config.embedding.workspace = Some(v);
+            }
         }
 
         // Apply env overrides (highest precedence below CLI flags)
@@ -254,7 +289,7 @@ impl Config {
             config.ingest.embedding_timeout_secs = val;
         }
         if let Some(val) = env.embedding_endpoint {
-            config.ingest.embedding_endpoint = Some(val);
+            config.embedding.endpoint = Some(val);
         }
         if let Some(val) = env.sentence_chunking {
             config.ingest.sentence_chunking = val;
@@ -268,8 +303,29 @@ impl Config {
         if let Some(val) = env.build_hierarchy {
             config.ingest.build_hierarchy = val;
         }
+        if let Some(val) = env.embedding_dimensions {
+            config.embedding.dimensions = Some(val);
+        }
+        if let Some(val) = env.embedding_device {
+            config.embedding.device = Some(val);
+        }
+        if let Some(val) = env.embedding_batch_size {
+            config.embedding.batch_size = Some(val);
+        }
+        if let Some(val) = env.workspace {
+            config.embedding.workspace = Some(val);
+        }
 
         config
+    }
+
+    /// Resolve the effective embedding endpoint.
+    /// Prefers `embedding.endpoint` over `ingest.embedding_endpoint` (legacy fallback).
+    pub fn embedding_endpoint(&self) -> Option<&str> {
+        self.embedding
+            .endpoint
+            .as_deref()
+            .or(self.ingest.embedding_endpoint.as_deref())
     }
 }
 
@@ -291,6 +347,11 @@ struct EnvOverrides {
     min_chunk_chars: Option<usize>,
     max_chunk_chars: Option<usize>,
     build_hierarchy: Option<bool>,
+    // PR7 new overrides
+    embedding_dimensions: Option<usize>,
+    embedding_device: Option<String>,
+    embedding_batch_size: Option<usize>,
+    workspace: Option<String>,
 }
 
 impl EnvOverrides {
@@ -351,6 +412,15 @@ impl EnvOverrides {
                     _ => None,
                 }
             }),
+            // PR7 new overrides
+            embedding_dimensions: std::env::var("CITE_EMBEDDING_DIMENSIONS")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+            embedding_device: std::env::var("CITE_EMBEDDING_DEVICE").ok(),
+            embedding_batch_size: std::env::var("CITE_EMBEDDING_BATCH_SIZE")
+                .ok()
+                .and_then(|v| v.parse().ok()),
+            workspace: std::env::var("CITE_WORKSPACE").ok(),
         }
     }
 }
@@ -372,6 +442,17 @@ struct FileConfig {
     retrieval_confidence_threshold: Option<f64>,
     #[serde(default)]
     data_dir: Option<String>,
+    // PR7 embedding fields
+    #[serde(default)]
+    embedding_endpoint: Option<String>,
+    #[serde(default)]
+    embedding_dimensions: Option<usize>,
+    #[serde(default)]
+    embedding_device: Option<String>,
+    #[serde(default)]
+    embedding_batch_size: Option<usize>,
+    #[serde(default)]
+    embedding_workspace: Option<String>,
 }
 
 /// TOML file structure
@@ -383,6 +464,8 @@ struct TomlRoot {
     retrieval: Option<TomlRetrieval>,
     #[serde(default)]
     data: Option<TomlData>,
+    #[serde(default)]
+    embedding: Option<TomlEmbedding>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -403,6 +486,15 @@ struct TomlRetrieval {
 #[derive(Debug, Deserialize)]
 struct TomlData {
     dir: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TomlEmbedding {
+    endpoint: Option<String>,
+    dimensions: Option<usize>,
+    device: Option<String>,
+    batch_size: Option<usize>,
+    workspace: Option<String>,
 }
 
 impl FileConfig {
@@ -439,6 +531,11 @@ impl FileConfig {
                 .as_ref()
                 .and_then(|r| r.confidence_threshold),
             data_dir: root.data.as_ref().and_then(|d| d.dir.clone()),
+            embedding_endpoint: root.embedding.as_ref().and_then(|e| e.endpoint.clone()),
+            embedding_dimensions: root.embedding.as_ref().and_then(|e| e.dimensions),
+            embedding_device: root.embedding.as_ref().and_then(|e| e.device.clone()),
+            embedding_batch_size: root.embedding.as_ref().and_then(|e| e.batch_size),
+            embedding_workspace: root.embedding.as_ref().and_then(|e| e.workspace.clone()),
         })
     }
 }
@@ -713,5 +810,216 @@ mod tests {
         let config = Config::load_from(Some(isolated_missing_config_path())).unwrap();
         // Empty string is still "Some("")" so it overrides the default
         assert_eq!(config.embedding.provider, "");
+    }
+
+    // PR7 RED: these tests expect new EmbeddingConfig fields
+    // (endpoint, dimensions, device, batch_size, workspace) and a
+    // resolution helper for ingest-fallback. They will not compile
+    // until the GREEN phase adds those fields/methods.
+
+    #[test]
+    fn test_embedding_config_defaults_have_none_for_new_fields() {
+        let config = Config::defaults();
+        assert!(
+            config.embedding.endpoint.is_none(),
+            "embedding.endpoint should default to None"
+        );
+        assert!(
+            config.embedding.dimensions.is_none(),
+            "embedding.dimensions should default to None"
+        );
+        assert!(
+            config.embedding.device.is_none(),
+            "embedding.device should default to None"
+        );
+        assert!(
+            config.embedding.batch_size.is_none(),
+            "embedding.batch_size should default to None"
+        );
+        assert!(
+            config.embedding.workspace.is_none(),
+            "embedding.workspace should default to None"
+        );
+    }
+
+    #[test]
+    fn test_env_embedding_endpoint_sets_embedding_endpoint() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = EnvVarGuard::set(
+            "CITE_EMBEDDING_ENDPOINT",
+            "https://api.example.com/v1/embeddings",
+        );
+        let config = Config::load_from(Some(isolated_missing_config_path())).unwrap();
+        assert_eq!(
+            config.embedding.endpoint.as_deref(),
+            Some("https://api.example.com/v1/embeddings")
+        );
+    }
+
+    #[test]
+    fn test_env_embedding_dimensions_sets_embedding_dimensions() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = EnvVarGuard::set("CITE_EMBEDDING_DIMENSIONS", "768");
+        let config = Config::load_from(Some(isolated_missing_config_path())).unwrap();
+        assert_eq!(config.embedding.dimensions, Some(768));
+    }
+
+    #[test]
+    fn test_env_embedding_device_sets_embedding_device() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = EnvVarGuard::set("CITE_EMBEDDING_DEVICE", "cuda");
+        let config = Config::load_from(Some(isolated_missing_config_path())).unwrap();
+        assert_eq!(config.embedding.device.as_deref(), Some("cuda"));
+    }
+
+    #[test]
+    fn test_env_embedding_batch_size_sets_embedding_batch_size() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = EnvVarGuard::set("CITE_EMBEDDING_BATCH_SIZE", "32");
+        let config = Config::load_from(Some(isolated_missing_config_path())).unwrap();
+        assert_eq!(config.embedding.batch_size, Some(32));
+    }
+
+    #[test]
+    fn test_env_workspace_sets_embedding_workspace() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        let _guard = EnvVarGuard::set("CITE_WORKSPACE", "/var/lib/cite/workspace");
+        let config = Config::load_from(Some(isolated_missing_config_path())).unwrap();
+        assert_eq!(
+            config.embedding.workspace.as_deref(),
+            Some("/var/lib/cite/workspace")
+        );
+    }
+
+    #[test]
+    fn test_toml_embedding_section_loads_new_fields() {
+        use std::io::Write;
+
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+
+        // Clear env vars that could override TOML values
+        let orig_endpoint = std::env::var("CITE_EMBEDDING_ENDPOINT").ok();
+        let orig_dimensions = std::env::var("CITE_EMBEDDING_DIMENSIONS").ok();
+        let orig_device = std::env::var("CITE_EMBEDDING_DEVICE").ok();
+        let orig_batch_size = std::env::var("CITE_EMBEDDING_BATCH_SIZE").ok();
+        let orig_workspace = std::env::var("CITE_WORKSPACE").ok();
+        std::env::remove_var("CITE_EMBEDDING_ENDPOINT");
+        std::env::remove_var("CITE_EMBEDDING_DIMENSIONS");
+        std::env::remove_var("CITE_EMBEDDING_DEVICE");
+        std::env::remove_var("CITE_EMBEDDING_BATCH_SIZE");
+        std::env::remove_var("CITE_WORKSPACE");
+
+        let dir = std::env::temp_dir().join("aiharness_pr7_embedding_toml");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("test_config.toml");
+
+        let toml_content = r#"[embedding]
+endpoint = "https://api.example.com/v1/embeddings"
+dimensions = 768
+device = "cuda"
+batch_size = 32
+workspace = "/var/lib/cite/workspace"
+"#;
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(toml_content.as_bytes()).unwrap();
+
+        let config = Config::load_from(Some(&path)).unwrap();
+        assert_eq!(
+            config.embedding.endpoint.as_deref(),
+            Some("https://api.example.com/v1/embeddings")
+        );
+        assert_eq!(config.embedding.dimensions, Some(768));
+        assert_eq!(config.embedding.device.as_deref(), Some("cuda"));
+        assert_eq!(config.embedding.batch_size, Some(32));
+        assert_eq!(
+            config.embedding.workspace.as_deref(),
+            Some("/var/lib/cite/workspace")
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // Restore env vars
+        for (name, orig) in [
+            ("CITE_EMBEDDING_ENDPOINT", orig_endpoint.as_deref()),
+            ("CITE_EMBEDDING_DIMENSIONS", orig_dimensions.as_deref()),
+            ("CITE_EMBEDDING_DEVICE", orig_device.as_deref()),
+            ("CITE_EMBEDDING_BATCH_SIZE", orig_batch_size.as_deref()),
+            ("CITE_WORKSPACE", orig_workspace.as_deref()),
+        ] {
+            if let Some(v) = orig {
+                std::env::set_var(name, v);
+            } else {
+                std::env::remove_var(name);
+            }
+        }
+    }
+
+    #[test]
+    fn test_toml_without_embedding_section_loads_with_none_fields() {
+        use std::io::Write;
+
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+
+        // Clear env vars
+        let orig_endpoint = std::env::var("CITE_EMBEDDING_ENDPOINT").ok();
+        let orig_dimensions = std::env::var("CITE_EMBEDDING_DIMENSIONS").ok();
+        let orig_device = std::env::var("CITE_EMBEDDING_DEVICE").ok();
+        let orig_batch_size = std::env::var("CITE_EMBEDDING_BATCH_SIZE").ok();
+        let orig_workspace = std::env::var("CITE_WORKSPACE").ok();
+        std::env::remove_var("CITE_EMBEDDING_ENDPOINT");
+        std::env::remove_var("CITE_EMBEDDING_DIMENSIONS");
+        std::env::remove_var("CITE_EMBEDDING_DEVICE");
+        std::env::remove_var("CITE_EMBEDDING_BATCH_SIZE");
+        std::env::remove_var("CITE_WORKSPACE");
+
+        let dir = std::env::temp_dir().join("aiharness_pr7_legacy_toml");
+        let _ = std::fs::create_dir_all(&dir);
+        let path = dir.join("legacy_config.toml");
+
+        // Legacy TOML without [embedding] section
+        let toml_content = r#"[provider]
+type = "gemini"
+model = "gemini-embedding-001"
+api_key = "test-key"
+"#;
+        let mut file = std::fs::File::create(&path).unwrap();
+        file.write_all(toml_content.as_bytes()).unwrap();
+
+        let config = Config::load_from(Some(&path)).unwrap();
+        assert!(config.embedding.endpoint.is_none());
+        assert!(config.embedding.dimensions.is_none());
+        assert!(config.embedding.device.is_none());
+        assert!(config.embedding.batch_size.is_none());
+        assert!(config.embedding.workspace.is_none());
+
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // Restore env vars
+        for (name, orig) in [
+            ("CITE_EMBEDDING_ENDPOINT", orig_endpoint.as_deref()),
+            ("CITE_EMBEDDING_DIMENSIONS", orig_dimensions.as_deref()),
+            ("CITE_EMBEDDING_DEVICE", orig_device.as_deref()),
+            ("CITE_EMBEDDING_BATCH_SIZE", orig_batch_size.as_deref()),
+            ("CITE_WORKSPACE", orig_workspace.as_deref()),
+        ] {
+            if let Some(v) = orig {
+                std::env::set_var(name, v);
+            } else {
+                std::env::remove_var(name);
+            }
+        }
+    }
+
+    #[test]
+    fn test_embedding_endpoint_fallback_to_ingest() {
+        let _lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+        // When embedding.endpoint is None, the resolved endpoint should
+        // fall back to ingest.embedding_endpoint (legacy field).
+        let mut config = Config::defaults();
+        assert!(config.embedding.endpoint.is_none());
+        config.ingest.embedding_endpoint =
+            Some("https://fallback.example.com/v1/embeddings".to_string());
+        let resolved = config.embedding_endpoint();
+        assert_eq!(resolved, Some("https://fallback.example.com/v1/embeddings"));
     }
 }

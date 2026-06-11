@@ -14,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/risaavedraf/aicite"
@@ -51,6 +51,7 @@ uuid = { version = "1", features = ["v4"] }
 nanoid = "0.5"
 dotenvy = "0.15"
 dialoguer = "0.12"
+sha2 = "0.10"
 
 [profile.release]
 opt-level = 3

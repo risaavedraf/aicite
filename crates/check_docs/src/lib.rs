@@ -15,6 +15,8 @@ pub enum CheckStatus {
     Outdated,
     /// Dynamic value changed (not necessarily wrong).
     Warning,
+    /// Command is planned; verification skipped.
+    Planned,
 }
 
 impl std::fmt::Display for CheckStatus {
@@ -23,6 +25,7 @@ impl std::fmt::Display for CheckStatus {
             CheckStatus::Ok => write!(f, "✅ OK"),
             CheckStatus::Outdated => write!(f, "❌ OUTDATED"),
             CheckStatus::Warning => write!(f, "⚠️  WARNING"),
+            CheckStatus::Planned => write!(f, "⏭️ PLANNED"),
         }
     }
 }
@@ -59,6 +62,8 @@ pub struct ReportSummary {
     pub ok: usize,
     pub outdated: usize,
     pub warning: usize,
+    #[serde(default)]
+    pub planned: usize,
 }
 
 /// Aggregate report for directory scans.
@@ -68,4 +73,18 @@ pub struct AggregateReport {
     pub files: Vec<VerificationReport>,
     /// Total summary.
     pub summary: ReportSummary,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_check_status_planned_serializes_lowercase() {
+        let planned = CheckStatus::Planned;
+        let json = serde_json::to_string(&planned).unwrap();
+        assert_eq!(json, "\"planned\"");
+        let deserialized: CheckStatus = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, CheckStatus::Planned);
+    }
 }

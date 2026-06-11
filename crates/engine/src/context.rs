@@ -6,7 +6,7 @@ use common::types::{
 use common::{CiteError, TraceId};
 use config::{RateLimitConfig, RetrievalConfig};
 use providers::EmbeddingProvider;
-use storage::Database;
+use storage::{tags::TagFilter, Database};
 use uuid::Uuid;
 
 use crate::retrieve::{build_breadcrumb, ranked_candidates, resolve_k, RetrievalRequest};
@@ -259,6 +259,31 @@ pub fn build_context(
     topic_filter: Option<&str>,
     concept_filter: Option<&str>,
 ) -> Result<ContextResponse, CiteError> {
+    build_context_with_tags(
+        db,
+        provider,
+        config,
+        rate_limit,
+        query,
+        k_override,
+        topic_filter,
+        concept_filter,
+        &[],
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_context_with_tags(
+    db: &Database,
+    provider: &dyn EmbeddingProvider,
+    config: &RetrievalConfig,
+    rate_limit: &RateLimitConfig,
+    query: &str,
+    k_override: Option<u32>,
+    topic_filter: Option<&str>,
+    concept_filter: Option<&str>,
+    tag_filters: &[TagFilter],
+) -> Result<ContextResponse, CiteError> {
     let start = std::time::Instant::now();
     let k = resolve_k(config, k_override)?;
 
@@ -275,6 +300,7 @@ pub fn build_context(
         k_override,
         topic_filter,
         concept_filter,
+        tag_filters,
     };
     let ranked = ranked_candidates(&req, "context")?;
 
@@ -461,6 +487,7 @@ mod tests {
     use chrono::Utc;
     use common::types::{Chunk, Document, DocumentStatus, FileType};
     use std::path::PathBuf;
+    use storage::tags::{TagEntityType, TagRecord};
 
     struct FakeProvider {
         vector: Vec<f32>,
@@ -497,6 +524,9 @@ mod tests {
             error: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            source_hash: None,
+            ingested_at: None,
+            file_modified_at: None,
         };
         db.insert_document(&doc).unwrap();
     }
@@ -684,6 +714,46 @@ mod tests {
                 retry_after_seconds: _
             }
         ));
+    }
+
+    #[test]
+    fn test_context_with_tags_returns_only_matching_chunk_citations() {
+        let db = test_db();
+        insert_doc(&db, "doc-tags", DocumentStatus::Ready);
+        insert_chunk(&db, "doc-tags", "c-best", "best untagged", vec![1.0, 0.0]);
+        insert_chunk(
+            &db,
+            "doc-tags",
+            "c-tagged",
+            "tagged evidence",
+            vec![0.9, 0.1],
+        );
+        db.set_tag_engine(
+            TagEntityType::Chunk,
+            "c-tagged",
+            &TagRecord::new("type", "rfc").unwrap(),
+        )
+        .unwrap();
+
+        let provider = FakeProvider {
+            vector: vec![1.0, 0.0],
+        };
+        let result = build_context_with_tags(
+            &db,
+            &provider,
+            &cfg(),
+            &rl_cfg(),
+            "query",
+            None,
+            None,
+            None,
+            &[TagFilter::parse("type:rfc").unwrap()],
+        )
+        .unwrap();
+
+        assert_eq!(result.citations.len(), 1);
+        assert_eq!(result.citations[0].chunk_id.as_ref(), "c-tagged");
+        assert_eq!(result.metadata.retrieved_chunks, 1);
     }
 
     #[test]

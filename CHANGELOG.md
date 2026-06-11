@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.4.0 (2026-06-10)
+
+### New features
+
+- **Tag system** — Key:value tags on documents and chunks. CRUD via `cite tag set/get/rm`. Engine-managed auto-tags (`workspace`, `source_kind`) set during ingest. Reserved key enforcement prevents user overwrites of engine-owned tags.
+- **Tag filters** — `--tag key:value` filter on `search`, `retrieve`, `context`, and `list` commands. AND semantics for multiple filters. Compatible with legacy `--topic`/`--concept` filters.
+- **Document lifecycle** — `source_hash`, `ingested_at`, `file_modified_at` columns on documents. Re-ingest skips unchanged files by content hash. Changed files re-process and update lifecycle metadata.
+- **Chunk-local `status:changed`** — Changed chunks get `status:changed` tag locally; non-inheritable, does not propagate to parent document.
+- **Ollama provider** — Local HTTP embedding via Ollama (`ollama` provider ID). No API key required. `embed` and `embed_batch` over HTTP. Reports `native` batch strategy.
+- **BatchStrategy** — Provider trait now reports batch strategy (`sequential` or `native`). `health --json` includes `batch_strategy` per provider.
+- **Provider config extension** — New config fields: `embedding_batch_size`, `embedding_device`, `embedding_dimensions`, `embedding_timeout`, `embedding_workspace`.
+- **Provider factory refactor** — Factory selects provider by ID, handles no-key local providers (Ollama), and reports health details.
+- **`check-docs` status tags** — Markdown `<!-- tag:status=planned -->` support in `check-docs` parser. Planned commands skip execution verification.
+- **`workspace` command** — Manage project workspaces.
+
+### Improvements
+
+- **Ingest lifecycle skip** — Re-ingest of unchanged documents is skipped (no redundant embedding work).
+- **Auto-tags on ingest** — Documents and chunks receive `workspace:*` and `source_kind:*` tags automatically.
+- **Content hash detection** — `sha2` dependency for deterministic source file change detection.
+- **Retrieval tag filtering** — Tag filters applied before vector ranking for more precise results.
+- **Chunk storage** — `replace_chunks_for_document` atomically replaces chunks on re-ingest.
+- **Snapshot tag awareness** — Snapshots now track tag data in chunk storage.
+
+### Quality
+
+- 493 tests pass, 0 clippy warnings, clean formatting.
+- Full SDD artifacts in `openspec/changes/active/v0.4.0-tags-lifecycle-ollama/`.
+- Golden dataset evaluation: 10/10 (100%) hit rate.
+
 ## v0.3.0 (2026-06-05)
 
 ### Breaking changes

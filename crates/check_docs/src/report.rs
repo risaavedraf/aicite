@@ -15,14 +15,15 @@ pub fn format_human_report(report: &VerificationReport) -> String {
             CheckStatus::Ok => "✅",
             CheckStatus::Outdated => "❌",
             CheckStatus::Warning => "⚠️",
+            CheckStatus::Planned => "⏭️",
         };
         output.push_str(&format!("{} {}: {}\n", icon, result.section, result.detail));
         output.push_str(&format!("   Line: {}\n\n", result.line));
     }
 
     output.push_str(&format!(
-        "Results: {} ok, {} outdated, {} warnings\n",
-        report.summary.ok, report.summary.outdated, report.summary.warning
+        "Results: {} ok, {} outdated, {} warnings, {} planned\n",
+        report.summary.ok, report.summary.outdated, report.summary.warning, report.summary.planned
     ));
 
     output
@@ -43,11 +44,12 @@ pub fn format_aggregate_human(report: &AggregateReport) -> String {
     }
 
     output.push_str(&format!(
-        "Aggregate: {} files, {} ok, {} outdated, {} warnings\n",
+        "Aggregate: {} files, {} ok, {} outdated, {} warnings, {} planned\n",
         report.files.len(),
         report.summary.ok,
         report.summary.outdated,
-        report.summary.warning
+        report.summary.warning,
+        report.summary.planned
     ));
 
     output

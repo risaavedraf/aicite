@@ -262,6 +262,9 @@ mod tests {
             error: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            source_hash: None,
+            ingested_at: None,
+            file_modified_at: None,
         };
         db.insert_document(&doc).unwrap();
         let chunk = Chunk {

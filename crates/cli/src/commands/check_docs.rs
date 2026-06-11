@@ -95,7 +95,7 @@ fn verify_file(
 
     let code_blocks = check_docs::parser::parse_code_blocks(&content);
     let headings = check_docs::parser::extract_headings(&content);
-    let cite_commands = check_docs::parser::extract_cite_commands(&code_blocks);
+    let cite_commands = check_docs::parser::extract_cite_commands(&code_blocks, &content);
 
     let mut results = Vec::new();
 
@@ -117,6 +117,10 @@ fn verify_file(
         .iter()
         .filter(|r| r.status == check_docs::CheckStatus::Warning)
         .count();
+    let planned = results
+        .iter()
+        .filter(|r| r.status == check_docs::CheckStatus::Planned)
+        .count();
 
     Ok(check_docs::VerificationReport {
         file: path.clone(),
@@ -126,6 +130,7 @@ fn verify_file(
             ok,
             outdated,
             warning,
+            planned,
         },
     })
 }
@@ -171,6 +176,7 @@ fn verify_directory(
     let ok = files.iter().map(|f| f.summary.ok).sum();
     let outdated = files.iter().map(|f| f.summary.outdated).sum();
     let warning = files.iter().map(|f| f.summary.warning).sum();
+    let planned = files.iter().map(|f| f.summary.planned).sum();
 
     Ok(check_docs::AggregateReport {
         files,
@@ -178,6 +184,7 @@ fn verify_directory(
             ok,
             outdated,
             warning,
+            planned,
         },
     })
 }
@@ -188,6 +195,16 @@ fn verify_command(
     skip_dynamic: bool,
     section: &str,
 ) -> check_docs::CommandResult {
+    // PR 6: skip planned commands without execution
+    if cmd.status_tag.as_deref() == Some("planned") {
+        return check_docs::CommandResult {
+            section: section.to_string(),
+            line: cmd.line,
+            status: check_docs::CheckStatus::Planned,
+            detail: "Planned command; verification skipped".to_string(),
+        };
+    }
+
     let output = check_docs::executor::execute_command(&cmd.command, binary_path);
 
     if let Some(expected) = &cmd.expected_output {
@@ -220,5 +237,52 @@ fn verify_command(
             status: check_docs::CheckStatus::Outdated,
             detail: format!("Command failed: {}", output.stderr),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_cmd(command: &str, status_tag: Option<&str>) -> check_docs::parser::CiteCommand {
+        check_docs::parser::CiteCommand {
+            command: command.to_string(),
+            section: "Test".to_string(),
+            line: 1,
+            expected_output: None,
+            status_tag: status_tag.map(|s| s.to_string()),
+        }
+    }
+
+    #[test]
+    fn test_verify_planned_command_skips_execution() {
+        let cmd = make_cmd("cite nonexistent-command-for-test", Some("planned"));
+        let binary_path = PathBuf::from("cite");
+        let result = verify_command(&cmd, &binary_path, false, "Test");
+        // RED: should be Planned once status_tag is checked before execution
+        assert_eq!(result.status, check_docs::CheckStatus::Planned);
+        assert!(
+            result.detail.to_lowercase().contains("planned"),
+            "Expected detail to mention 'planned', got: {}",
+            result.detail
+        );
+    }
+
+    #[test]
+    fn test_verify_implemented_command_uses_normal_path() {
+        let cmd = make_cmd("cite nonexistent-command-for-test", Some("implemented"));
+        let binary_path = PathBuf::from("cite");
+        let result = verify_command(&cmd, &binary_path, false, "Test");
+        // Should NOT be Planned — implemented uses normal verification path
+        assert_ne!(result.status, check_docs::CheckStatus::Planned);
+    }
+
+    #[test]
+    fn test_verify_untagged_command_uses_normal_path() {
+        let cmd = make_cmd("cite nonexistent-command-for-test", None);
+        let binary_path = PathBuf::from("cite");
+        let result = verify_command(&cmd, &binary_path, false, "Test");
+        // Should NOT be Planned — untagged uses normal verification path
+        assert_ne!(result.status, check_docs::CheckStatus::Planned);
     }
 }

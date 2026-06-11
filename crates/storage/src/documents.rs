@@ -4,13 +4,14 @@
 //! records. All methods operate on the [`Database`] handle
 //! and return [`Result<T, CiteError>`].
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use common::types::{Document, DocumentStatus, ErrorInfo, FileType};
 use common::CiteError;
-use rusqlite::{params, Row};
+use rusqlite::{params, params_from_iter, Row};
 
+use crate::tags::TagFilter;
 use crate::util::{format_dt, i64_to_u32, parse_dt, storage_err, usize_to_u32};
 use crate::Database;
 
@@ -77,8 +78,19 @@ fn row_to_document(row: &Row<'_>) -> Result<Document, CiteError> {
     let error_message: Option<String> = row.get("error_message").map_err(storage_err)?;
     let created_at_str: String = row.get("created_at").map_err(storage_err)?;
     let updated_at_str: String = row.get("updated_at").map_err(storage_err)?;
+    let source_hash: Option<String> = row.get("source_hash").map_err(storage_err)?;
+    let ingested_at_str: Option<String> = row.get("ingested_at").map_err(storage_err)?;
+    let file_modified_at_str: Option<String> = row.get("file_modified_at").map_err(storage_err)?;
 
     let next_retry_at = match next_retry_at_str {
+        Some(s) => Some(parse_dt(&s)?),
+        None => None,
+    };
+    let ingested_at = match ingested_at_str {
+        Some(s) => Some(parse_dt(&s)?),
+        None => None,
+    };
+    let file_modified_at = match file_modified_at_str {
         Some(s) => Some(parse_dt(&s)?),
         None => None,
     };
@@ -102,6 +114,9 @@ fn row_to_document(row: &Row<'_>) -> Result<Document, CiteError> {
         error,
         created_at: parse_dt(&created_at_str)?,
         updated_at: parse_dt(&updated_at_str)?,
+        source_hash,
+        ingested_at,
+        file_modified_at,
     })
 }
 
@@ -145,6 +160,9 @@ impl Database {
     ///     error: None,
     ///     created_at: Utc::now(),
     ///     updated_at: Utc::now(),
+    ///     source_hash: None,
+    ///     ingested_at: None,
+    ///     file_modified_at: None,
     /// };
     /// db.insert_document(&doc).unwrap();
     /// ```
@@ -155,8 +173,8 @@ impl Database {
                     document_id, display_name, file_path, file_type, file_size_bytes,
                     status, chunk_count, retry_count, max_retry_count,
                     next_retry_at, error_code, error_message,
-                    created_at, updated_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                    created_at, updated_at, source_hash, ingested_at, file_modified_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
                 params![
                     doc.document_id.as_ref(),
                     doc.display_name,
@@ -172,6 +190,9 @@ impl Database {
                     doc.error.as_ref().map(|e| e.message.as_str()),
                     format_dt(&doc.created_at),
                     format_dt(&doc.updated_at),
+                    doc.source_hash.as_deref(),
+                    doc.ingested_at.as_ref().map(format_dt),
+                    doc.file_modified_at.as_ref().map(format_dt),
                 ],
             )
             .map_err(storage_err)?;
@@ -209,6 +230,61 @@ impl Database {
         }
     }
 
+    /// Retrieve a document by the canonical file path stored during ingest.
+    pub fn get_document_by_file_path(&self, path: &Path) -> Result<Option<Document>, CiteError> {
+        let stored_path = path.to_string_lossy();
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT * FROM documents WHERE file_path = ?1 ORDER BY created_at DESC LIMIT 1",
+            )
+            .map_err(storage_err)?;
+
+        let mut rows = stmt
+            .query(params![stored_path.as_ref()])
+            .map_err(storage_err)?;
+
+        match rows.next().map_err(storage_err)? {
+            Some(row) => Ok(Some(row_to_document(row)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Update source lifecycle metadata after a successful ingest.
+    pub fn update_document_lifecycle(
+        &self,
+        document_id: &str,
+        source_hash: &str,
+        ingested_at: DateTime<Utc>,
+        file_modified_at: Option<DateTime<Utc>>,
+    ) -> Result<(), CiteError> {
+        let n = self
+            .conn
+            .execute(
+                "UPDATE documents
+                 SET source_hash = ?1,
+                     ingested_at = ?2,
+                     file_modified_at = ?3,
+                     updated_at = ?4
+                 WHERE document_id = ?5",
+                params![
+                    source_hash,
+                    format_dt(&ingested_at),
+                    file_modified_at.as_ref().map(format_dt),
+                    format_dt(&Utc::now()),
+                    document_id,
+                ],
+            )
+            .map_err(storage_err)?;
+
+        if n == 0 {
+            return Err(CiteError::DocumentNotFound {
+                document_id: document_id.to_string(),
+            });
+        }
+        Ok(())
+    }
+
     /// List all documents ordered by creation time (newest first).
     ///
     /// # Returns
@@ -229,6 +305,48 @@ impl Database {
             .map_err(storage_err)?;
 
         let mut rows = stmt.query([]).map_err(storage_err)?;
+
+        let mut documents = Vec::new();
+        while let Some(row) = rows.next().map_err(storage_err)? {
+            documents.push(row_to_document(row)?);
+        }
+        Ok(documents)
+    }
+
+    /// List documents filtered by local document tags using AND semantics.
+    pub fn list_documents_by_tags(
+        &self,
+        filters: &[TagFilter],
+    ) -> Result<Vec<Document>, CiteError> {
+        if filters.is_empty() {
+            return self.list_documents();
+        }
+
+        let mut query = String::from("SELECT * FROM documents d WHERE 1 = 1");
+        let mut params = Vec::new();
+
+        for filter in filters {
+            query.push_str(
+                " AND EXISTS (
+                    SELECT 1 FROM tags t
+                    WHERE t.entity_type = 'document'
+                      AND t.entity_id = d.document_id
+                      AND t.key = ?",
+            );
+            params.push(filter.key.clone());
+
+            if let Some(value) = &filter.value {
+                query.push_str(" AND t.value = ?");
+                params.push(value.clone());
+            }
+
+            query.push(')');
+        }
+
+        query.push_str(" ORDER BY d.created_at DESC");
+
+        let mut stmt = self.conn.prepare(&query).map_err(storage_err)?;
+        let mut rows = stmt.query(params_from_iter(params)).map_err(storage_err)?;
 
         let mut documents = Vec::new();
         while let Some(row) = rows.next().map_err(storage_err)? {
@@ -538,6 +656,8 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tags::{TagEntityType, TagRecord};
+    use common::types::Chunk;
     use std::path::PathBuf;
 
     fn make_doc(id: &str) -> Document {
@@ -555,7 +675,28 @@ mod tests {
             error: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            source_hash: None,
+            ingested_at: None,
+            file_modified_at: None,
         }
+    }
+
+    fn make_chunk(id: &str, document_id: &str) -> Chunk {
+        Chunk {
+            chunk_id: id.into(),
+            document_id: document_id.into(),
+            section_id: None,
+            chunk_index: 0,
+            text: "chunk text".to_string(),
+            page: None,
+            offset_start: None,
+            offset_end: None,
+            created_at: Utc::now(),
+        }
+    }
+
+    fn tag(input: &str) -> TagRecord {
+        TagRecord::parse_mutation(input).unwrap()
     }
 
     #[test]
@@ -574,6 +715,30 @@ mod tests {
         assert_eq!(fetched.max_retry_count, 3);
         assert!(fetched.error.is_none());
         assert!(fetched.next_retry_at.is_none());
+        assert!(fetched.source_hash.is_none());
+        assert!(fetched.ingested_at.is_none());
+        assert!(fetched.file_modified_at.is_none());
+    }
+
+    #[test]
+    fn test_insert_and_get_document_lifecycle_fields() {
+        let db = Database::open_memory().unwrap();
+        let mut doc = make_doc("doc-life");
+        let ingested_at = Utc::now();
+        let file_modified_at = Utc::now();
+        doc.source_hash = Some("sha256:abc".to_string());
+        doc.ingested_at = Some(ingested_at);
+        doc.file_modified_at = Some(file_modified_at);
+
+        db.insert_document(&doc).unwrap();
+
+        let fetched = db
+            .get_document("doc-life")
+            .unwrap()
+            .expect("document missing");
+        assert_eq!(fetched.source_hash.as_deref(), Some("sha256:abc"));
+        assert!(fetched.ingested_at.is_some());
+        assert!(fetched.file_modified_at.is_some());
     }
 
     #[test]
@@ -581,6 +746,35 @@ mod tests {
         let db = Database::open_memory().unwrap();
         let result = db.get_document("nonexistent").unwrap();
         assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_get_document_by_file_path_and_update_lifecycle() {
+        let db = Database::open_memory().unwrap();
+        let mut doc = make_doc("doc-path");
+        doc.file_path = PathBuf::from("/workspace/docs/a.md");
+        db.insert_document(&doc).unwrap();
+
+        let fetched = db
+            .get_document_by_file_path(PathBuf::from("/workspace/docs/a.md").as_path())
+            .unwrap()
+            .expect("document by path");
+        assert_eq!(fetched.document_id, "doc-path".into());
+
+        let ingested_at = Utc::now();
+        let file_modified_at = Utc::now();
+        db.update_document_lifecycle(
+            "doc-path",
+            "sha256:test",
+            ingested_at,
+            Some(file_modified_at),
+        )
+        .unwrap();
+
+        let updated = db.get_document("doc-path").unwrap().expect("document");
+        assert_eq!(updated.source_hash.as_deref(), Some("sha256:test"));
+        assert!(updated.ingested_at.is_some());
+        assert!(updated.file_modified_at.is_some());
     }
 
     #[test]
@@ -592,6 +786,77 @@ mod tests {
 
         let docs = db.list_documents().unwrap();
         assert_eq!(docs.len(), 3);
+    }
+
+    #[test]
+    fn test_list_documents_by_tags_uses_document_local_and_semantics() {
+        let db = Database::open_memory().unwrap();
+        db.insert_document(&make_doc("doc_a")).unwrap();
+        db.insert_document(&make_doc("doc_b")).unwrap();
+        db.insert_document(&make_doc("doc_c")).unwrap();
+
+        db.set_tag_engine(TagEntityType::Document, "doc_a", &tag("type:rfc"))
+            .unwrap();
+        db.set_tag_engine(TagEntityType::Document, "doc_a", &tag("status:planned"))
+            .unwrap();
+        db.set_tag_engine(TagEntityType::Document, "doc_b", &tag("type:rfc"))
+            .unwrap();
+        db.set_tag_engine(TagEntityType::Document, "doc_c", &tag("type:prd"))
+            .unwrap();
+
+        let docs = db
+            .list_documents_by_tags(&[
+                TagFilter {
+                    key: "type".to_string(),
+                    value: Some("rfc".to_string()),
+                },
+                TagFilter {
+                    key: "status".to_string(),
+                    value: Some("planned".to_string()),
+                },
+            ])
+            .unwrap();
+
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].document_id, "doc_a".into());
+    }
+
+    #[test]
+    fn test_list_documents_by_status_tag_does_not_infer_from_chunks() {
+        let db = Database::open_memory().unwrap();
+        db.insert_document(&make_doc("doc_a")).unwrap();
+        db.insert_chunks("doc_a", &[make_chunk("chunk_a", "doc_a")])
+            .unwrap();
+        db.set_tag_engine(TagEntityType::Chunk, "chunk_a", &tag("status:changed"))
+            .unwrap();
+
+        let docs = db
+            .list_documents_by_tags(&[TagFilter {
+                key: "status".to_string(),
+                value: Some("changed".to_string()),
+            }])
+            .unwrap();
+
+        assert!(docs.is_empty());
+    }
+
+    #[test]
+    fn test_list_documents_by_tags_supports_key_only_filter() {
+        let db = Database::open_memory().unwrap();
+        db.insert_document(&make_doc("doc_a")).unwrap();
+        db.insert_document(&make_doc("doc_b")).unwrap();
+        db.set_tag_engine(TagEntityType::Document, "doc_a", &tag("status:planned"))
+            .unwrap();
+
+        let docs = db
+            .list_documents_by_tags(&[TagFilter {
+                key: "status".to_string(),
+                value: None,
+            }])
+            .unwrap();
+
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].document_id, "doc_a".into());
     }
 
     #[test]
@@ -713,6 +978,9 @@ mod tests {
             }),
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            source_hash: None,
+            ingested_at: None,
+            file_modified_at: None,
         };
         db.insert_document(&doc).unwrap();
 

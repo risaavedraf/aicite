@@ -22,6 +22,8 @@ pub struct CiteCommand {
     pub line: usize,
     /// Expected output from the next code block (if it's JSON/output).
     pub expected_output: Option<String>,
+    /// Status tag from adjacent HTML comment (e.g., "planned", "implemented").
+    pub status_tag: Option<String>,
 }
 
 /// Extract all code blocks from markdown content.
@@ -72,8 +74,13 @@ pub fn parse_code_blocks(content: &str) -> Vec<CodeBlock> {
 ///
 /// Only extracts commands that start with "cite ". Ignores other commands.
 /// If the next code block is JSON, it's attached as expected output.
-pub fn extract_cite_commands(blocks: &[CodeBlock]) -> Vec<CiteCommand> {
+///
+/// `content` is the raw markdown source, used to scan for adjacent
+/// `<!-- tag:status=VALUE -->` HTML comments before each code block.
+pub fn extract_cite_commands(blocks: &[CodeBlock], content: &str) -> Vec<CiteCommand> {
     let mut commands = Vec::new();
+    let tag_re = Regex::new(r"<!--\s*tag:status=(\w+)\s*-->").unwrap();
+    let lines: Vec<&str> = content.lines().collect();
 
     for (i, block) in blocks.iter().enumerate() {
         // Only process bash/shell blocks
@@ -86,6 +93,8 @@ pub fn extract_cite_commands(blocks: &[CodeBlock]) -> Vec<CiteCommand> {
         if !is_bash {
             continue;
         }
+
+        let status_tag = find_adjacent_status_tag(block.start_line, &lines, &tag_re);
 
         // Extract cite commands from the block
         for (line_offset, line) in block.content.lines().enumerate() {
@@ -110,12 +119,39 @@ pub fn extract_cite_commands(blocks: &[CodeBlock]) -> Vec<CiteCommand> {
                     section: String::new(), // Will be populated by caller
                     line: block.start_line + line_offset,
                     expected_output,
+                    status_tag: status_tag.clone(),
                 });
             }
         }
     }
 
     commands
+}
+
+fn find_adjacent_status_tag(start_line: usize, lines: &[&str], tag_re: &Regex) -> Option<String> {
+    let fence_idx = start_line.saturating_sub(1);
+    let mut status_tag = None;
+    let mut scan = fence_idx.checked_sub(1)?;
+
+    loop {
+        let candidate = lines.get(scan)?.trim();
+        if candidate.is_empty() {
+            break;
+        }
+
+        if let Some(caps) = tag_re.captures(candidate) {
+            status_tag = Some(caps[1].to_string());
+        } else if !candidate.starts_with("<!--") || !candidate.ends_with("-->") {
+            break;
+        }
+
+        if scan == 0 {
+            break;
+        }
+        scan -= 1;
+    }
+
+    status_tag
 }
 
 /// Extract section headings from markdown for context.
@@ -142,6 +178,85 @@ pub fn nearest_heading(headings: &[(usize, String)], line: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── PR 6 RED tests: status_tag adjacency detection ──
+
+    #[test]
+    fn test_extract_cite_commands_with_planned_tag_before_block() {
+        let md = "Some text\n\n<!-- tag:status=planned -->\n```bash\ncite search \"test\"\n```";
+        let blocks = parse_code_blocks(md);
+        let commands = extract_cite_commands(&blocks, md);
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].status_tag, Some("planned".to_string()));
+    }
+
+    #[test]
+    fn test_extract_cite_commands_with_implemented_tag() {
+        let md = "<!-- tag:status=implemented -->\n```bash\ncite health --json\n```";
+        let blocks = parse_code_blocks(md);
+        let commands = extract_cite_commands(&blocks, md);
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].status_tag, Some("implemented".to_string()));
+    }
+
+    #[test]
+    fn test_extract_cite_commands_with_unknown_tag() {
+        let md = "<!-- tag:status=experimental -->\n```bash\ncite search \"foo\"\n```";
+        let blocks = parse_code_blocks(md);
+        let commands = extract_cite_commands(&blocks, md);
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].status_tag, Some("experimental".to_string()));
+    }
+
+    #[test]
+    fn test_extract_cite_commands_without_tag() {
+        let md = "```bash\ncite search \"test\"\n```";
+        let blocks = parse_code_blocks(md);
+        let commands = extract_cite_commands(&blocks, md);
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].status_tag, None);
+    }
+
+    #[test]
+    fn test_extract_cite_commands_tag_adjacency_blank_line() {
+        // Tag is separated by a blank line from the block — should NOT be adjacent
+        let md = "<!-- tag:status=planned -->\n\n\n```bash\ncite search \"test\"\n```";
+        let blocks = parse_code_blocks(md);
+        let commands = extract_cite_commands(&blocks, md);
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].status_tag, None);
+    }
+
+    #[test]
+    fn test_extract_cite_commands_tag_after_block_ignored() {
+        // Tag AFTER the closing fence — should not count
+        let md = "```bash\ncite search \"test\"\n```\n<!-- tag:status=planned -->";
+        let blocks = parse_code_blocks(md);
+        let commands = extract_cite_commands(&blocks, md);
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].status_tag, None);
+    }
+
+    #[test]
+    fn test_extract_cite_commands_multiple_tags_first_wins() {
+        // Two tags before one block — first one should be used
+        let md = "<!-- tag:status=planned -->\n<!-- tag:status=implemented -->\n```bash\ncite search \"test\"\n```";
+        let blocks = parse_code_blocks(md);
+        let commands = extract_cite_commands(&blocks, md);
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].status_tag, Some("planned".to_string()));
+    }
+
+    #[test]
+    fn test_extract_cite_commands_status_tag_in_html_comment_block() {
+        let md = "<!-- tag:status=planned -->\n<!-- docs-only example -->\n```bash\ncite search \"test\"\n```";
+        let blocks = parse_code_blocks(md);
+        let commands = extract_cite_commands(&blocks, md);
+        assert_eq!(commands.len(), 1);
+        assert_eq!(commands[0].status_tag, Some("planned".to_string()));
+    }
+
+    // ── existing tests below ──
 
     #[test]
     fn parse_simple_code_block() {
@@ -188,7 +303,7 @@ cite health --json
             },
         ];
 
-        let commands = extract_cite_commands(&blocks);
+        let commands = extract_cite_commands(&blocks, "");
         assert_eq!(commands.len(), 1);
         assert!(commands[0].command.contains("cite search"));
     }
@@ -208,7 +323,7 @@ cite health --json
             },
         ];
 
-        let commands = extract_cite_commands(&blocks);
+        let commands = extract_cite_commands(&blocks, "");
         assert_eq!(commands.len(), 1);
         assert!(commands[0].expected_output.is_some());
         assert!(commands[0].expected_output.as_ref().unwrap().contains("ok"));

@@ -62,6 +62,9 @@ fn seed_eval_corpus(db: &Database) {
         error: None,
         created_at: now,
         updated_at: now,
+        source_hash: None,
+        ingested_at: None,
+        file_modified_at: None,
     };
     db.insert_document(&doc1).unwrap();
 
@@ -128,6 +131,9 @@ fn seed_eval_corpus(db: &Database) {
         error: None,
         created_at: now,
         updated_at: now,
+        source_hash: None,
+        ingested_at: None,
+        file_modified_at: None,
     };
     db.insert_document(&doc2).unwrap();
 
@@ -194,6 +200,9 @@ fn seed_eval_corpus(db: &Database) {
         error: None,
         created_at: now,
         updated_at: now,
+        source_hash: None,
+        ingested_at: None,
+        file_modified_at: None,
     };
     db.insert_document(&doc3).unwrap();
 

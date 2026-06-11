@@ -34,20 +34,20 @@ GitHub issue: https://github.com/risaavedraf/aicite/issues/30
 
 ### RED
 
-- [ ] Add/extend storage tests in `crates/storage/src/lib.rs`, `crates/storage/src/documents.rs`, and new `crates/storage/src/tags.rs` for migration version 9, lifecycle columns on old/new rows, duplicate tag idempotency, entity-type scoping, reserved-key user rejection, engine reserved-key acceptance, malformed tag rejection, and document `status:changed` rejection for both user and engine paths.
+- [x] Add/extend storage tests in `crates/storage/src/lib.rs`, `crates/storage/src/documents.rs`, and new `crates/storage/src/tags.rs` for migration version 9, lifecycle columns on old/new rows, duplicate tag idempotency, entity-type scoping, reserved-key user rejection, engine reserved-key acceptance, malformed tag rejection, and document `status:changed` rejection for both user and engine paths.
 
 ### GREEN
 
-- [ ] Add `crates/storage/src/migrations/009_tags_lifecycle.sql` with `tags` table, indexes, nullable `documents.source_hash`, `documents.ingested_at`, `documents.file_modified_at`, and document path/hash indexes.
-- [ ] Register migration 009 in `crates/storage/src/migrations/mod.rs`.
-- [ ] Extend `common::types::Document` in `crates/common/src/types.rs` with nullable lifecycle fields and update row mapping/inserts in `crates/storage/src/documents.rs`.
-- [ ] Add tag domain/storage helpers in `crates/storage/src/tags.rs`: entity type, tag record/filter parsing helpers, `set_tag_user`, `set_tag_engine`, `remove_tag_user`, `remove_tag_engine`, `list_tags`, and `clear_chunk_status_changed_for_document`.
-- [ ] Export `pub mod tags;` from `crates/storage/src/lib.rs`.
+- [x] Add `crates/storage/src/migrations/009_tags_lifecycle.sql` with `tags` table, indexes, nullable `documents.source_hash`, `documents.ingested_at`, `documents.file_modified_at`, and document path/hash indexes.
+- [x] Register migration 009 in `crates/storage/src/migrations/mod.rs`.
+- [x] Extend `common::types::Document` in `crates/common/src/types.rs` with nullable lifecycle fields and update row mapping/inserts in `crates/storage/src/documents.rs`.
+- [x] Add tag domain/storage helpers in `crates/storage/src/tags.rs`: entity type, tag record/filter parsing helpers, `set_tag_user`, `set_tag_engine`, `remove_tag_user`, `remove_tag_engine`, `list_tags`, and `clear_chunk_status_changed_for_document`.
+- [x] Export `pub mod tags;` from `crates/storage/src/lib.rs`.
 
 ### VERIFY / REFACTOR
 
-- [ ] Run focused storage tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
-- [ ] Refactor only if tag parsing/validation duplication appears within this slice; do not add CLI behavior yet.
+- [x] Run focused storage tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+- [x] Refactor only if tag parsing/validation duplication appears within this slice; do not add CLI behavior yet.
 
 ## PR 2 — Tag CLI + document-local list filters
 
@@ -57,18 +57,18 @@ GitHub issue: https://github.com/risaavedraf/aicite/issues/30
 
 ### RED
 
-- [ ] Add CLI/parser tests in `crates/cli/src/commands/mod.rs`, new `crates/cli/src/commands/tag.rs`, and `crates/cli/src/commands/list.rs` for `key:value` mutation parsing, key-only mutation rejection, entity inference from `doc_*`/`chunk_*`, `--entity-type document|chunk`, reserved-key rejection, exact remove semantics, AND list filters, and `list --tag status:changed` not matching documents with only changed chunks.
+- [x] Add CLI/parser tests in `crates/cli/src/commands/mod.rs`, new `crates/cli/src/commands/tag.rs`, and `crates/cli/src/commands/list.rs` for `key:value` mutation parsing, key-only mutation rejection, entity inference from `doc_*`/`chunk_*`, `--entity-type document|chunk`, reserved-key rejection, exact remove semantics, AND list filters, and `list --tag status:changed` not matching documents with only changed chunks.
 
 ### GREEN
 
-- [ ] Add `Commands::Tag(commands::tag::TagArgs)` in `crates/cli/src/main.rs` and `pub mod tag;` in `crates/cli/src/commands/mod.rs`.
-- [ ] Implement `crates/cli/src/commands/tag.rs` with `set/get/rm`, entity inference, optional `--entity-type`, and calls to user tag storage APIs.
-- [ ] Convert `List` to `List(commands::list::ListArgs)` in `crates/cli/src/main.rs` and implement `--tag` parsing in `crates/cli/src/commands/list.rs`.
-- [ ] Add document-local tag-filtered list storage helper in `crates/storage/src/documents.rs` using one bound `EXISTS` clause per filter.
+- [x] Add `Commands::Tag(commands::tag::TagArgs)` in `crates/cli/src/main.rs` and `pub mod tag;` in `crates/cli/src/commands/mod.rs`.
+- [x] Implement `crates/cli/src/commands/tag.rs` with `set/get/rm`, entity inference, optional `--entity-type`, and calls to user tag storage APIs.
+- [x] Convert `List` to `List(commands::list::ListArgs)` in `crates/cli/src/main.rs` and implement `--tag` parsing in `crates/cli/src/commands/list.rs`.
+- [x] Add document-local tag-filtered list storage helper in `crates/storage/src/documents.rs` using one bound `EXISTS` clause per filter.
 
 ### VERIFY / REFACTOR
 
-- [ ] Run focused CLI/storage tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+- [x] Run focused CLI/storage tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
 
 ## PR 3 — Retrieval tag filters
 
@@ -78,18 +78,18 @@ GitHub issue: https://github.com/risaavedraf/aicite/issues/30
 
 ### RED
 
-- [ ] Add tests in `crates/storage/src/embeddings.rs`, `crates/engine/src/retrieve.rs`, `crates/engine/src/context.rs`, and CLI command modules `search.rs`, `retrieve.rs`, `context.rs` for exact tag filtering, multiple-filter AND semantics, `status` chunk-local behavior, sibling non-inheritance, pre-ranking exclusion, and legacy `--topic`/`--concept` regression behavior.
+- [x] Add tests in `crates/storage/src/embeddings.rs`, `crates/engine/src/retrieve.rs`, `crates/engine/src/context.rs`, and CLI command modules `search.rs`, `retrieve.rs`, `context.rs` for exact tag filtering, multiple-filter AND semantics, `status` chunk-local behavior, sibling non-inheritance, pre-ranking exclusion, and legacy `--topic`/`--concept` regression behavior.
 
 ### GREEN
 
-- [ ] Add shared retrieval tag filter parsing/validation in `crates/cli/src/commands/mod.rs` or a concrete helper module under `crates/cli/src/commands/`.
-- [ ] Add `--tag` args to `crates/cli/src/commands/search.rs`, `retrieve.rs`, and `context.rs` and pass parsed filters into engine requests.
-- [ ] Extend retrieval request/data flow in `crates/engine/src/retrieve.rs` and `crates/engine/src/context.rs` with `tag_filters`.
-- [ ] Update candidate SQL in `crates/storage/src/embeddings.rs` to append bound chunk-local tag `EXISTS` clauses without string-interpolating user values.
+- [x] Add shared retrieval tag filter parsing/validation in `crates/cli/src/commands/mod.rs` or a concrete helper module under `crates/cli/src/commands/`.
+- [x] Add `--tag` args to `crates/cli/src/commands/search.rs`, `retrieve.rs`, and `context.rs` and pass parsed filters into engine requests.
+- [x] Extend retrieval request/data flow in `crates/engine/src/retrieve.rs` and `crates/engine/src/context.rs` with `tag_filters`.
+- [x] Update candidate SQL in `crates/storage/src/embeddings.rs` to append bound chunk-local tag `EXISTS` clauses without string-interpolating user values.
 
 ### VERIFY / REFACTOR
 
-- [ ] Run focused retrieval tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+- [x] Run focused retrieval tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
 
 ## PR 4 — Ingest lifecycle skip + auto-tags
 
@@ -99,19 +99,19 @@ GitHub issue: https://github.com/risaavedraf/aicite/issues/30
 
 ### RED
 
-- [ ] Add tests in `crates/engine/src/ingest.rs`, `crates/storage/src/documents.rs`, and `crates/storage/src/tags.rs` for `source_hash`, `ingested_at`, `file_modified_at`, source-path lookup, unchanged hash skip, no duplicate active source path, and OpenSpec path auto-tags on both documents and chunks.
+- [x] Add tests in `crates/engine/src/ingest.rs`, `crates/storage/src/documents.rs`, and `crates/storage/src/tags.rs` for `source_hash`, `ingested_at`, `file_modified_at`, source-path lookup, unchanged hash skip, no duplicate active source path, and OpenSpec path auto-tags on both documents and chunks.
 
 ### GREEN
 
-- [ ] Implement `get_document_by_file_path` and lifecycle update helpers in `crates/storage/src/documents.rs` using the same canonical path format that ingest stores.
-- [ ] Compute source hash and file modified time in `crates/engine/src/ingest.rs` before expensive extraction/embedding.
-- [ ] Recheck existing document hash under the existing ingest pipeline lock and return the existing document result without re-chunking/re-embedding when unchanged.
-- [ ] Store lifecycle fields on initial ingest and successful changed ingest.
-- [ ] Add engine-owned auto-tag assignment in `crates/engine/src/ingest.rs` for `source_kind:document`, `workspace:<name>`, and OpenSpec path mappings to `type:prd|spec|architecture|guide|rfc` on documents and chunks; do not propagate `status`.
+- [x] Implement `get_document_by_file_path` and lifecycle update helpers in `crates/storage/src/documents.rs` using the same canonical path format that ingest stores.
+- [x] Compute source hash and file modified time in `crates/engine/src/ingest.rs` before expensive extraction/embedding.
+- [x] Recheck existing document hash under the existing ingest pipeline lock and return the existing document result without re-chunking/re-embedding when unchanged.
+- [x] Store lifecycle fields on initial ingest and successful changed ingest.
+- [x] Add engine-owned auto-tag assignment in `crates/engine/src/ingest.rs` for `source_kind:document`, `workspace:<name>`, and OpenSpec path mappings to `type:prd|spec|architecture|guide|rfc` on documents and chunks; do not propagate `status`.
 
 ### VERIFY / REFACTOR
 
-- [ ] Run focused ingest/storage tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+- [x] Run focused ingest/storage tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
 
 ## PR 5 — Changed re-ingest replacement + chunk-local `status:changed`
 
@@ -121,18 +121,18 @@ GitHub issue: https://github.com/risaavedraf/aicite/issues/30
 
 ### RED
 
-- [ ] Add tests in `crates/engine/src/ingest.rs`, `crates/storage/src/chunks.rs`, `crates/storage/src/embeddings.rs`, and `crates/storage/src/tags.rs` for changed source processing, document ID reuse, no duplicate active documents, content-hash changed chunk detection including duplicate text counts, stale `status:changed` cleanup, document `status:changed` ban, and failure preserving last ready representation where practical.
+- [x] Add tests in `crates/engine/src/ingest.rs`, `crates/storage/src/chunks.rs`, `crates/storage/src/embeddings.rs`, and `crates/storage/src/tags.rs` for changed source processing, document ID reuse, no duplicate active documents, content-hash changed chunk detection including duplicate text counts, stale `status:changed` cleanup, document `status:changed` ban, and failure preserving last ready representation where practical.
 
 ### GREEN
 
-- [ ] Add storage helpers for transactional replacement of a document's chunks, embeddings, related chunk tags, and hierarchy rows in `crates/storage/src/chunks.rs`, `crates/storage/src/embeddings.rs`, and `crates/storage/src/tags.rs`.
-- [ ] Implement changed-source branch in `crates/engine/src/ingest.rs` that compares previous/new chunk text hashes, marks only known changed/new chunks with engine-owned `status:changed`, and never writes document-local `status:changed`.
-- [ ] Clear stale chunk-local `status:changed` for the document during successful replacement before recreating current changed tags.
-- [ ] Update lifecycle metadata, chunk count, and pipeline status only after successful extract/chunk/embed/replace.
+- [x] Add storage helpers for transactional replacement of a document's chunks, embeddings, related chunk tags, and hierarchy rows in `crates/storage/src/chunks.rs`, `crates/storage/src/embeddings.rs`, and `crates/storage/src/tags.rs`.
+- [x] Implement changed-source branch in `crates/engine/src/ingest.rs` that compares previous/new chunk text hashes, marks only known changed/new chunks with engine-owned `status:changed`, and never writes document-local `status:changed`.
+- [x] Clear stale chunk-local `status:changed` for the document during successful replacement before recreating current changed tags.
+- [x] Update lifecycle metadata, chunk count, and pipeline status only after successful extract/chunk/embed/replace.
 
 ### VERIFY / REFACTOR
 
-- [ ] Run focused ingest replacement tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+- [x] Run focused ingest replacement tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
 
 ## PR 6 — `check-docs` markdown status tags
 
@@ -142,17 +142,17 @@ GitHub issue: https://github.com/risaavedraf/aicite/issues/30
 
 ### RED
 
-- [ ] Add tests in `crates/cli/src/commands/check_docs.rs` and `crates/check-docs/src/parser.rs` if that parser crate owns markdown parsing for adjacent `<!-- tag:status=planned -->`, `<!-- tag:status=implemented -->`, unknown tags, blank-line adjacency, and untagged default verification.
+- [x] Add tests in `crates/cli/src/commands/check_docs.rs` and `crates/check-docs/src/parser.rs` if that parser crate owns markdown parsing for adjacent `<!-- tag:status=planned -->`, `<!-- tag:status=implemented -->`, unknown tags, blank-line adjacency, and untagged default verification.
 
 ### GREEN
 
-- [ ] Extend markdown parsing to capture `<!-- tag:key=value -->` comments with line numbers and associate recognized status tags to the next adjacent Cite command block.
-- [ ] Map `status=planned` to planned/skipped/warning output such as `Planned command; verification skipped` instead of outdated failure.
-- [ ] Ensure `status=implemented`, unknown tags, and untagged commands use existing verification paths.
+- [x] Extend markdown parsing to capture `<!-- tag:key=value -->` comments with line numbers and associate recognized status tags to the next adjacent Cite command block.
+- [x] Map `status=planned` to planned/skipped/warning output such as `Planned command; verification skipped` instead of outdated failure.
+- [x] Ensure `status=implemented`, unknown tags, and untagged commands use existing verification paths.
 
 ### VERIFY / REFACTOR
 
-- [ ] Run focused check-docs tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
+- [x] Run focused check-docs tests, then `cargo fmt --check`, `cargo clippy -- -D warnings`, and `cargo test`.
 
 ## PR 7 — Provider trait, config, factory, and health batch strategy
 

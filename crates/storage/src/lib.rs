@@ -12,6 +12,7 @@ mod migrations;
 pub mod rate_limits;
 pub mod semantic_links;
 pub mod snapshots;
+pub mod tags;
 pub mod topics;
 pub mod traces;
 mod util;
@@ -121,6 +122,39 @@ mod tests {
     }
 
     #[test]
+    fn test_migration_version_9_adds_tags_and_lifecycle_columns() {
+        let db = Database::open_memory().unwrap();
+
+        let version: i32 = db
+            .conn()
+            .query_row("SELECT MAX(version) FROM _migrations", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, 9);
+
+        let tag_table_count: i32 = db
+            .conn()
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'tags'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(tag_table_count, 1);
+
+        for column in ["source_hash", "ingested_at", "file_modified_at"] {
+            let exists: i32 = db
+                .conn()
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name = ?1",
+                    [column],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert_eq!(exists, 1, "missing documents.{column}");
+        }
+    }
+
+    #[test]
     fn test_fk_pragma_returns_1() {
         let db = Database::open_memory().unwrap();
         let fk_value: i32 = db
@@ -175,6 +209,9 @@ mod tests {
             error: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            source_hash: None,
+            ingested_at: None,
+            file_modified_at: None,
         };
         db.insert_document(&doc).unwrap();
 
@@ -213,6 +250,9 @@ mod tests {
             error: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            source_hash: None,
+            ingested_at: None,
+            file_modified_at: None,
         };
         db.insert_document(&doc).unwrap();
 
@@ -274,6 +314,9 @@ mod tests {
             error: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
+            source_hash: None,
+            ingested_at: None,
+            file_modified_at: None,
         };
         let mut doc2 = doc1.clone();
         doc2.document_id = "doc-2".to_string().into();

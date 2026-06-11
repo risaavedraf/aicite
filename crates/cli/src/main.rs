@@ -43,7 +43,9 @@ enum Commands {
     /// Ingest a document into the corpus
     Ingest(commands::ingest::IngestArgs),
     /// List documents in the corpus
-    List,
+    List(commands::list::ListArgs),
+    /// Manage local document and chunk tags
+    Tag(commands::tag::TagArgs),
     /// Get document metadata
     Get(commands::get::GetArgs),
     /// Retry a failed document
@@ -115,7 +117,8 @@ fn main() {
         }
         Commands::Setup(args) => commands::setup::execute(&args, &config, cli.json),
         Commands::Ingest(args) => commands::ingest::execute(&args, &config, cli.json),
-        Commands::List => commands::list::execute(&config, cli.json),
+        Commands::List(args) => commands::list::execute(&args, &config, cli.json),
+        Commands::Tag(args) => commands::tag::execute(&args, &config, cli.json),
         Commands::Get(args) => commands::get::execute(&args, &config, cli.json),
         Commands::Retry(args) => commands::retry::execute(&args, &config, cli.json),
         Commands::Search(args) => commands::search::execute(&args, &config, cli.json),
@@ -196,7 +199,8 @@ fn parse_runtime_mode(value: &str) -> Result<RuntimeMode, CiteError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{apply_cli_overrides, parse_runtime_mode};
+    use super::{apply_cli_overrides, parse_runtime_mode, Cli, Commands};
+    use clap::Parser;
     use config::{Config, RuntimeMode};
     use std::path::PathBuf;
 
@@ -239,5 +243,74 @@ mod tests {
         let err = apply_cli_overrides(&mut config, None, Some("prod")).unwrap_err();
 
         assert!(format!("{err}").contains("Invalid --runtime-mode"));
+    }
+
+    #[test]
+    fn search_cli_parses_repeated_tag_filters_in_order() -> Result<(), clap::Error> {
+        let cli = Cli::try_parse_from([
+            "cite",
+            "search",
+            "jwt",
+            "--tag",
+            "type:rfc",
+            "--tag",
+            "status:changed",
+        ])?;
+
+        match cli.command {
+            Commands::Search(args) => {
+                assert_eq!(args.query, "jwt");
+                assert_eq!(args.tags, ["type:rfc", "status:changed"]);
+            }
+            _ => unreachable!("expected search command"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn retrieve_cli_parses_repeated_tag_filters_in_order() -> Result<(), clap::Error> {
+        let cli = Cli::try_parse_from([
+            "cite",
+            "retrieve",
+            "jwt",
+            "--tag",
+            "type:spec",
+            "--tag",
+            "workspace:core",
+        ])?;
+
+        match cli.command {
+            Commands::Retrieve(args) => {
+                assert_eq!(args.query, "jwt");
+                assert_eq!(args.tags, ["type:spec", "workspace:core"]);
+            }
+            _ => unreachable!("expected retrieve command"),
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn context_cli_parses_repeated_tag_filters_in_order() -> Result<(), clap::Error> {
+        let cli = Cli::try_parse_from([
+            "cite",
+            "context",
+            "jwt",
+            "--tag",
+            "type:guide",
+            "--tag",
+            "status",
+        ])?;
+
+        match cli.command {
+            Commands::Context(args) => {
+                assert_eq!(args.query, "jwt");
+                assert_eq!(args.tags, ["type:guide", "status"]);
+            }
+            _ => unreachable!("expected context command"),
+        }
+
+        Ok(())
     }
 }

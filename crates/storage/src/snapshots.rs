@@ -355,6 +355,22 @@ mod tests {
                     id INTEGER PRIMARY KEY CHECK (id = 1),
                     active_snapshot_id TEXT NOT NULL
                 );
+                CREATE TABLE documents (
+                    document_id TEXT PRIMARY KEY,
+                    display_name TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    file_type TEXT NOT NULL,
+                    file_size_bytes INTEGER NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    chunk_count INTEGER NOT NULL DEFAULT 0,
+                    retry_count INTEGER NOT NULL DEFAULT 0,
+                    max_retry_count INTEGER NOT NULL DEFAULT 3,
+                    next_retry_at TEXT,
+                    error_code TEXT,
+                    error_message TEXT,
+                    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+                );
                 INSERT INTO _migrations (version) VALUES (7);
                 INSERT INTO snapshot_pointer (id, active_snapshot_id) VALUES (1, 'snap-old');",
             )

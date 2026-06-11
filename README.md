@@ -66,10 +66,11 @@ All commands accept `--json` for structured output suitable for agent pipelines.
 
 | Command | Description | Example |
 |---|---|---|
-| `health` | Check CLI runtime and local state health | `cite health --json` |
-| `setup` | Interactive setup wizard for first-time configuration | `cite setup` |
+| `health` | Check CLI runtime, storage, and provider health | `cite health --json` |
+| `setup` | Configure API keys and provider settings | `cite setup` |
 | `ingest` | Ingest a document into the corpus | `cite ingest ./doc.txt` |
 | `list` | List documents in the corpus | `cite list` |
+| `tag` | Manage local document and chunk tags | `cite tag set <doc-id> env:prod` |
 | `get` | Get document metadata | `cite get <doc-id>` |
 | `retry` | Retry a failed document | `cite retry <doc-id>` |
 | `search` | Search the ready corpus using vector similarity | `cite search "what is the API gateway"` |
@@ -79,6 +80,8 @@ All commands accept `--json` for structured output suitable for agent pipelines.
 | `trace` | Look up trace metadata for a context/retrieval request | `cite trace <trace-id>` |
 | `refresh` | Refresh corpus with atomic snapshot swap | `cite refresh` |
 | `evaluate` | Run golden dataset evaluation to verify retrieval quality | `cite evaluate --json` |
+| `workspace` | Manage project workspaces | `cite workspace` |
+| `check-docs` | Verify documentation against current binary | `cite check-docs docs/ --recursive` |
 
 ### Retrieval flags (v0.2.0+)
 
@@ -89,6 +92,7 @@ Commands `search`, `retrieve`, and `context` support hierarchical retrieval:
 | `--flat` | Use flat retrieval (v0.1.0 behavior, no hierarchy) | `cite context "query" --flat` |
 | `--topic <name>` | Filter results to a specific topic | `cite search "query" --topic "Authentication"` |
 | `--concept <name>` | Filter results to a specific concept | `cite context "query" --concept "JWT Tokens"` |
+| `--tag <key:value>` | Filter by tag (repeatable, AND semantics) | `cite search "query" --tag env:prod --tag type:spec` |
 | `--full` | Return full JSON response (default: compact when `--json`) | `cite context "query" --json --full` |
 | `--k <n>` | Number of results (1-10, default 5) | `cite search "query" --k 8` |
 
@@ -329,6 +333,7 @@ cargo fmt
 
 | Version | Date | Highlights |
 |---|---|---|
+| v0.4.0 | 2026-06-10 | Tag system (CRUD, filters, auto-tags), document lifecycle (hash, re-ingest skip), chunk-local `status:changed`, Ollama provider, BatchStrategy, provider config extension, `check-docs` status tags, 493 tests |
 | v0.3.0 | 2026-06-05 | Typed string identifiers (DocumentId, ChunkId, etc.), snapshot pointer timestamp migration, graph typed IDs, DateTime normalization (**breaking**: Topic/Concept created_at), DRY/unwrap safety fixes, 320+ tests |
 | v0.2.4 | 2026-06-02 | Error remediation: UTF-8 fixes (non-ASCII support), FK enforcement, API key validation, production guard, rate limit compliance, config consolidation, 308 tests |
 | v0.2.3 | 2026-06-02 | Trace provenance, offline trace retrieval, CLI overrides (`--data-dir`, `--runtime-mode`), docs→openspec rename |

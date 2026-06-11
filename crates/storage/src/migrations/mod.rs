@@ -10,6 +10,7 @@ const HIERARCHY_SCHEMA: &str = include_str!("006_hierarchy.sql");
 const TRACE_PROVENANCE_SCHEMA: &str = include_str!("007_trace_provenance.sql");
 const SNAPSHOT_POINTER_UPDATED_AT_SCHEMA: &str =
     include_str!("008_snapshot_pointer_updated_at.sql");
+const TAGS_LIFECYCLE_SCHEMA: &str = include_str!("009_tags_lifecycle.sql");
 
 /// Run pending migrations
 pub fn run(conn: &Connection) -> Result<(), CiteError> {
@@ -66,6 +67,10 @@ pub fn run(conn: &Connection) -> Result<(), CiteError> {
 
     if current_version < 8 {
         run_migration(conn, 8, SNAPSHOT_POINTER_UPDATED_AT_SCHEMA)?;
+    }
+
+    if current_version < 9 {
+        run_migration(conn, 9, TAGS_LIFECYCLE_SCHEMA)?;
     }
 
     Ok(())
